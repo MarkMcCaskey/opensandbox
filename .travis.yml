@@ -1,27 +1,23 @@
-env:
-    - CABALVER=1.18 GHCVER=7.8.4
-    - CABALVER=1.22 GHCVER=7.10.1
-    - CABALVER=1.22 GHCVER=7.10.2
-    - CABALVER=head GHCVER=head
+language: haskell
 
-matrix:
-    allow_failures:
-        - env: CABALVER=head GHCVER=head
-        - env: CABALVER=1.22 GHCVER=7.10.2
+branches:
+  only:
+    - master
+
+sudo: false
+cache:
+  directories:
+    - $HOME/.stack/
 
 before_install:
-    - travis_retry sudo add-apt-repository -y ppa:hvr/ghc
-    - travis_retry sudo apt-get update
-    - travis_retry sudo apt-get install cabal-install-$CABALVER ghc-$GHCVER
-    - export PATH=$HOME/.cabal/bin:/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$PATH
+    - mkdir -p ~/.local/bin
+    - export PATH=~/.local/bin:$PATH
+    - travis_retry curl -L https://github.com/commercialhaskell/stack/releases/download/v0.1.6.0/stack-0.1.6.0-x86_64-linux.tar.gz | tar xz -C ~/.local/bin
 
 install:
-    - cabal --version
-    - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
-    - travis_retry cabal update
-    - cabal install --only-dependencies --enable-tests --enable-benchmarks
+  - stack setup --no-terminal
+  - stack build --only-snapshot --no-terminal
 
 script:
-    - cabal configure --enable-tests
-    - cabal build
-    - cabal test
+  - stack build --no-terminal
+  - stack test --no-terminal
