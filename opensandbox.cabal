@@ -60,7 +60,6 @@ executable opensandbox
     build-depends:          aeson,
                             attoparsec,
                             base,
-                            binary,
                             bytestring,
                             containers,
                             network,

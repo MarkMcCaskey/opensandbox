@@ -3,7 +3,7 @@ module OpenSandbox.Minecraft.Protocol.Login
   , EncryptionRequest (..)
   , LoginSuccess (..)
   , SetCompression (..)
-  , LoginStart (..)
+  , LoginStart
   , EncryptionResponse (..)
   ) where
 

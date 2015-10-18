@@ -12,6 +12,7 @@ import Data.Binary.Put
 import Data.Bits
 import Data.Int
 import Data.Word
+import GHC.Generics
 import Linear.V3
 
 import OpenSandbox.Minecraft.Protocol.Types
@@ -45,7 +46,6 @@ parsePort b = toEnum ((shiftL l 8) + r)
   where (l:r:[]) = fmap fromEnum (B.unpack b)
 
 
--- |
 handshake :: P.Parser Yggdrasil
 handshake = do
     P.anyWord8
