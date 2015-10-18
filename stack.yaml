@@ -1,0 +1,5 @@
+flags: {}
+packages:
+- '.'
+extra-deps: [uuid-aeson-0.1.0.0, ekg-0.4.0.8, ekg-core-0.1.1.0, ekg-json-0.1.0.0]
+resolver: nightly-2015-10-01

@@ -1,0 +1,84 @@
+name:                       opensandbox
+version:                    0.0.0.1
+synopsis:                   (WIP)
+description:                Please see README.md
+homepage:                   https://github.com/oldmanmike/opensandbox
+bug-reports:                https://github.com/oldmanmike/opensandbox/issues
+license:                    BSD3
+license-file:               LICENSE
+author:                     Michael Carpenter
+maintainer:                 Michael Carpenter <oldmanmike.dev@gmail.com>
+copyright:                  Copyright (C) 2015 Michael Carpenter
+category:                   Game
+build-type:                 Simple
+extra-source-files:         README.md, LICENSE
+cabal-version:              >=1.10
+
+library
+    hs-source-dirs:         src
+    exposed-modules:        OpenSandbox
+                            OpenSandbox.Minecraft
+                            OpenSandbox.Minecraft.BannedIP
+                            OpenSandbox.Minecraft.BannedPlayer
+                            OpenSandbox.Minecraft.Log
+                            OpenSandbox.Minecraft.NBT
+                            OpenSandbox.Minecraft.Protocol
+                            OpenSandbox.Minecraft.Protocol.Handshaking
+                            OpenSandbox.Minecraft.Protocol.Login
+                            OpenSandbox.Minecraft.Protocol.Status
+                            OpenSandbox.Minecraft.Protocol.Types
+                            OpenSandbox.Minecraft.Op
+                            --OpenSandbox.Minecraft.ServerProperties
+                            OpenSandbox.Minecraft.User
+                            OpenSandbox.Minecraft.WhiteList
+    build-depends:          base >= 4.7 && < 5,
+                            aeson,
+                            attoparsec,
+                            binary,
+                            bytes,
+                            bytestring,
+                            configurator,
+                            containers,
+                            errors,
+                            hspec,
+                            iproute,
+                            linear,
+                            mtl,
+                            network,
+                            parsec,
+                            QuickCheck,
+                            text,
+                            time,
+                            uuid,
+                            uuid-aeson
+    default-language:       Haskell2010
+
+executable opensandbox
+    hs-source-dirs:         app
+    main-is:                Main.hs
+    ghc-options:            -threaded -rtsopts -with-rtsopts=-N
+    build-depends:          aeson,
+                            attoparsec,
+                            base,
+                            binary,
+                            bytestring,
+                            containers,
+                            network,
+                            opensandbox,
+                            text
+    default-language:       Haskell2010
+
+test-suite opensandbox-test
+    type:                   exitcode-stdio-1.0
+    hs-source-dirs:         test
+    main-is:                Spec.hs
+    build-depends:          base,
+                            hspec,
+                            opensandbox,
+                            QuickCheck
+    ghc-options:            -threaded -rtsopts -with-rtsopts=-N
+    default-language:       Haskell2010
+
+source-repository head
+    type:     git
+    location: https://github.com/oldmanmike/opensandbox.git
