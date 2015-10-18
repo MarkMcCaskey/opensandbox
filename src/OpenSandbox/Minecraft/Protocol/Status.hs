@@ -8,9 +8,11 @@ module OpenSandbox.Minecraft.Protocol.Status
   , Ping (..)
   ) where
 
+
 import Data.Aeson
 import qualified Data.Text as T
 import GHC.Generics
+
 
 data Response = Response
   { version       :: Version

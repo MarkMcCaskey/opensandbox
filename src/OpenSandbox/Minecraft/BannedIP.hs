@@ -15,7 +15,7 @@ module OpenSandbox.Minecraft.BannedIP (
     writeBannedIPs
 ) where
 
--- External Imports
+
 import Control.Applicative
 import Control.Monad
 import Data.Aeson

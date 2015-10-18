@@ -3,6 +3,7 @@ module OpenSandbox.Minecraft.Protocol.Handshaking
   , handshake
   ) where
 
+
 import qualified Data.Attoparsec.ByteString as P
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Text as T
@@ -14,7 +15,6 @@ import Data.Int
 import Data.Word
 import GHC.Generics
 import Linear.V3
-
 import OpenSandbox.Minecraft.Protocol.Types
 
 
@@ -57,6 +57,7 @@ handshake = do
     state <- P.anyWord8
     return $ Handshake version address (parsePort port) state
 
+
 {-
 ping :: P.Parser Yggdrasil
 ping = do
@@ -73,6 +74,7 @@ legacyPing = do
   payload <- P.take (fromEnum lengthByte :: Int)
   return $ LegacyPing payload -- error
 -}
+
 
 instance Binary Yggdrasil where
   put (Handshake version address port state) = do

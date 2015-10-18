@@ -17,6 +17,7 @@ module OpenSandbox.Minecraft.WhiteList (
     rmWhiteListUser
 ) where
 
+
 import Control.Applicative
 import Control.Monad
 import Data.Aeson

@@ -7,19 +7,22 @@ module OpenSandbox.Minecraft.Protocol.Login
   , EncryptionResponse (..)
   ) where
 
+
 import qualified Data.ByteString as B
 import qualified Data.Text as T
-
 import OpenSandbox.Minecraft.Protocol.Types
+
 
 -------------------------------------------------------------------------------
 -- Clientbound
 -------------------------------------------------------------------------------
 
+
 -- Packet ID: 0x00
 data Disconnect = Disconnect
   { reason :: !T.Text
   } deriving (Show,Eq,Read)
+
 
 -- Packet ID: 0x01
 data EncryptionRequest = EncryptionRequest
@@ -30,25 +33,30 @@ data EncryptionRequest = EncryptionRequest
   , verifyTokenReq        :: !B.ByteString
   } deriving (Show,Eq,Read)
 
+
 -- Packet ID: 0x02
 data LoginSuccess = LoginSuccess
   { uuid      :: !T.Text
   , username  :: !T.Text
   } deriving (Show,Eq,Read)
 
+
 -- Packet ID: 0x03
 data SetCompression = SetCompession
   { threshold :: !VarInt
   } deriving (Show,Eq,Read)
 
+
 -------------------------------------------------------------------------------
 -- Serverbound
 -------------------------------------------------------------------------------
+
 
 -- Packet ID: 0x00
 data LoginStart = LoginStart
   { name :: !T.Text
   } deriving (Show,Eq,Read)
+
 
 -- Packet ID: 0x01
 data EncryptionResponse = EncryptionResponse

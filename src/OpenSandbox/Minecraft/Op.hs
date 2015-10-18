@@ -18,7 +18,7 @@ module OpenSandbox.Minecraft.Op (
     modOp
 ) where
 
--- External Imports
+
 import Control.Applicative
 import Control.Monad
 import Data.Aeson
@@ -28,8 +28,6 @@ import qualified Data.Text as T
 import Data.UUID
 import Data.UUID.Aeson
 import GHC.Generics
-
--- Internal Imports
 import qualified OpenSandbox.Minecraft.User as U
 
 

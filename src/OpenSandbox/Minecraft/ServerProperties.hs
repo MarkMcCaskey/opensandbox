@@ -13,11 +13,13 @@ module OpenSandbox.Minecraft.ServerProperties (
     readServerProperties
 ) where
 
+
 import Control.Error.Safe
 import Data.Char
 import Data.IP (IPv4 (..))
 import qualified Data.Text as T
 import Text.ParserCombinators.Parsec
+
 
 newtype AllowFlight = AllowFlight Bool
     deriving (Eq,Ord,Read,Show)
@@ -100,7 +102,7 @@ newtype ViewDistance = ViewDistance Int
 newtype WhiteList = WhiteList Bool
     deriving (Eq,Ord,Read,Show)
 
-data ServerProperties = ServerProperties 
+data ServerProperties = ServerProperties
     { allowFlight                   :: !AllowFlight
     , allowNether                   :: !AllowNether
     , announcePlayerAchievements    :: !AnnouncePlayerAchievements
@@ -185,7 +187,7 @@ line  = do result <- fields
 fields :: GenParser Char st (String,String)
 fields = do first <- fieldContent
             second <- valueContent
-            return (first,second) 
+            return (first,second)
 
 
 fieldContent :: GenParser Char st String
@@ -256,7 +258,7 @@ buildServerProperties lst = do
 mkAllowFlight :: T.Text -> Either String AllowFlight
 mkAllowFlight raw = do
         case raw of
-            "true"  -> Right $ AllowFlight True 
+            "true"  -> Right $ AllowFlight True
             "false" -> Right $ AllowFlight False
             ""      -> Right $ AllowFlight False
             _       -> Left err
@@ -386,7 +388,7 @@ mkLevelType raw = do
             "CUSTOMIZED"    -> Right $ LevelType raw
             ""              -> Right $ LevelType raw
             _               -> Left err
-    where err = "Error: level-type value invalid!" 
+    where err = "Error: level-type value invalid!"
 
 
 mkMaxBuildHeight :: T.Text -> Either String MaxBuildHeight
@@ -558,8 +560,8 @@ mkUseNativeTransport raw = do
 
 mkViewDistance :: T.Text -> Either String ViewDistance
 mkViewDistance raw = do
-    let x = (readErr err (T.unpack raw) :: Either String Int) 
-    case x of 
+    let x = (readErr err (T.unpack raw) :: Either String Int)
+    case x of
         Right n -> if (n >= 3 && n <= 15)
                       then Right $ ViewDistance n
                       else Left err

@@ -5,11 +5,13 @@ module OpenSandbox.Minecraft.Protocol.Types
   , Position
   ) where
 
+
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Text as T
 import Data.Int
 import Data.Word
 import Linear.V3
+
 
 -- Type Conversion Legend
 -- Boolean        -> Bool
@@ -26,8 +28,10 @@ import Linear.V3
 -- VarInt         -> Int (1 <= VarInt <= 5 bytes)
 -- VarLong        -> Long (1 <= VarLong <= 10 bytes)
 
+
 type VarInt = Int
 type VarLong = Int64
+
 
 type Slot = B.ByteString
 type Position = V3 Int32
