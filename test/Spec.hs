@@ -1,4 +1,12 @@
 import OpenSandbox
+import OpenSandbox.Minecraft.Protocol.Handshaking
+import Data.Binary
+import Test.QuickCheck
+
+
+--prop_handshakeSerialize :: Yggdrasil -> Bool
+--prop_handshakeSerialize y = ((decode . encode) y :: Yggdrasil) == id y
+
 
 main :: IO ()
 main = do
@@ -33,3 +41,5 @@ main = do
     case bannedPlayers of
       Left err -> putStrLn err
       Right bannedPlayers -> print bannedPlayers
+
+    --quickCheck prop_handshakeSerialize

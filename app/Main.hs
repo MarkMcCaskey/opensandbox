@@ -10,7 +10,7 @@ import qualified  Data.Text as T
 import            GHC.Generics
 import            Network.Socket hiding (send,recv)
 import            Network.Socket.ByteString
-import qualified  Data.Attoparsec.ByteString as P
+import            Data.Binary
 import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Lazy as BL
 import            Data.Word
@@ -41,13 +41,10 @@ runConn (sock, _) = do
   putStrLn "|                           Packet Report                         |"
   putStrLn "==================================================================="
   putStrLn "[Raw]"
-  putStrLn $ show $ B.unpack packet
+  print $ B.unpack packet
   putStrLn "==================================================================="
   putStrLn "[Parsed]"
-  case (B.index packet 1) of
-    0 -> P.parseTest handshake packet
-    1 -> putStrLn $ show packet
-    _ -> putStrLn $ "Error: Unkown packet ID" ++ (show $ B.index packet 1)
+  print $ (decode (BL.fromStrict packet) :: Yggdrasil)
   putStrLn "==================================================================="
   putStrLn "///////////////////////////////////////////////////////////////////"
   let response = BL.toStrict (Aeson.encode testResponse)

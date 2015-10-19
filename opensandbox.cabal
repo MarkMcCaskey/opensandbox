@@ -28,12 +28,10 @@ library
                             OpenSandbox.Minecraft.Protocol.Status
                             OpenSandbox.Minecraft.Protocol.Types
                             OpenSandbox.Minecraft.Op
-                            --OpenSandbox.Minecraft.ServerProperties
                             OpenSandbox.Minecraft.User
                             OpenSandbox.Minecraft.WhiteList
     build-depends:          base >= 4.7 && < 5,
                             aeson,
-                            attoparsec,
                             binary,
                             bytes,
                             bytestring,
@@ -58,8 +56,8 @@ executable opensandbox
     main-is:                Main.hs
     ghc-options:            -threaded -rtsopts -with-rtsopts=-N
     build-depends:          aeson,
-                            attoparsec,
                             base,
+                            binary,
                             bytestring,
                             containers,
                             network,
@@ -72,6 +70,7 @@ test-suite opensandbox-test
     hs-source-dirs:         test
     main-is:                Spec.hs
     build-depends:          base,
+                            binary,
                             hspec,
                             opensandbox,
                             QuickCheck

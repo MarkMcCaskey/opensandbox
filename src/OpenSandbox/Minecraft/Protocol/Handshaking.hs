@@ -1,10 +1,8 @@
 module OpenSandbox.Minecraft.Protocol.Handshaking
-  ( Yggdrasil
-  , handshake
+  ( Yggdrasil (..)
   ) where
 
 
-import qualified Data.Attoparsec.ByteString as P
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Text as T
 import Data.Binary
@@ -20,7 +18,6 @@ import OpenSandbox.Minecraft.Protocol.Types
 
 data Yggdrasil
     = Handshake Word8 B.ByteString Word16 Word8
-    | Request
   --  | Ping Word64
   --  | LegacyPing Word8
     deriving (Show,Eq,Read)
@@ -47,23 +44,6 @@ parsePort b = toEnum ((shiftL l 8) + r)
   where (l:r:[]) = fmap fromEnum (B.unpack b)
 
 
-handshake :: P.Parser Yggdrasil
-handshake = do
-    P.anyWord8
-    P.word8 0
-    version <- P.anyWord8
-    length <- P.anyWord8
-    address <- P.take (fromEnum length :: Int)
-    port <- P.take 2
-    state <- P.anyWord8
-    return $ Handshake version address (parsePort port) state
-
-
-request :: P.Parser Yggdrasil
-request = do
-  P.word8 1
-  P.word8 0
-  return Request
 {-
 ping :: P.Parser Yggdrasil
 ping = do
@@ -87,24 +67,16 @@ instance Binary Yggdrasil where
     put (fromIntegral $ 6 + B.length address :: Word8)
     put (0 :: Word8)
     put version
+    put (fromIntegral $ B.length address :: Word8)
     putByteString address
     put port
     put state
-{-
-  put (Ping payload) = do
-    put (10 :: Word8)
-    put (1 :: Word8)
-    putByteString payload
-  put (LegacyPing payload) = do
-    put (fromIntegral $ 2 + B.length payload :: Word8)
-    put (0 :: Word8)
-    putByteString payload -- error
--}
+
   get = do
     len <- getWord8
     packetID <- getWord8
     case packetID of
       0 -> Handshake <$> getWord8 <*> (getWord8 >>= (\x -> getByteString (fromIntegral x))) <*> getWord16be <*> getWord8
- --     1 -> Ping <$> (get :: Word64)
+      --1 -> Ping <$> (get :: Word64)
   --    254 -> LegacyPing <$> (get :: Word8)
       _ -> fail "Unrecognized packet!"
