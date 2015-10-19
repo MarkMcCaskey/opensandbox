@@ -20,6 +20,7 @@ import OpenSandbox.Minecraft.Protocol.Types
 
 data Yggdrasil
     = Handshake Word8 B.ByteString Word16 Word8
+    | Request
   --  | Ping Word64
   --  | LegacyPing Word8
     deriving (Show,Eq,Read)
@@ -58,6 +59,11 @@ handshake = do
     return $ Handshake version address (parsePort port) state
 
 
+request :: P.Parser Yggdrasil
+request = do
+  P.word8 1
+  P.word8 0
+  return Request
 {-
 ping :: P.Parser Yggdrasil
 ping = do

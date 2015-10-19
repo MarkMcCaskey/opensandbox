@@ -21,3 +21,4 @@ install:
 script:
   - stack build --no-terminal
   - stack test --no-terminal
+  - stack bench --no-terminal

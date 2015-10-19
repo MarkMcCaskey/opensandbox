@@ -3,6 +3,7 @@ module OpenSandbox.Minecraft.Protocol.Status
   ( Response (..)
   , Version (..)
   , Players (..)
+  , Description (..)
   , Pong (..)
   , Request (..)
   , Ping (..)
@@ -17,7 +18,7 @@ import GHC.Generics
 data Response = Response
   { version       :: Version
   , players       :: Players
-  , description   :: T.Text
+  , description   :: Description
   } deriving (Generic,Show)
 
 
@@ -48,3 +49,12 @@ data Players = Players
 
 instance ToJSON Players
 instance FromJSON Players
+
+
+data Description = Description
+  { text    :: T.Text
+  } deriving (Generic,Show)
+
+
+instance ToJSON Description
+instance FromJSON Description
