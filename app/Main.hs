@@ -36,15 +36,15 @@ mainLoop sock = do
 
 runConn :: (Socket, SockAddr) -> IO ()
 runConn (sock, _) = do
-  packet <- recv sock 508
+  packet <- recv sock 254
   putStrLn "==================================================================="
-  putStrLn "|                           Packet Report                         |"
+  putStrLn "|                        << Packet Report >>                      |"
   putStrLn "==================================================================="
   putStrLn "[Raw]"
   print $ B.unpack packet
   putStrLn "==================================================================="
   putStrLn "[Parsed]"
-  print $ (decode (BL.fromStrict packet) :: Yggdrasil)
+  print $ (decode (BL.fromStrict packet) :: ServerBoundHandshake)
   putStrLn "==================================================================="
   putStrLn "///////////////////////////////////////////////////////////////////"
   let response = BL.toStrict (Aeson.encode testResponse)

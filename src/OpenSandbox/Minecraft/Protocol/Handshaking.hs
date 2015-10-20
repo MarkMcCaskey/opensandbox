@@ -1,5 +1,5 @@
 module OpenSandbox.Minecraft.Protocol.Handshaking
-  ( Yggdrasil (..)
+  ( ServerBoundHandshake (..)
   ) where
 
 
@@ -13,15 +13,12 @@ import Data.Int
 import Data.Word
 import GHC.Generics
 import Linear.V3
-import OpenSandbox.Minecraft.Protocol.Types
 
 
-data Yggdrasil
+data ServerBoundHandshake
     = Handshake Word8 B.ByteString Word16 Word8
-  --  | Ping Word64
-  --  | LegacyPing Word8
+    | Ping Word64
     deriving (Show,Eq,Read)
-
 
 {-
 -- Packet ID: 0x00
@@ -62,7 +59,7 @@ legacyPing = do
 -}
 
 
-instance Binary Yggdrasil where
+instance Binary ServerBoundHandshake where
   put (Handshake version address port state) = do
     put (fromIntegral $ 6 + B.length address :: Word8)
     put (0 :: Word8)
@@ -71,12 +68,15 @@ instance Binary Yggdrasil where
     putByteString address
     put port
     put state
+  put (Ping payload) = do
+    put (fromIntegral $ 2 + 8 :: Word8)
+    put (1 :: Word8)
+    putWord64be payload
 
   get = do
     len <- getWord8
     packetID <- getWord8
     case packetID of
       0 -> Handshake <$> getWord8 <*> (getWord8 >>= (\x -> getByteString (fromIntegral x))) <*> getWord16be <*> getWord8
-      --1 -> Ping <$> (get :: Word64)
-  --    254 -> LegacyPing <$> (get :: Word8)
+      1 -> Ping <$> (get :: Get Word64)
       _ -> fail "Unrecognized packet!"

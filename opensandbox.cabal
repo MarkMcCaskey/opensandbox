@@ -24,9 +24,7 @@ library
                             OpenSandbox.Minecraft.NBT
                             OpenSandbox.Minecraft.Protocol
                             OpenSandbox.Minecraft.Protocol.Handshaking
-                            OpenSandbox.Minecraft.Protocol.Login
                             OpenSandbox.Minecraft.Protocol.Status
-                            OpenSandbox.Minecraft.Protocol.Types
                             OpenSandbox.Minecraft.Op
                             OpenSandbox.Minecraft.User
                             OpenSandbox.Minecraft.WhiteList

@@ -4,9 +4,6 @@ module OpenSandbox.Minecraft.Protocol.Status
   , Version (..)
   , Players (..)
   , Description (..)
-  , Pong (..)
-  , Request (..)
-  , Ping (..)
   ) where
 
 
@@ -24,11 +21,6 @@ data Response = Response
 
 instance ToJSON Response
 instance FromJSON Response
-
-
-data Pong = Pong deriving (Show,Eq,Read)
-data Request = Request deriving (Show,Eq,Read)
-data Ping = Ping deriving (Show,Eq,Read)
 
 
 data Version = Version
