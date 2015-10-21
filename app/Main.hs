@@ -45,23 +45,34 @@ runConn (sock, _) = do
   putStrLn "==================================================================="
   putStrLn "[Parsed]"
   print $ (decode (BL.fromStrict maybeHandshake) :: ServerBoundHandshake)
-  putStrLn "==================================================================="
-  putStrLn "///////////////////////////////////////////////////////////////////"
-  putStrLn "==================================================================="
   let response = BL.toStrict (Aeson.encode testResponse)
   let outgoing = B.cons (121 :: Word8) (B.cons (0 :: Word8) (B.cons (119 :: Word8) response))
   send sock outgoing
+  putStrLn "==================================================================="
+  putStrLn "///////////////////////////////////////////////////////////////////"
+  putStrLn "==================================================================="
   ping <- recv sock 254
   putStrLn "[Raw Ping]"
   print ping
   print $ B.unpack ping
-  send sock ping
+  maybePing sock ping
   putStrLn "==================================================================="
   putStrLn "///////////////////////////////////////////////////////////////////"
   putStrLn "==================================================================="
   putStrLn "|                     << Packet Report End >>                     |"
   putStrLn "==================================================================="
   sClose sock
+
+
+maybePing :: Socket -> B.ByteString -> IO ()
+maybePing sock maybePing = if ((B.length maybePing == 10) && ((B.index maybePing 1) == 1))
+                              then do
+                                    send sock maybePing
+                                    return ()
+                              else do
+                                    packet <- recv sock 254
+                                    send sock packet
+                                    return ()
 
 
 testResponse :: Response
