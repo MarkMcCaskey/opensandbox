@@ -30,26 +30,37 @@ main = do
 mainLoop :: Socket -> IO ()
 mainLoop sock = do
   conn <- accept sock
-  forkIO (runConn conn)
+  runConn conn
   mainLoop sock
-
 
 runConn :: (Socket, SockAddr) -> IO ()
 runConn (sock, _) = do
-  packet <- recv sock 254
+  maybeHandshake <- recv sock 254
   putStrLn "==================================================================="
-  putStrLn "|                        << Packet Report >>                      |"
+  putStrLn "|                    << Packet Report Begin >>                    |"
   putStrLn "==================================================================="
-  putStrLn "[Raw]"
-  print $ B.unpack packet
+  putStrLn "[Raw Handshake]"
+  print maybeHandshake
+  print $ B.unpack maybeHandshake
   putStrLn "==================================================================="
   putStrLn "[Parsed]"
-  print $ (decode (BL.fromStrict packet) :: ServerBoundHandshake)
+  print $ (decode (BL.fromStrict maybeHandshake) :: ServerBoundHandshake)
   putStrLn "==================================================================="
   putStrLn "///////////////////////////////////////////////////////////////////"
+  putStrLn "==================================================================="
   let response = BL.toStrict (Aeson.encode testResponse)
-  let outgoing = B.cons (111 :: Word8) (B.cons (0 :: Word8) (B.cons (109 :: Word8) response))
+  let outgoing = B.cons (121 :: Word8) (B.cons (0 :: Word8) (B.cons (119 :: Word8) response))
   send sock outgoing
+  ping <- recv sock 254
+  putStrLn "[Raw Ping]"
+  print ping
+  print $ B.unpack ping
+  send sock ping
+  putStrLn "==================================================================="
+  putStrLn "///////////////////////////////////////////////////////////////////"
+  putStrLn "==================================================================="
+  putStrLn "|                     << Packet Report End >>                     |"
+  putStrLn "==================================================================="
   sClose sock
 
 
@@ -58,3 +69,4 @@ testResponse = Response
   (Version "15w42a" 79)
   (Players 20 0)
   (Description "A Minecraft Server")
+
