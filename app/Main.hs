@@ -16,6 +16,17 @@ import qualified  Data.ByteString.Lazy as BL
 import            Data.Word
 
 
+data ClientBoundLogin
+  = Disconnect T.Text
+  | EncryptionRequest B.ByteString VarInt B.ByteString VarInt B.ByteString
+  | LoginSuccess B.ByteString B.ByteString
+  deriving (Show,Eq,Read)
+
+data ServerBoundLogin
+  = LoginStart B.ByteString
+  | EncryptionResponse VarInt B.ByteString VarInt B.ByteString
+  deriving (Show,Eq,Read)
+
 main :: IO ()
 main = do
     let port = 25567
@@ -30,11 +41,11 @@ main = do
 mainLoop :: Socket -> IO ()
 mainLoop sock = do
   conn <- accept sock
-  runConn conn
+  runServerList conn
   mainLoop sock
 
-runConn :: (Socket, SockAddr) -> IO ()
-runConn (sock, _) = do
+runServerList :: (Socket, SockAddr) -> IO ()
+runServerList (sock, _) = do
   maybeHandshake <- recv sock 254
   putStrLn "==================================================================="
   putStrLn "|                    << Packet Report Begin >>                    |"
@@ -63,16 +74,27 @@ runConn (sock, _) = do
   putStrLn "==================================================================="
   sClose sock
 
+login :: Socket -> IO ()
+login sock = do
+  handshake <- recv sock 254
+  loginStart <- recv sock 254
+  print $ (decode (BL.fromStrict packet) :: ServerBoundHandshake)
+  let encryptionRequest =
+  send sock encryptionRequest
+  recv
+
+
 
 maybePing :: Socket -> B.ByteString -> IO ()
-maybePing sock maybePing = if ((B.length maybePing == 10) && ((B.index maybePing 1) == 1))
-                              then do
-                                    send sock maybePing
-                                    return ()
-                              else do
-                                    packet <- recv sock 254
-                                    send sock packet
-                                    return ()
+maybePing sock maybePing = do
+    if ((B.length maybePing == 10) && ((B.index maybePing 1) == 1))
+        then do
+              send sock maybePing
+              return ()
+        else do
+              packet <- recv sock 254
+              send sock packet
+              return ()
 
 
 testResponse :: Response

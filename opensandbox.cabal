@@ -43,6 +43,7 @@ library
                             network,
                             parsec,
                             QuickCheck,
+                            RSA,
                             text,
                             time,
                             uuid,
