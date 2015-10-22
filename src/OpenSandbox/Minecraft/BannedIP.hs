@@ -2,28 +2,29 @@
 {-# LANGUAGE OverloadedStrings #-}
 -------------------------------------------------------------------------------
 -- |
--- Copyright        : (c) 2015 Michael Carpenter
--- License          : BSD3
--- Maintainer       : Michael Carpenter <oldmanmike.dev@gmail.com>
--- Stability        : provisional
--- Portability      : portable
+-- Module:      : OpenSandbox.Minecraft.BannedIP
+-- Copyright    : (c) 2015 Michael Carpenter
+-- License      : BSD3
+-- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
+-- Stability    : experimental
+-- Portability  : portable
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Minecraft.BannedIP (
-    BannedIP,
-    readBannedIPs,
-    writeBannedIPs
-) where
+module OpenSandbox.Minecraft.BannedIP
+    ( BannedIP
+    , readBannedIPs
+    , writeBannedIPs
+    ) where
 
 
-import Control.Applicative
-import Control.Monad
-import Data.Aeson
-import qualified Data.ByteString.Lazy as B
-import Data.IP (IPv4 (..))
-import Data.Set
-import qualified Data.Text as T
-import GHC.Generics
+import            Control.Applicative
+import            Control.Monad
+import            Data.Aeson
+import qualified  Data.ByteString.Lazy as B
+import            Data.IP (IPv4 (..))
+import            Data.Set
+import qualified  Data.Text as T
+import            GHC.Generics
 
 
 data BannedIP = BannedIP

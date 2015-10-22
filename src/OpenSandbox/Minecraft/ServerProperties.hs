@@ -1,24 +1,25 @@
 {-# LANGUAGE OverloadedStrings #-}
 -------------------------------------------------------------------------------
 -- |
--- Copyright        : (c) 2015 Michael Carpenter
--- License          : BSD3
--- Maintainer       : Michael Carpenter <oldmanmike.dev@gmail.com>
--- Stability        : provisional
--- Portability      : portable
+-- Module       : OpenSandbox.Minecraft.ServerProperties
+-- Copyright    : (c) 2015 Michael Carpenter
+-- License      : BSD3
+-- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
+-- Stability    : experimental
+-- Portability  : portable
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Minecraft.ServerProperties (
-    ServerProperties,
-    readServerProperties
-) where
+module OpenSandbox.Minecraft.ServerProperties
+    ( ServerProperties
+    , readServerProperties
+    ) where
 
 
-import Control.Error.Safe
-import Data.Char
-import Data.IP (IPv4 (..))
-import qualified Data.Text as T
-import Text.ParserCombinators.Parsec
+import            Control.Error.Safe
+import            Data.Char
+import            Data.IP (IPv4 (..))
+import qualified  Data.Text as T
+import            Text.ParserCombinators.Parsec
 
 
 newtype AllowFlight = AllowFlight Bool

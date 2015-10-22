@@ -1,6 +1,17 @@
+-------------------------------------------------------------------------------
+-- |
+-- Module       : OpenSandbox.Minecraft.Protocol.Handshaking
+-- Copyright    : (c) 2015 Michael Carpenter
+-- License      : BSD3
+-- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
+-- Stability    : experimental
+-- Portability  : portable
+--
+-------------------------------------------------------------------------------
 module OpenSandbox.Minecraft.Protocol.Handshaking
-  ( ServerBoundHandshake (..)
-  ) where
+    ( ServerBoundHandshake (..)
+    , ServerBoundLogin
+    ) where
 
 
 import qualified Data.ByteString.Char8 as B
@@ -12,51 +23,30 @@ import Data.Bits
 import Data.Int
 import Data.Word
 import GHC.Generics
-import Linear.V3
 
+
+data ServerBoundLogin
+    = LoginStart B.ByteString
+    | EncryptionResponse Word16 B.ByteString Word16 B.ByteString
+    deriving (Show,Eq,Read)
+
+{-
+instance Binary ServerBoundLogin where
+  put (LoginStart name)
+    put (fromIntegral $ 3 + B.length name :: Word8)
+    put (0 :: Word8)
+    put (B.length name :: Word8)
+    putByteString name
+  put (EncryptionResponse secretLength secret tokenLength token)
+    put (fromIntegral $ 2 + secretLength + tokenLength)
+    put (1 :: Word8)
+    put
+-}
 
 data ServerBoundHandshake
     = Handshake Word8 B.ByteString Word16 Word8
     | Ping Word64
     deriving (Show,Eq,Read)
-
-{-
--- Packet ID: 0x00
-data Handshake = Handshake
-  { protocolVersion   :: !VarInt
-  , address           :: !B.ByteString
-  , port              :: !Word16
-  , nextState         :: !VarInt
-  } deriving (Show,Eq,Read)
-
--- Packet ID: 0xFE
-data LegacyPing = LegacyPing
-  { payload   :: !Word8
-  } deriving (Show,Eq,Read)
--}
-
-
-parsePort :: B.ByteString -> Word16
-parsePort b = toEnum ((shiftL l 8) + r)
-  where (l:r:[]) = fmap fromEnum (B.unpack b)
-
-
-{-
-ping :: P.Parser Yggdrasil
-ping = do
-  lengthByte <- P.anyWord8
-  P.word8 1
-  payload <- P.take (fromEnum lengthByte :: Int)
-  return $ Ping payload -- error
-
-
-legacyPing :: P.Parser Yggdrasil
-legacyPing = do
-  lengthByte <- P.anyWord8
-  P.word8 1
-  payload <- P.take (fromEnum lengthByte :: Int)
-  return $ LegacyPing payload -- error
--}
 
 
 instance Binary ServerBoundHandshake where
@@ -80,3 +70,9 @@ instance Binary ServerBoundHandshake where
       0 -> Handshake <$> getWord8 <*> (getWord8 >>= (\x -> getByteString (fromIntegral x))) <*> getWord16be <*> getWord8
       1 -> Ping <$> (get :: Get Word64)
       _ -> fail "Unrecognized packet!"
+
+
+parsePort :: B.ByteString -> Word16
+parsePort b = toEnum ((shiftL l 8) + r)
+  where (l:r:[]) = fmap fromEnum (B.unpack b)
+

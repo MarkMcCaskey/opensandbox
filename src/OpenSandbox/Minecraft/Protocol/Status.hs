@@ -1,10 +1,20 @@
 {-# LANGUAGE DeriveGeneric #-}
+-------------------------------------------------------------------------------
+-- |
+-- Module       : OpenSandbox.Minecraft.Protocol.Status
+-- Copyright    : (c) 2015 Michael Carpenter
+-- License      : BSD3
+-- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
+-- Stability    : experimental
+-- Portability  : portable
+--
+-------------------------------------------------------------------------------
 module OpenSandbox.Minecraft.Protocol.Status
-  ( Response (..)
-  , Version (..)
-  , Players (..)
-  , Description (..)
-  ) where
+    ( Response (..)
+    , Version (..)
+    , Players (..)
+    , Description (..)
+    ) where
 
 
 import Data.Aeson

@@ -2,33 +2,34 @@
 {-# LANGUAGE OverloadedStrings #-}
 -------------------------------------------------------------------------------
 -- |
--- Copyright        : (c) 2015 Michael Carpenter
--- License          : BSD3
--- Maintainer       : Michael Carpenter <oldmanmike.dev@gmail.com>
--- Stability        : provisional
--- Portability      : portable
+-- Module       : OpenSandbox.Minecraft.Op
+-- Copyright    : (c) 2015 Michael Carpenter
+-- License      : BSD3
+-- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
+-- Stability    : experimental
+-- Portability  : portable
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Minecraft.Op (
-    Op,
-    readOps,
-    writeOps,
-    addOp,
-    rmOp,
-    modOp
-) where
+module OpenSandbox.Minecraft.Op
+    ( Op
+    , readOps
+    , writeOps
+    , addOp
+    , rmOp
+    , modOp
+    ) where
 
 
-import Control.Applicative
-import Control.Monad
-import Data.Aeson
-import qualified Data.ByteString.Lazy as B
-import Data.Set
-import qualified Data.Text as T
-import Data.UUID
-import Data.UUID.Aeson
-import GHC.Generics
-import qualified OpenSandbox.Minecraft.User as U
+import            Control.Applicative
+import            Control.Monad
+import            Data.Aeson
+import qualified  Data.ByteString.Lazy as B
+import            Data.Set
+import qualified  Data.Text as T
+import            Data.UUID
+import            Data.UUID.Aeson
+import            GHC.Generics
+import qualified  OpenSandbox.Minecraft.User as U
 
 
 data Op = Op

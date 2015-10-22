@@ -1,20 +1,21 @@
 -------------------------------------------------------------------------------
 -- |
--- Copyright        : (c) 2015 Michael Carpenter
--- License          : BSD3
--- Maintainer       : Michael Carpenter <oldmanmike.dev@gmail.com>
--- Stability        : provisional
--- Portability      : portable
+-- Module       : OpenSandbox.Minecraft.Log
+-- Copyright    : (c) 2015 Michael Carpenter
+-- License      : BSD3
+-- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
+-- Stability    : experimental
+-- Portability  : portable
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Minecraft.Log (
-    LogEntry,
-    EntryType,
-    Message,
-    Log,
-    readLogFile,
-    writeLogFile
-) where
+module OpenSandbox.Minecraft.Log
+    ( LogEntry
+    , EntryType
+    , Message
+    , Log
+    , readLogFile
+    , writeLogFile
+    ) where
 
 
 import Data.Time

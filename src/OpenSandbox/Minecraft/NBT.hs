@@ -1,21 +1,20 @@
 -------------------------------------------------------------------------------
 -- |
+-- Module           : OpenSandbox.Minecraft.NBT
 -- Copyright        : (c) 2015 Michael Carpenter
--- License          : GPL3
+-- License          : BSD3
 -- Maintainer       : Michael Carpenter <oldmanmike.dev@gmail.com>
--- Stability        : provisional
+-- Stability        : experimental
 -- Portability      : portable
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Minecraft.NBT (
-    NBT
-) where
+module OpenSandbox.Minecraft.NBT (NBT) where
 
 
-import Data.Binary
-import qualified Data.ByteString.Lazy as B
-import Data.Int
-import qualified Data.Text as T
+import            Data.Binary
+import qualified  Data.ByteString.Lazy as B
+import            Data.Int
+import qualified  Data.Text as T
 
 
 data NBT = NBT Int NBTTagType NBTPayload deriving (Show,Eq,Read)
