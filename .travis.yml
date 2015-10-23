@@ -10,13 +10,13 @@ cache:
     - $HOME/.stack/
 
 before_install:
-    - mkdir -p ~/.local/bin
-    - export PATH=~/.local/bin:$PATH
-    - travis_retry curl -L https://github.com/commercialhaskell/stack/releases/download/v0.1.6.0/stack-0.1.6.0-linux-x86_64.tar.gz | tar xz -C ~/.local/bin
+  - wget -q -O- http://download.fpcomplete.com/ubuntu/fpco.key | sudo apt-key add -
+  - echo 'deb http://download.fpcomplete.com/ubuntu/precise stable main' | sudo tee /etc/apt/sources.list.d/fpco.list
+  - sudo apt-get update
+  - sudo apt-get install stack -y
 
 install:
   - stack setup
-  - stack build --only-snapshot
 
 script:
   - stack build
