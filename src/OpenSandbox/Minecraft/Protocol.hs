@@ -2,7 +2,7 @@
 -- |
 -- Module       : OpenSandbox.Minecraft.Protocol
 -- Copyright    : (c) 2015 Michael Carpenter
--- License      : BSD3
+-- License      : GPL3
 -- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
 -- Stability    : experimental
 -- Portability  : portable

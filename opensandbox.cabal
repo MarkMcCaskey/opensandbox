@@ -4,7 +4,7 @@ synopsis:                   (WIP)
 description:                Please see README.md
 homepage:                   https://github.com/oldmanmike/opensandbox
 bug-reports:                https://github.com/oldmanmike/opensandbox/issues
-license:                    BSD3
+license:                    GPL-3
 license-file:               LICENSE
 author:                     Michael Carpenter
 maintainer:                 Michael Carpenter <oldmanmike.dev@gmail.com>
