@@ -26,14 +26,17 @@ import            Network.Socket.ByteString
 import            OpenSandbox
 import            OpenSandbox.Minecraft.Protocol
 
+myPort    = 25567
+myVersion = "15w43b"
 
 main :: IO ()
 main = do
-    let port = 25567
-    putStrLn ("Starting Minecraft Server on " ++ (show port))
+    putStrLn "Welcome to OpenSandbox!"
+    putStrLn ("Port:    " ++ (show myPort))
+    putStrLn ("Version: " ++ myVersion)
     sock <- socket AF_INET Stream 0
     setSocketOption sock ReuseAddr 1
-    bindSocket sock (SockAddrInet port iNADDR_ANY)
+    bindSocket sock (SockAddrInet myPort iNADDR_ANY)
     listen sock 1
     mainLoop sock
 
@@ -41,7 +44,6 @@ main = do
 mainLoop :: Socket -> IO ()
 mainLoop sock = do
     conn <- accept sock
-    handshake <- recv sock 256
     runServerList conn
     mainLoop sock
 
@@ -59,9 +61,8 @@ runServerList (sock, _) = do
     putStrLn "[Parsed]"
     print $ (decode (BL.fromStrict maybeHandshake) :: ServerBoundHandshake)
     let response = BL.toStrict (Aeson.encode testResponse)
-    let outgoing = B.cons (121 :: Word8)
-                          (B.cons (0 :: Word8)
-                          (B.cons (119 :: Word8) response))
+    let response' = (B.cons (0 :: Word8) (B.cons (fromIntegral $ B.length response :: Word8) response))
+    let outgoing = B.cons (fromIntegral $ B.length response' :: Word8) response'
     send sock outgoing
     putStrLn "================================================================="
     putStrLn "/////////////////////////////////////////////////////////////////"
@@ -110,6 +111,6 @@ maybePing sock maybePing = do
 
 testResponse :: Response
 testResponse = Response
-    (Version "15w42a" 79)
+    (Version (T.pack myVersion) 81)
     (Players 20 0)
     (Description "A Minecraft Server")
