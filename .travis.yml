@@ -15,10 +15,10 @@ before_install:
     - travis_retry curl -L https://github.com/commercialhaskell/stack/releases/download/v0.1.6.0/stack-0.1.6.0-linux-x86_64.tar.gz | tar xz -C ~/.local/bin
 
 install:
-  - stack setup --no-terminal
-  - stack build --only-snapshot --no-terminal
+  - stack setup
+  - stack build --only-snapshot
 
 script:
-  - stack build --no-terminal
-  - stack test --no-terminal
-  - stack bench --no-terminal
+  - stack build
+  - stack test
+  - stack bench
