@@ -26,8 +26,10 @@ import            Network.Socket.ByteString
 import            OpenSandbox
 import            OpenSandbox.Minecraft.Protocol
 
+
 myPort    = 25567
 myVersion = "15w43b"
+
 
 main :: IO ()
 main = do
@@ -44,22 +46,23 @@ main = do
 mainLoop :: Socket -> IO ()
 mainLoop sock = do
     conn <- accept sock
-    runServerList conn
+    packet <- recv sock 256
+    routeHandshake sock (decode (BL.fromStrict packet) :: ServerBoundHandshake)
     mainLoop sock
 
 
-runServerList :: (Socket, SockAddr) -> IO ()
-runServerList (sock, _) = do
-    maybeHandshake <- recv sock 256
+routeHandshake :: Socket -> ServerBoundHandshake -> IO ()
+routeHandshake sock (Handshake _ _ _ 1) = runServerList sock
+routeHandshake sock (Handshake _ _ _ 2) = runLogin sock
+routeHandshake sock (Handshake _ _ _ _) = putStrLn "Error: Unknown state!"
+routeHandshake sock _                   = putStrLn "Error: Unknown handshake!"
+
+
+runServerList :: Socket -> IO ()
+runServerList sock = do
     putStrLn "================================================================="
     putStrLn "|                   << Packet Report Begin >>                   |"
     putStrLn "================================================================="
-    putStrLn "[Raw Handshake]"
-    print maybeHandshake
-    print $ B.unpack maybeHandshake
-    putStrLn "================================================================="
-    putStrLn "[Parsed]"
-    print $ (decode (BL.fromStrict maybeHandshake) :: ServerBoundHandshake)
     let response = BL.toStrict (Aeson.encode testResponse)
     let response' = (B.cons (0 :: Word8) (B.cons (fromIntegral $ B.length response :: Word8) response))
     let outgoing = B.cons (fromIntegral $ B.length response' :: Word8) response'
@@ -80,8 +83,8 @@ runServerList (sock, _) = do
     sClose sock
 
 
-runLogin :: (Socket, SockAddr) -> IO ()
-runLogin (sock, _) = do
+runLogin :: Socket -> IO ()
+runLogin sock = do
     handshake <- recv sock 254
     --print $ (decode (BL.fromStrict handshake) :: ServerBoundHandshake)
     loginStart <- recv sock 254
