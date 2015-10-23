@@ -28,7 +28,7 @@ import            OpenSandbox.Minecraft.Protocol
 
 
 myPort    = 25567
-myVersion = "15w43b"
+myVersion = "15w43c"
 
 
 main :: IO ()
@@ -45,9 +45,9 @@ main = do
 
 mainLoop :: Socket -> IO ()
 mainLoop sock = do
-    conn <- accept sock
-    packet <- recv sock 256
-    routeHandshake sock (decode (BL.fromStrict packet) :: ServerBoundHandshake)
+    (conn,_) <- accept sock
+    packet <- recv conn 256
+    routeHandshake conn (decode (BL.fromStrict packet) :: ServerBoundHandshake)
     mainLoop sock
 
 
@@ -85,14 +85,11 @@ runServerList sock = do
 
 runLogin :: Socket -> IO ()
 runLogin sock = do
-    handshake <- recv sock 254
-    --print $ (decode (BL.fromStrict handshake) :: ServerBoundHandshake)
     loginStart <- recv sock 254
-    --print $ (decode (BL.fromStrict loginStart) :: ServerBoundLogin)
+    print $ (B.drop 3 loginStart) `B.append` " is logging in..."
     let encryptRequest = undefined
     send sock encryptRequest
     encryptResponse <- recv sock 512
-    --print $ (decode (BL.fromStrict encryptResponse) :: ServerBoundLogin)
     let loginSuccess = undefined
     send sock loginSuccess
     let setCompression = undefined
@@ -114,6 +111,6 @@ maybePing sock maybePing = do
 
 testResponse :: Response
 testResponse = Response
-    (Version (T.pack myVersion) 81)
+    (Version (T.pack myVersion) 82)
     (Players 20 0)
     (Description "A Minecraft Server")
