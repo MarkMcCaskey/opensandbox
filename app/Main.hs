@@ -12,8 +12,12 @@
 module Main where
 
 
+import            Codec.Crypto.RSA
 import            Control.Concurrent
+import            Crypto.Random
 import qualified  Data.Aeson as Aeson
+import            Data.ASN1.BitArray
+import            Data.ASN1.Types
 import            Data.Binary
 import            Data.Bytes.VarInt
 import qualified  Data.ByteString as B
@@ -25,22 +29,52 @@ import            Network.Socket hiding (send,recv)
 import            Network.Socket.ByteString
 import            OpenSandbox
 import            OpenSandbox.Minecraft.Protocol
+import            System.Random
 
 
-myPort    = 25567
-myVersion = "15w43c"
+mcPort    = 25567
+mcVersion = "15w43c"
+mcSrvPath = "."
+mcWorld   = "world"
 
 
 main :: IO ()
 main = do
+    print responsePacket
     putStrLn "Welcome to OpenSandbox!"
-    putStrLn ("Port:    " ++ (show myPort))
-    putStrLn ("Version: " ++ myVersion)
+    putStrLn "Loading OpenSandbox properties..."
+    putStrLn $ "Starting minecraft server version " ++ mcVersion
+    putStrLn "Loading properties"
+    loadMCServerProperties mcSrvPath
+    putStrLn "Default game type: SURVIVAL"
+    putStrLn "Generating key pair"
+    gen <- newGenIO :: IO SystemRandom
+    let (pubKey, privKey, _) = generateKeyPair gen 1024
+    putStrLn $ "Starting Minecraft server on " ++ (show mcPort)
+    putStrLn $ "Preparing level " ++ (show mcWorld)
+    putStrLn "Done!"
     sock <- socket AF_INET Stream 0
     setSocketOption sock ReuseAddr 1
-    bindSocket sock (SockAddrInet myPort iNADDR_ANY)
+    bindSocket sock (SockAddrInet mcPort iNADDR_ANY)
     listen sock 1
     mainLoop sock
+
+
+responsePacket = [ (Start Sequence)
+                 , (Start Sequence)
+                 , (OID [1,2,840,113549,1,1,1])
+                 , Null
+                 , (End Sequence)
+                 , (BitString (BitArray 0 "test"))
+                 , (End Sequence)
+                 , (Start Sequence)
+                 , (IntVal 52) -- Just a temp val
+                 , (IntVal 63) -- Just a temp val
+                 , (End Sequence)]
+
+
+loadMCServerProperties :: FilePath -> IO ()
+loadMCServerProperties path = return ()
 
 
 mainLoop :: Socket -> IO ()
@@ -111,6 +145,6 @@ maybePing sock maybePing = do
 
 testResponse :: Response
 testResponse = Response
-    (Version (T.pack myVersion) 82)
+    (Version (T.pack mcVersion) 82)
     (Players 20 0)
     (Description "A Minecraft Server")
