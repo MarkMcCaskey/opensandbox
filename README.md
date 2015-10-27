@@ -39,7 +39,7 @@ cabal build
 
 You currently can launch the server following a successful build via:
 ```bash
-stack exec opensandbox
+stack exec server
 ```
 
 or...
