@@ -41,7 +41,7 @@ mcWorld   = "world"
 main :: IO ()
 main = do
     print responsePacket
-    putStrLn "Welcome to OpenSandbox!"
+    putStrLn "Welcome to OpenSandbox Server!"
     putStrLn "Loading OpenSandbox properties..."
     putStrLn $ "Starting minecraft server version " ++ mcVersion
     putStrLn "Loading properties"
