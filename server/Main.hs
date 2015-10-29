@@ -14,6 +14,7 @@ module Main where
 
 import            Codec.Crypto.RSA
 import            Control.Concurrent
+import            Crypto.PubKey.RSA
 import            Crypto.Random
 import qualified  Data.Aeson as Aeson
 import            Data.ASN1.BitArray
@@ -32,24 +33,42 @@ import            OpenSandbox.Minecraft.Protocol
 import            System.Random
 
 
-mcPort    = 25567
+mcPort :: PortNumber
+mcPort = 25567
+
+
+mcVersion :: T.Text
 mcVersion = "15w43c"
+
+
+mcSrvPath :: FilePath
 mcSrvPath = "."
-mcWorld   = "world"
+
+
+mcWorld :: T.Text
+mcWorld = "world"
+
+
+mcMaxPlayers :: Int
+mcMaxPlayers = 20
+
+
+mcMotd :: T.Text
+mcMotd = "A Minecraft Server"
 
 
 main :: IO ()
 main = do
-    print responsePacket
-    putStrLn "Welcome to OpenSandbox!"
+    putStrLn "Welcome to OpenSandbox Server!"
     putStrLn "Loading OpenSandbox properties..."
-    putStrLn $ "Starting minecraft server version " ++ mcVersion
+    putStrLn $ "Starting minecraft server version " ++ (show mcVersion)
     putStrLn "Loading properties"
     loadMCServerProperties mcSrvPath
     putStrLn "Default game type: SURVIVAL"
     putStrLn "Generating key pair"
-    gen <- newGenIO :: IO SystemRandom
-    let (pubKey, privKey, _) = generateKeyPair gen 1024
+    entropy <- createEntropyPool
+    let gen = cprgCreate entropy :: SystemRNG
+    let (pubKey,privKey) = fst $ generate gen 128 63
     putStrLn $ "Starting Minecraft server on " ++ (show mcPort)
     putStrLn $ "Preparing level " ++ (show mcWorld)
     putStrLn "Done!"
@@ -81,23 +100,23 @@ mainLoop :: Socket -> IO ()
 mainLoop sock = do
     (conn,_) <- accept sock
     packet <- recv conn 256
-    routeHandshake conn (decode (BL.fromStrict packet) :: ServerBoundHandshake)
+    routeHandshake conn (decode (BL.fromStrict packet) :: ServerBoundStatus)
     mainLoop sock
 
 
-routeHandshake :: Socket -> ServerBoundHandshake -> IO ()
-routeHandshake sock (Handshake _ _ _ 1) = runServerList sock
+routeHandshake :: Socket -> ServerBoundStatus -> IO ()
+routeHandshake sock (Handshake _ _ _ 1) = runStatus sock
 routeHandshake sock (Handshake _ _ _ 2) = runLogin sock
 routeHandshake sock (Handshake _ _ _ _) = putStrLn "Error: Unknown state!"
 routeHandshake sock _                   = putStrLn "Error: Unknown handshake!"
 
 
-runServerList :: Socket -> IO ()
-runServerList sock = do
+runStatus :: Socket -> IO ()
+runStatus sock = do
     putStrLn "================================================================="
     putStrLn "|                   << Packet Report Begin >>                   |"
     putStrLn "================================================================="
-    let response = BL.toStrict (Aeson.encode testResponse)
+    let response = BL.toStrict $ Aeson.encode $ buildResponse mcVersion 0 20 mcMotd
     let response' = (B.cons (0 :: Word8) (B.cons (fromIntegral $ B.length response :: Word8) response))
     let outgoing = B.cons (fromIntegral $ B.length response' :: Word8) response'
     send sock outgoing
@@ -141,10 +160,3 @@ maybePing sock maybePing = do
               packet <- recv sock 254
               send sock packet
               return ()
-
-
-testResponse :: Response
-testResponse = Response
-    (Version (T.pack mcVersion) 82)
-    (Players 20 0)
-    (Description "A Minecraft Server")

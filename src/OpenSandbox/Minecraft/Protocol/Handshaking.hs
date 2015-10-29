@@ -9,8 +9,7 @@
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.Minecraft.Protocol.Handshaking
-    ( ServerBoundHandshake (..)
-    , ServerBoundLogin
+    ( ServerBoundStatus (..)
     ) where
 
 
@@ -25,31 +24,14 @@ import Data.Word
 import GHC.Generics
 
 
-data ServerBoundLogin
-    = LoginStart B.ByteString
-    | EncryptionResponse Word16 B.ByteString Word16 B.ByteString
-    deriving (Show,Eq,Read)
-
-{-
-instance Binary ServerBoundLogin where
-  put (LoginStart name)
-    put (fromIntegral $ 3 + B.length name :: Word8)
-    put (0 :: Word8)
-    put (B.length name :: Word8)
-    putByteString name
-  put (EncryptionResponse secretLength secret tokenLength token)
-    put (fromIntegral $ 2 + secretLength + tokenLength)
-    put (1 :: Word8)
-    put
--}
-
-data ServerBoundHandshake
+data ServerBoundStatus
     = Handshake Word8 B.ByteString Word16 Word8
+    | Request
     | Ping Word64
     deriving (Show,Eq,Read)
 
 
-instance Binary ServerBoundHandshake where
+instance Binary ServerBoundStatus where
   put (Handshake version address port state) = do
     put (fromIntegral $ 6 + B.length address :: Word8)
     put (0 :: Word8)
