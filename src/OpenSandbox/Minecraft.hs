@@ -14,6 +14,7 @@ module OpenSandbox.Minecraft
     , module OpenSandbox.Minecraft.Log
     , module OpenSandbox.Minecraft.NBT
     , module OpenSandbox.Minecraft.Op
+    , module OpenSandbox.Minecraft.Protocol
     , module OpenSandbox.Minecraft.User
     , module OpenSandbox.Minecraft.WhiteList
     ) where
@@ -24,5 +25,6 @@ import OpenSandbox.Minecraft.BannedPlayer
 import OpenSandbox.Minecraft.Log
 import OpenSandbox.Minecraft.NBT
 import OpenSandbox.Minecraft.Op
+import OpenSandbox.Minecraft.Protocol
 import OpenSandbox.Minecraft.User
 import OpenSandbox.Minecraft.WhiteList

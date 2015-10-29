@@ -23,7 +23,8 @@ library
                             OpenSandbox.Minecraft.Log
                             OpenSandbox.Minecraft.NBT
                             OpenSandbox.Minecraft.Protocol
-                            OpenSandbox.Minecraft.Protocol.Handshaking
+                            OpenSandbox.Minecraft.Protocol.Login
+                            OpenSandbox.Minecraft.Protocol.Play
                             OpenSandbox.Minecraft.Protocol.Status
                             OpenSandbox.Minecraft.Op
                             OpenSandbox.Minecraft.User
@@ -60,13 +61,17 @@ executable server
                             binary,
                             bytes,
                             bytestring,
+                            cipher-aes,
                             containers,
-                            crypto-api,
+                            crypto-cipher-types,
+                            crypto-pubkey,
+                            crypto-random,
                             network,
                             opensandbox,
                             random,
                             RSA,
-                            text
+                            text,
+                            x509
     default-language:       Haskell2010
 
 test-suite opensandbox-test
