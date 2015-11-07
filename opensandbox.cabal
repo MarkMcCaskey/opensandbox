@@ -28,6 +28,7 @@ library
                             OpenSandbox.Minecraft.Protocol.Status
                             OpenSandbox.Minecraft.Op
                             OpenSandbox.Minecraft.User
+                            OpenSandbox.Minecraft.Util
                             OpenSandbox.Minecraft.WhiteList
     build-depends:          base >= 4.7 && < 5,
                             aeson,
@@ -44,10 +45,13 @@ library
                             parsec,
                             QuickCheck,
                             RSA,
+                            tar,
                             text,
                             time,
+                            turtle,
                             uuid,
-                            uuid-aeson
+                            uuid-aeson,
+                            zlib
     default-language:       Haskell2010
 
 executable server
