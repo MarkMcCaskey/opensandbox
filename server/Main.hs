@@ -12,11 +12,13 @@
 module Main where
 
 
-import            Codec.Crypto.RSA
+--import            Codec.Crypto.RSA
 import            Control.Concurrent
 import            Crypto.PubKey.RSA
-import            Crypto.Random
+--import            Crypto.Random
 import qualified  Data.Aeson as Aeson
+import            Data.ASN1.BinaryEncoding
+import            Data.ASN1.Encoding
 import            Data.ASN1.BitArray
 import            Data.ASN1.Types
 import            Data.Binary
@@ -25,12 +27,12 @@ import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Lazy as BL
 import qualified  Data.Text as T
 import            Data.Word
+import            Data.X509
 import            GHC.Generics
 import            Network.Socket hiding (send,recv)
 import            Network.Socket.ByteString
 import            OpenSandbox
 import            OpenSandbox.Minecraft.Protocol
-import            System.Random
 
 
 mcPort :: PortNumber
@@ -57,6 +59,13 @@ mcMotd :: T.Text
 mcMotd = "A Minecraft Server"
 
 
+data Server = Server
+  { srvName     :: T.Text
+  , srvCert     :: ASN1
+  , srvPubKey   :: PublicKey
+  , srvPrivKey  :: PrivateKey
+  } deriving (Show,Eq)
+
 main :: IO ()
 main = do
     putStrLn "Welcome to OpenSandbox Server!"
@@ -66,9 +75,9 @@ main = do
     loadMCServerProperties mcSrvPath
     putStrLn "Default game type: SURVIVAL"
     putStrLn "Generating key pair"
-    entropy <- createEntropyPool
-    let gen = cprgCreate entropy :: SystemRNG
-    let (pubKey,privKey) = fst $ generate gen 128 63
+    (pubKey,privKey) <- generate 128 63
+    let cert = encodeASN1' DER $ toASN1 (PubKeyRSA pubKey) []
+    print cert
     putStrLn $ "Starting Minecraft server on " ++ (show mcPort)
     putStrLn $ "Preparing level " ++ (show mcWorld)
     putStrLn "Done!"

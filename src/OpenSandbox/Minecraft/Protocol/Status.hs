@@ -75,6 +75,7 @@ instance Binary ClientBoundStatus where
     put (0 :: Word8)
     put (fromIntegral $ B.length payload :: Word8)
     putByteString payload
+
   get = do
     len <- getWord8
     packetID <- getWord8
