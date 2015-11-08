@@ -1,5 +1,4 @@
 import OpenSandbox
-import OpenSandbox.Minecraft.Protocol.Handshaking
 import Data.Binary
 import Test.QuickCheck
 
