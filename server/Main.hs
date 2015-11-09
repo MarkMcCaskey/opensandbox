@@ -40,7 +40,7 @@ mcPort = 25567
 
 
 mcVersion :: T.Text
-mcVersion = "15w43c"
+mcVersion = "15w45a"
 
 
 mcSrvPath :: FilePath

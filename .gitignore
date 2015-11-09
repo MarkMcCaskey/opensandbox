@@ -16,6 +16,9 @@ cabal.sandbox.config
 *.aux
 *.hp
 
+# OpenSandbox Runtime directories
+cache/
+
 # Private Minecraft server files used for testing
 ops.json
 test.json
