@@ -22,14 +22,15 @@ library
                             OpenSandbox.Minecraft.BannedPlayer
                             OpenSandbox.Minecraft.Log
                             OpenSandbox.Minecraft.NBT
+                            OpenSandbox.Minecraft.Op
                             OpenSandbox.Minecraft.Protocol
                             OpenSandbox.Minecraft.Protocol.Login
                             OpenSandbox.Minecraft.Protocol.Play
                             OpenSandbox.Minecraft.Protocol.Status
-                            OpenSandbox.Minecraft.Op
                             OpenSandbox.Minecraft.User
                             OpenSandbox.Minecraft.Util
                             OpenSandbox.Minecraft.WhiteList
+                            OpenSandbox.Tmux
     build-depends:          base >= 4.7 && < 5,
                             aeson,
                             binary,
@@ -44,6 +45,7 @@ library
                             mtl,
                             network,
                             parsec,
+                            process,
                             QuickCheck,
                             RSA,
                             tar,

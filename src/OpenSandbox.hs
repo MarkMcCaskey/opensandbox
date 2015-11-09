@@ -10,7 +10,9 @@
 -------------------------------------------------------------------------------
 module OpenSandbox
     ( module OpenSandbox.Minecraft
+    , module OpenSandbox.Tmux
     ) where
 
 
 import OpenSandbox.Minecraft
+import OpenSandbox.Tmux
