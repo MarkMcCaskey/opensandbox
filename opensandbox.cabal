@@ -39,6 +39,7 @@ library
                             containers,
                             errors,
                             hspec,
+                            http-conduit,
                             iproute,
                             mtl,
                             network,
