@@ -9,8 +9,14 @@
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.Tmux
-    ( tmuxInit
+    ( Tmux
+    , TmuxT
+    , TmuxID
+    , tmux
+    , sendTmux
+    , tmuxInit
     , tmuxClose
+    , showSeq
     ) where
 
 
@@ -18,15 +24,26 @@ import Data.Functor.Identity
 import System.Exit
 import System.Process
 
+-------------------------------------------------------------------------------
 
-newtype TmuxCommand = Tmux String deriving (Show,Eq,Read)
+type Command = String
+
+type TmuxID = String
 
 
-type Tmux s w = TmuxT s w Identity
+type Tmux t = TmuxT t Identity
 
 
-newtype TmuxT s w m a = TmuxT { runTmuxT :: s -> w -> m a }
+tmux :: (Monad m) => (t -> a) -> TmuxT t m a
+tmux f = TmuxT (return . f)
 
+newtype TmuxT t m a = TmuxT { runTmuxT :: t -> m a }
+
+sendTmux :: TmuxID -> Command -> IO ()
+sendTmux t c = callCommand $ "tmux send -t " ++ (show t) ++ " " ++ (show c) ++ " ENTER"
+
+
+-------------------------------------------------------------------------------
 
 tmuxInit :: IO ()
 tmuxInit = do
@@ -46,27 +63,3 @@ tmuxClose = do
   case code of
     ExitSuccess -> putStrLn "[Success]"
     ExitFailure i -> putStrLn "[Fail]"
-
-
-createSession :: String -> TmuxCommand
-createSession session = Tmux $ "new -d -s " ++ session
-
-
-attachSession :: String -> TmuxCommand
-attachSession session = Tmux $ "a -t " ++ session
-
-
-detachSession :: String -> TmuxCommand
-detachSession session = Tmux $ "a -t " ++ session
-
-
-killSession :: String -> TmuxCommand
-killSession session = Tmux $ "kill-session -t " ++ session
-
-
-killServer :: TmuxCommand
-killServer = Tmux "kill-server"
-
-
-newWindow :: String -> Int -> TmuxCommand
-newWindow session windowID = Tmux $ "new-window -t " ++ session ++ ":" ++ (show windowID)
