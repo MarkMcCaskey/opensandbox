@@ -16,7 +16,6 @@ module OpenSandbox.Tmux
     , sendTmux
     , tmuxInit
     , tmuxClose
-    , showSeq
     ) where
 
 
