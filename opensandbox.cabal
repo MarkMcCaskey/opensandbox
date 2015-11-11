@@ -33,11 +33,13 @@ library
                             OpenSandbox.Tmux
     build-depends:          base >= 4.7 && < 5,
                             aeson,
+                            attoparsec,
                             binary,
                             bytes,
                             bytestring,
                             configurator,
                             containers,
+                            directory,
                             errors,
                             hspec,
                             http-conduit,

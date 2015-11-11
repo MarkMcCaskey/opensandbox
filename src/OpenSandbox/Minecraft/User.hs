@@ -30,7 +30,7 @@ data User = User
   { name      :: !T.Text
   , uuid      :: !UUID
   , expiresOn :: Maybe T.Text
-  } deriving (Show,Eq,Read)
+  } deriving (Show,Eq,Read,Ord)
 
 
 instance FromJSON User where
