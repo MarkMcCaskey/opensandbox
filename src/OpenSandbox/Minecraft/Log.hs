@@ -15,6 +15,8 @@ module OpenSandbox.Minecraft.Log
     , logEntryParser
     , logParser
     , loadLogFiles
+    , javaErrorParser
+    , javaErrorBodyParser
     ) where
 
 import qualified  Codec.Compression.GZip as Gzip
@@ -68,7 +70,10 @@ data EntryBody
   deriving (Show,Eq,Ord)
 
 
-type Log = [LogEntry]
+type JavaError = [B.ByteString]
+
+
+type Log = [(Either JavaError LogEntry)]
 
 
 -- | Parser for the timestamp of a log entry.
@@ -105,7 +110,7 @@ severityLevelParser =
 
 
 -- | Parser for a log entry, one line in a log file
-logEntryParser :: Parser LogEntry
+logEntryParser :: Parser (Either JavaError LogEntry)
 logEntryParser = do
     _ <- char '['
     t <- timeStampParser
@@ -120,12 +125,30 @@ logEntryParser = do
     _ <- char ']'
     _ <- char ':'
     _ <- space
-    m <- takeWhile (/='\n')
-    return $ LogEntry t s p l m
+    m <- takeWhile (/='\n') <* endOfLine
+    return $ Right $ LogEntry t s p l m
 
 
+-- | Parser for java errors thrown in the log file
+javaErrorParser :: Parser (Either JavaError LogEntry)
+javaErrorParser = do
+    _ <- string "java"
+    x <- takeWhile (/='\n') <* endOfLine
+    xs <- manyTill javaErrorBodyParser logEntryParser
+    return $ Left ("java":x:xs)
+
+
+-- | Parser for each additional line in the java error
+javaErrorBodyParser :: Parser B.ByteString
+javaErrorBodyParser = do
+    _ <- char '\t'
+    takeWhile (/='\n') <* endOfLine
+
+
+-- | Parser for an entire Minecraft server log file
 logParser :: Parser Log
-logParser = many $ logEntryParser <* endOfLine
+logParser = many $ choice [(logEntryParser),(javaErrorParser)]
+
 
 loadLogFiles :: FilePath -> IO B.ByteString
 loadLogFiles path = do
