@@ -15,8 +15,9 @@ module OpenSandbox.Minecraft.Log
     , logEntryParser
     , logParser
     , loadLogFiles
-    , javaErrorParser
-    , javaErrorBodyParser
+    , javaWarningParser
+    , javaWarningBodyParser
+    , gameErrorParser
     ) where
 
 import qualified  Codec.Compression.GZip as Gzip
@@ -49,29 +50,23 @@ data SeverityLevel
 
 data Subsystem
   = Server
+  | ServerShutdown
   | UserAuth
   deriving (Show,Eq,Ord)
 
 
 data ProcessType
   = Thread
-  | Auth
+  | Auth Int
   deriving (Show,Eq,Ord)
 
 
 type Message = B.ByteString
 
 
-data EntryBody
-  = Connect User
-  | Disconnect User
-  | Death User
-  | Chat User String
-  deriving (Show,Eq,Ord)
-
-
 type JavaError = [B.ByteString]
 
+type Error = [B.ByteString]
 
 type Log = [(Either JavaError LogEntry)]
 
@@ -90,15 +85,19 @@ timeStampParser = do
 -- | Parser for the subsystem that a log entry is from.
 subsystemParser :: Parser Subsystem
 subsystemParser =
-        (string "Server"  >> return Server)
-    <|> (string "User Authenticator" >> return UserAuth)
+        (string "Server Shutdown"     >> return ServerShutdown)
+    <|> (string "Server"              >> return Server)
+    <|> (string "User Authenticator"  >> return UserAuth)
 
 
 -- | Parser for the source the log entry is from.
 processTypeParser :: Parser ProcessType
 processTypeParser =
         (string "thread"   >> return Thread)
-    <|> (string "#"        >> return Auth)
+    <|> (string "Thread"   >> return Thread)
+    <|> do  char '#'
+            x <- decimal
+            return $ Auth x
 
 
 -- | Parser for the severity level of the log entry.
@@ -130,24 +129,36 @@ logEntryParser = do
 
 
 -- | Parser for java errors thrown in the log file
-javaErrorParser :: Parser (Either JavaError LogEntry)
-javaErrorParser = do
+javaWarningParser :: Parser (Either JavaError LogEntry)
+javaWarningParser = do
     _ <- string "java"
     x <- takeWhile (/='\n') <* endOfLine
-    xs <- manyTill javaErrorBodyParser logEntryParser
+    xs <- manyTill javaWarningBodyParser logEntryParser
     return $ Left ("java":x:xs)
 
 
 -- | Parser for each additional line in the java error
-javaErrorBodyParser :: Parser B.ByteString
-javaErrorBodyParser = do
+javaWarningBodyParser :: Parser B.ByteString
+javaWarningBodyParser = do
     _ <- char '\t'
     takeWhile (/='\n') <* endOfLine
 
 
+-- | Parser for game errors. Basically, we won't bother parsing it in detail,
+-- because we have no idea what we might get.
+gameErrorParser :: Parser (Either Error LogEntry)
+gameErrorParser = do
+    xs <- manyTill' gameErrorBodyParser logEntryParser
+    return $ Left xs
+
+
+gameErrorBodyParser :: Parser B.ByteString
+gameErrorBodyParser = takeWhile (/='\n') <* endOfLine
+
+
 -- | Parser for an entire Minecraft server log file
 logParser :: Parser Log
-logParser = many $ choice [(logEntryParser),(javaErrorParser)]
+logParser = many $ choice [logEntryParser,javaWarningParser,gameErrorParser]
 
 
 loadLogFiles :: FilePath -> IO B.ByteString

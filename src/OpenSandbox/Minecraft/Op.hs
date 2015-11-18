@@ -55,7 +55,7 @@ writeOps path ops = do
 
 
 addOp :: Set Op -> U.User -> Int -> Bool -> Set Op
-addOp opset U.User {U.uuid = u, U.name = n} lvl bypass =
+addOp opset U.User {U.userUUID = u, U.userName = n} lvl bypass =
     insert (Op u n lvl bypass) opset
 
 

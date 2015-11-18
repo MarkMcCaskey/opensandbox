@@ -21,9 +21,6 @@ cache/
 
 # Private Minecraft server files used for testing
 ops.json
-test.json
-tmp.json
-usercache.json
 whitelist.json
 banned-players.json
 banned-ips.json

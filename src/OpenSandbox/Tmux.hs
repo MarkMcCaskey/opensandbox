@@ -9,10 +9,8 @@
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.Tmux
-    ( Tmux
-    , TmuxT
-    , TmuxID
-    , tmux
+    ( TmuxID
+    , MCCommand
     , sendTmux
     , tmuxInit
     , tmuxClose
@@ -23,26 +21,16 @@ import Data.Functor.Identity
 import System.Exit
 import System.Process
 
--------------------------------------------------------------------------------
 
-type Command = String
+type MCCommand = String
+
 
 type TmuxID = String
 
 
-type Tmux t = TmuxT t Identity
-
-
-tmux :: (Monad m) => (t -> a) -> TmuxT t m a
-tmux f = TmuxT (return . f)
-
-newtype TmuxT t m a = TmuxT { runTmuxT :: t -> m a }
-
-sendTmux :: TmuxID -> Command -> IO ()
+sendTmux :: TmuxID -> MCCommand -> IO ()
 sendTmux t c = callCommand $ "tmux send -t " ++ (show t) ++ " " ++ (show c) ++ " ENTER"
 
-
--------------------------------------------------------------------------------
 
 tmuxInit :: IO ()
 tmuxInit = do

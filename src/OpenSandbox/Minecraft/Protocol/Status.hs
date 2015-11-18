@@ -22,14 +22,11 @@ module OpenSandbox.Minecraft.Protocol.Status
 
 import qualified  Data.Aeson as Aeson
 import qualified  Data.ByteString.Char8 as B
-import qualified  Data.ByteString.Lazy as BL
 import qualified  Data.Text as T
 import            Data.Binary
 import            Data.Binary.Get
 import            Data.Binary.Put
 import            Data.Bits
-import            Data.Int
-import            Data.Word
 import            GHC.Generics
 
 
@@ -47,21 +44,21 @@ data ClientBoundStatus
 
 
 instance Binary ServerBoundStatus where
-  put (Handshake version address port state) = do
-    put (fromIntegral $ 6 + B.length address :: Word8)
+  put (Handshake v a p s) = do
+    put (fromIntegral $ 6 + B.length a :: Word8)
     put (0 :: Word8)
-    put version
-    put (fromIntegral $ B.length address :: Word8)
-    putByteString address
-    put port
-    put state
+    put v
+    put (fromIntegral $ B.length a :: Word8)
+    putByteString a
+    put p
+    put s
   put (Ping payload) = do
     put (fromIntegral $ 2 + 8 :: Word8)
     put (1 :: Word8)
     putWord64be payload
 
   get = do
-    len <- getWord8
+    _ <- getWord8
     packetID <- getWord8
     case packetID of
       0 -> Handshake <$> getWord8 <*> (getWord8 >>= (\x -> getByteString (fromIntegral x))) <*> getWord16be <*> getWord8
@@ -77,7 +74,7 @@ instance Binary ClientBoundStatus where
     putByteString payload
 
   get = do
-    len <- getWord8
+    _ <- getWord8
     packetID <- getWord8
     case packetID of
       0 -> Response <$> (getWord8 >>= (\x -> getByteString (fromIntegral x)))
