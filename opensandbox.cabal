@@ -98,6 +98,7 @@ test-suite opensandbox-test
     main-is:                Spec.hs
     build-depends:          base,
                             binary,
+                            containers,
                             hspec,
                             opensandbox,
                             QuickCheck

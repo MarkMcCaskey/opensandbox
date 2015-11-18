@@ -1,4 +1,5 @@
 import Data.Either
+import qualified Data.Set as Set
 import OpenSandbox
 import Test.Hspec
 import Test.QuickCheck
@@ -53,3 +54,19 @@ main = hspec $ do
       it "returns an empty list of users when reading empty usercache.json" $ do
         shouldBeNoUsers <-readUserCache userCacheEmptyPath
         (null $ head $ rights [shouldBeNoUsers]) `shouldBe` True
+    describe "OpenSandbox.Minecraft.User.createUserGroup" $ do
+      it "should return a set of the same size as usercache.json" $ do
+        shouldBeUsers <- readUserCache userCachePath
+        let lst = (head $ rights [shouldBeUsers])
+        let shouldBeUGroup = createUserGroup lst
+        print $ Set.size shouldBeUGroup
+        Set.size shouldBeUGroup `shouldBe` (length lst)
+      it "should return an empty set from an empty file" $ do
+        shouldBeNoUsers <- readUserCache userCacheEmptyPath
+        let shouldBeUGroup = (createUserGroup $ head $ rights [shouldBeNoUsers])
+        Set.null shouldBeUGroup `shouldBe` True
+      it "should return a singleton set from a singleton usercache.json" $ do
+        shouldBeOneUser <- readUserCache userCacheSingletonPath
+        let shouldBeUGroup = (createUserGroup.head $ rights [shouldBeOneUser])
+        Set.size shouldBeUGroup `shouldBe` (1 :: Int)
+
