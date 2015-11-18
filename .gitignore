@@ -20,10 +20,6 @@ cabal.sandbox.config
 cache/
 
 # Private Minecraft server files used for testing
-ops.json
-whitelist.json
-banned-players.json
-banned-ips.json
 *.properties
 *.log
 *.log.gz
