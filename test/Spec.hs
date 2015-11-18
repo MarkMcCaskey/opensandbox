@@ -4,6 +4,8 @@ import OpenSandbox
 import Test.Hspec
 import Test.QuickCheck
 import Control.Exception (evaluate)
+import System.Directory
+
 
 testSrvDir :: FilePath
 testSrvDir = "test/testserver"
@@ -59,7 +61,6 @@ main = hspec $ do
         shouldBeUsers <- readUserCache userCachePath
         let lst = (head $ rights [shouldBeUsers])
         let shouldBeUGroup = createUserGroup lst
-        print $ Set.size shouldBeUGroup
         Set.size shouldBeUGroup `shouldBe` (length lst)
       it "should return an empty set from an empty file" $ do
         shouldBeNoUsers <- readUserCache userCacheEmptyPath
@@ -69,4 +70,10 @@ main = hspec $ do
         shouldBeOneUser <- readUserCache userCacheSingletonPath
         let shouldBeUGroup = (createUserGroup.head $ rights [shouldBeOneUser])
         Set.size shouldBeUGroup `shouldBe` (1 :: Int)
-
+    describe "OpenSandbox.Minecraft.User.writeUserCache" $ do
+      it "should write out that which was just read" $ do
+        input1 <- readUserCache userCachePath
+        writeUserCache (testSrvDir ++ "/" ++ "newusercache.json") (head $ rights [input1])
+        input2 <- readUserCache (testSrvDir ++ "/" ++ "newusercache.json")
+        (input1 == input2) `shouldBe` True
+        removeFile (testSrvDir ++ "/" ++ "newusercache.json")

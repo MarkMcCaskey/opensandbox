@@ -99,6 +99,7 @@ test-suite opensandbox-test
     build-depends:          base,
                             binary,
                             containers,
+                            directory,
                             hspec,
                             opensandbox,
                             QuickCheck
