@@ -1,5 +1,5 @@
 flags: {}
 packages:
 - '.'
-extra-deps: [uuid-aeson-0.1.0.0, ekg-0.4.0.8, ekg-core-0.1.1.0, ekg-json-0.1.0.0, download-curl-0.1.4, nbt-0.5.1]
-resolver: nightly-2015-10-27
+extra-deps: [uuid-aeson-0.1.0.0, nbt-0.5.1]
+resolver: nightly-2015-11-17
