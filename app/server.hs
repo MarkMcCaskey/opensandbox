@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 -------------------------------------------------------------------------------
 -- |
--- Module       : Main
+-- File         : server.hs
 -- Copyright    : (c) 2015 Michael Carpenter
 -- License      : GPL3
 -- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
@@ -9,7 +9,6 @@
 -- Portability  : portable
 --
 -------------------------------------------------------------------------------
-module Main where
 
 
 --import            Codec.Crypto.RSA

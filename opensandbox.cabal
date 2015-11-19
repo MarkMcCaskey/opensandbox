@@ -62,17 +62,18 @@ library
                             zlib
     default-language:       Haskell2010
 
-executable minecraftd
-    hs-source-dirs:         minecraftd
-    main-is:                Main.hs
+executable minecraftctl
+    hs-source-dirs:         app
+    main-is:                minecraftctl.hs
     ghc-options:            -threaded -rtsopts -with-rtsopts=-N
     build-depends:          base,
-                            opensandbox
+                            opensandbox,
+                            optparse-applicative
     default-language:       Haskell2010
 
 executable server
-    hs-source-dirs:         server
-    main-is:                Main.hs
+    hs-source-dirs:         app
+    main-is:                server.hs
     ghc-options:            -threaded -rtsopts -with-rtsopts=-N
     build-depends:          aeson,
                             asn1-encoding,
