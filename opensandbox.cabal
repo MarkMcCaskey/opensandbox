@@ -37,26 +37,19 @@ library
                             binary,
                             bytes,
                             bytestring,
-                            configurator,
                             containers,
-                            contravariant,
                             directory,
-                            errors,
-                            hspec,
                             http-conduit,
                             iproute,
                             nbt,
                             network,
                             parsec,
                             process,
-                            profunctors,
-                            QuickCheck,
                             RSA,
                             tar,
                             text,
                             time,
                             transformers,
-                            turtle,
                             uuid,
                             uuid-aeson,
                             zlib
@@ -82,11 +75,7 @@ executable server
                             binary,
                             bytes,
                             bytestring,
-                            cipher-aes,
-                            containers,
                             cryptonite,
-                            crypto-cipher-types,
-                            crypto-random,
                             network,
                             opensandbox,
                             text,
@@ -111,8 +100,7 @@ benchmark opensandbox-bench
     type:                   exitcode-stdio-1.0
     hs-source-dirs:         src, bench
     main-is:                BenchmarkSuite.hs
-    build-depends:          base,
-                            criterion
+    build-depends:          base
     ghc-options:            -Wall
                             -O2
     default-language:       Haskell2010
