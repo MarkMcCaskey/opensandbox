@@ -13,6 +13,7 @@ import            Control.Monad
 import qualified  Data.Map as Map
 import            Data.UUID
 import            OpenSandbox
+import            OpenSandbox.Minecraft.Backup
 import            OpenSandbox.Tmux
 import            Options.Applicative
 import            Prelude hiding (init)
@@ -28,7 +29,7 @@ data Service = Service
   , srvPath       :: !FilePath
   , srvBackupPath :: !FilePath
   , srvLogPath    :: !FilePath
-  , srvWorldPath  :: !FilePath
+  , srvWorld      :: !String
   , srvVersion    :: !String
   } deriving (Show,Eq,Ord)
 
@@ -39,7 +40,7 @@ testServer = Service
   , srvPath = "/srv/test"
   , srvBackupPath = "/srv/test/backup"
   , srvLogPath = "/srv/test/logs"
-  , srvWorldPath = "/srv/test/world"
+  , srvWorld = "world"
   , srvVersion = "15w47c"
   }
 
@@ -50,7 +51,7 @@ ecServer = Service
   , srvPath = "/srv/minecraft"
   , srvBackupPath = "/home/oldmanmike/backup"
   , srvLogPath = "/srv/minecraft/logs"
-  , srvWorldPath = "/srv/minecraft/world"
+  , srvWorld = "world"
   , srvVersion = "15w47c"
   }
 
@@ -115,8 +116,13 @@ whoison slst n = putStrLn $ "The following users are logged into " ++ n ++ "..."
 
 
 -- | Backs up the target Minecraft service.
-backup :: Services -> ServiceName -> String -> IO ()
-backup slst n s = putStrLn $ "Backing up " ++ n ++ "..."
+backup :: Services -> ServiceName -> IO ()
+backup slst n = case (Map.lookup n slst) of
+                  Just s -> fullBackup  (srvTmuxID s)
+                                        (srvPath s)
+                                        (srvBackupPath s)
+                                        [(srvWorld s), ("minecraft_server." ++ (srvVersion s) ++ ".jar")]
+                  Nothing -> putStrLn $ "Error: Cannot find service " ++ n ++ "!"
 
 
 -- | Executes the 'say' command in the target Minecraft server.
@@ -188,7 +194,7 @@ commands slst = subparser
         <> progDesc "Lists all users currently logged in on TARGET"
         <> header "whoison - lists logged in users"))
     <> command "backup"
-      (info (helper <*> ((backup slst) <$> argument str idm <*> argument str idm))
+      (info (helper <*> ((backup slst) <$> argument str idm))
         (fullDesc
         <> progDesc "Backs up a TARGET server"
         <> header "backup - back ups a server"))
