@@ -14,6 +14,7 @@ module OpenSandbox.Tmux
     , sendTmux
     , detachClient
     , newWindow
+    , killWindow
     , tmuxInit
     , tmuxClose
     ) where
@@ -38,6 +39,9 @@ detachClient t = callCommand $ "tmux detach-client -t " ++ t ++ " ENTER"
 
 newWindow :: TmuxID -> FilePath -> String -> IO ()
 newWindow t d n = callCommand $ "tmux new-window -t " ++ t ++ " -c " ++ d ++ " -n " ++ n ++ "ENTER"
+
+killWindow :: TmuxID -> IO ()
+killWindow t = callCommand $ "tmux kill-window -t " ++ t
 
 
 tmuxInit :: IO ()

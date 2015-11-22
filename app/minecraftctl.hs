@@ -134,7 +134,7 @@ start slst n = do
 stop :: Services -> ServiceName -> IO ()
 stop slst n = do
     case (Map.lookup n slst) of
-      Just s  -> sendTmux (srvTmuxID s) "stop"
+      Just s  -> sendTmux (srvTmuxID s) "stop" >> callCommand "sleep 5" >> killWindow (srvTmuxID s)
       Nothing -> putStrLn $ "Error: Cannot find service " ++ n ++ "!"
 
 
