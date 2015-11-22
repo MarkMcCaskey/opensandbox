@@ -12,6 +12,7 @@ module OpenSandbox.Tmux
     ( TmuxID
     , MCCommand
     , sendTmux
+    , detachClient
     , newWindow
     , tmuxInit
     , tmuxClose
@@ -32,6 +33,8 @@ type TmuxID = String
 sendTmux :: TmuxID -> MCCommand -> IO ()
 sendTmux t c = callCommand $ "tmux send -t " ++ (show t) ++ " " ++ (show c) ++ " ENTER"
 
+detachClient :: TmuxID -> IO ()
+detachClient t = callCommand $ "tmux detach-client -t " ++ t ++ " ENTER"
 
 newWindow :: TmuxID -> FilePath -> String -> IO ()
 newWindow t d n = callCommand $ "tmux new-window -t " ++ t ++ " -c " ++ d ++ " -n " ++ n ++ "ENTER"

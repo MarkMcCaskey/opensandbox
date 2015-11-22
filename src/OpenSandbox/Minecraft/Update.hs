@@ -4,6 +4,7 @@ module OpenSandbox.Minecraft.Update
     ( findLatestMCSnapshot
     , getLatestMCSnapshot
     , getMCSnapshot
+    , mcServerJar
     ) where
 
 
@@ -34,9 +35,9 @@ getLatestMCSnapshot cacheDir = do
 -- param cacheDir: The path to the cache directory
 -- returns: An IO action that saves the snapshot of said version to the said cache directory
 getMCSnapshot :: FilePath -> String -> IO ()
-getMCSnapshot cacheDir version = do
+getMCSnapshot dest version = do
     let url = List.intercalate "/" [mcVersionsURL,version,(mcServerJar version)]
-    simpleHttp url >>= BL.writeFile (cacheDir ++ "/" ++ (mcServerJar version))
+    simpleHttp url >>= BL.writeFile (dest ++ "/" ++ (mcServerJar version))
 
 
 findLatestMCSnapshot :: IO (Either String MCVersion)

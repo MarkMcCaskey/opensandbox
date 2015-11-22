@@ -14,14 +14,17 @@ import qualified  Data.Map as Map
 import            Data.UUID
 import            OpenSandbox
 import            OpenSandbox.Minecraft.Backup
+import            OpenSandbox.Minecraft.Update
 import            OpenSandbox.Tmux
 import            Options.Applicative
-import            Prelude hiding (init)
-
+import            System.Directory
+import            System.Process
 
 type Services = Map.Map ServiceName Service
 
+
 type ServiceName = String
+
 
 data Service = Service
   { srvName       :: !ServiceName
@@ -33,6 +36,7 @@ data Service = Service
   , srvVersion    :: !String
   } deriving (Show,Eq,Ord)
 
+
 testServer :: Service
 testServer = Service
   { srvName = "test"
@@ -43,6 +47,7 @@ testServer = Service
   , srvWorld = "world"
   , srvVersion = "15w47c"
   }
+
 
 ecServer :: Service
 ecServer = Service
@@ -63,32 +68,74 @@ javaArgs = [ "-Xmx4G"
            , "-XX:+CMSIncrementalPacing"
            , "-XX:ParallelGCThreads=4"
            , "-XX:+AggressiveOpts"
-           , "nogui"
            ]
 
 
-minecraftServiceCmd :: String
-minecraftServiceCmd = "su minecraft -s /bin/bash -c \"cd /srv/minecraft; java -Xmx4G -Xms512M -XX:+UseConcMarkSweepGC -XX:+CMSIncrementalPacing -XX:ParallelGCThreads=4 -XX:+AggressiveOpts -jar /srv/minecraft/minecraft_server.15w47c.jar nogui\""
+-- | Takes the absolute path to the server's directory and the server's version
+-- and constructs the shell command to run in Tmux.
+minecraftServiceCmd :: FilePath -> String -> String
+minecraftServiceCmd rootPath v = "cd " ++ rootPath ++"; java -Xmx4G -Xms512M -XX:+UseConcMarkSweepGC -XX:+CMSIncrementalPacing -XX:ParallelGCThreads=4 -XX:+AggressiveOpts -jar minecraft_server." ++ v ++ ".jar nogui"
 
 
-init :: IO ()
-init = tmuxInit
+runMinecraftServer :: [String] -> Service -> IO ()
+runMinecraftServer args srv = callCommand $ ("cd " ++ (srvPath srv) ++"; java -jar " ++ (srvPath srv) ++ "/" ++ (mcServerJar (srvVersion srv)) ++ " nogui")
 
-close :: IO ()
-close = tmuxClose
+
+setupNewServer :: String -> IO ()
+setupNewServer n = do
+    putStrLn "Port: "
+    p <- getLine
+    putStrLn "What's the Server Path (eg. /srv/minecraft)?: "
+    r <- getLine
+    putStrLn "Version: "
+    v <- getLine
+    putStrLn "Setting up new server..."
+    let newServer = Service n ("opensandbox:"++p) r (r ++ "/backup") (r ++ "/logs") "world" v
+    createDirectoryIfMissing True (srvPath newServer)
+    createDirectoryIfMissing True (srvBackupPath newServer)
+    getMCSnapshot (srvPath newServer) (srvVersion newServer)
+    runMinecraftServer [] newServer
+    eula <- readFile $ (srvPath newServer) ++ "/" ++ "eula.txt"
+    mapM_ putStrLn (lines eula)
+    putStrLn "Do you Agree? (y/n)"
+    c <- getChar
+    if (c == 'y')
+      then writeFile ((srvPath newServer) ++ "/" ++ "eula.txt") (unlines ((init $ lines eula) ++ ["eula=true"]))
+      else return ()
+    newWindow (srvTmuxID newServer) (srvPath newServer) n
+    sendTmux (srvTmuxID newServer) (minecraftServiceCmd (srvPath newServer) (srvVersion newServer))
+    detachClient (srvTmuxID newServer)
+
+
+boot :: IO ()
+boot = tmuxInit
+
+
+shutdown :: IO ()
+shutdown = tmuxClose
+
+
+create :: Services -> ServiceName -> IO ()
+create slst n = do
+    case (Map.lookup n slst) of
+      Just s  -> putStrLn "Error: Service already exists!"
+      Nothing -> setupNewServer n
+
 
 start :: Services -> ServiceName -> IO ()
-start slst s = do
-    putStrLn $ "Starting " ++ s ++ "..."
-    case (Map.lookup s slst) of
-      Just service  -> newWindow (srvTmuxID service) (srvPath service) s
-      Nothing       -> putStrLn $ "Error: Cannot find service " ++ s ++ "!"
+start slst n = do
+    case (Map.lookup n slst) of
+      Just s    -> mkTmuxWindow s >> launchServerInWindow s
+      Nothing   -> putStrLn $ "Error: Cannot find service " ++ n ++ "!"
+  where mkTmuxWindow s = (newWindow (srvTmuxID s) (srvPath s) n)
+        launchServerInWindow s = sendTmux (srvTmuxID s) (minecraftServiceCmd (srvPath s) (srvVersion s))
 
 
 stop :: Services -> ServiceName -> IO ()
-stop slst n = case (Map.lookup n slst) of
-                Just s  -> sendTmux (srvTmuxID s) "stop"
-                Nothing -> putStrLn $ "Error: Cannot find service " ++ n ++ "!"
+stop slst n = do
+    case (Map.lookup n slst) of
+      Just s  -> sendTmux (srvTmuxID s) "stop"
+      Nothing -> putStrLn $ "Error: Cannot find service " ++ n ++ "!"
 
 
 status :: Services -> ServiceName -> IO ()
@@ -125,6 +172,16 @@ backup slst n = case (Map.lookup n slst) of
                   Nothing -> putStrLn $ "Error: Cannot find service " ++ n ++ "!"
 
 
+upgrade :: Services -> ServiceName -> String -> String -> IO ()
+upgrade slst n "to" v = putStrLn $ "Upgrading " ++ n ++ "..."
+upgrade slst n _ v = putStrLn "Error: Invalid command syntax!"
+
+
+downgrade :: Services -> ServiceName -> String -> String -> IO ()
+downgrade slst n "to" v = putStrLn $ "Downgrading " ++ n ++ "..."
+downgrade slst n _ v = putStrLn "Error: Invalid command syntax!"
+
+
 -- | Executes the 'say' command in the target Minecraft server.
 -- Must be provided the list of services, the target service,
 -- and the message to say on the server.
@@ -134,25 +191,28 @@ say slst s m = do
       Just service  -> sendTmux (srvTmuxID service) ("say " ++ m)
       Nothing       -> putStrLn "Error: Service cannot be found!"
 
-{-
+
 with :: Services -> ServiceName -> String -> IO ()
-with slst s c = do
-    case (Map.lookup s slst) of
-      Just service  -> sendTmux (srvTmuxID service) (c
--}
+with slst s c = putStrLn $ "Running command " ++ c ++ "..."
+
 
 commands :: Services -> Parser (IO ())
 commands slst = subparser
-    (  command "init"
-      (info (helper <*> (pure init))
+    (  command "boot"
+      (info (helper <*> (pure boot))
         (fullDesc
-        <> progDesc "Init the Tmux Server"
-        <> header "init - starts the Tmux Server"))
-    <> command "close"
-      (info (helper <*> (pure close))
+        <> progDesc "Boots the Tmux Server"
+        <> header "boot - starts the Tmux Server"))
+    <> command "shutdown"
+      (info (helper <*> (pure shutdown))
         (fullDesc
-        <> progDesc "Closes the Tmux Server"
-        <> header "close - closes the Tmux Server"))
+        <> progDesc "Shuts down the Tmux Server"
+        <> header "shutdown - closes the Tmux Server"))
+    <> command "create"
+      (info (helper <*> ((create slst) <$> argument str idm))
+        (fullDesc
+        <> progDesc "minecraftctl create TARGET"
+        <> header "create - creates a new minecraft server"))
     <> command "start"
       (info (helper <*> ((start slst) <$> argument str idm))
         (fullDesc
@@ -198,17 +258,31 @@ commands slst = subparser
         (fullDesc
         <> progDesc "Backs up a TARGET server"
         <> header "backup - back ups a server"))
+    <> command "upgrade"
+      (info (helper <*> ((upgrade slst) <$> argument str idm <*> argument str idm <*> argument str idm))
+        (fullDesc
+        <> progDesc "Updates a TARGET server"
+        <> header "upgrade - upgrades a server to the given version"))
+    <> command "downgrade"
+      (info (helper <*> ((downgrade slst) <$> argument str idm <*> argument str idm <*> argument str idm))
+        (fullDesc
+        <> progDesc "Downgrades a TARGET server"
+        <> header "downgrade - downgrades a server to the given version"))
     <> command "say"
       (info (helper <*> ((say slst) <$> argument str idm <*> argument str idm))
-        (   fullDesc
-        <>  progDesc "Sends a 'say' command to a TARGET server"
-        <>  header "say - 'say' something on a server")))
-
+        (fullDesc
+        <> progDesc "minecraftctl say TARGET"
+        <> header "say - 'say' something on a server"))
+    <> command "with"
+      (info (helper <*> ((with slst) <$> argument str idm <*> argument str idm))
+        (fullDesc
+        <> progDesc "with a TARGET server, run the following COMMAND"
+        <> header "with - Run server commands via a given server")))
 
 opts slst = info (helper <*> (commands slst))
     ( fullDesc
    <> progDesc "Controls Minecraft Servers"
-   <> header "minecraftctl - A tool for controlling Minecraft servers")
+   <> header "minecraftctl - [OPTIONS...] {COMMAND} ...")
 
 
 main :: IO ()
