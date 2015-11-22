@@ -61,7 +61,7 @@ instance Binary ServerBoundStatus where
     _ <- getWord8
     packetID <- getWord8
     case packetID of
-      0 -> Handshake <$> getWord8 <*> (getWord8 >>= (\x -> getByteString (fromIntegral x))) <*> getWord16be <*> getWord8
+      0 -> Handshake <$> getWord8 <*> (getWord8 >>= (getByteString . fromIntegral)) <*> getWord16be <*> getWord8
       1 -> Ping <$> (get :: Get Word64)
       _ -> fail "Unrecognized packet!"
 
@@ -77,7 +77,7 @@ instance Binary ClientBoundStatus where
     _ <- getWord8
     packetID <- getWord8
     case packetID of
-      0 -> Response <$> (getWord8 >>= (\x -> getByteString (fromIntegral x)))
+      0 -> Response <$> (getWord8 >>= (getByteString . fromIntegral))
       1 -> Pong <$> (get :: Get Word64)
       _ -> fail "Unrecognized packet!"
 
@@ -130,5 +130,5 @@ instance Aeson.FromJSON Description
 
 
 parsePort :: B.ByteString -> Word16
-parsePort b = toEnum ((shiftL l 8) + r)
-  where (l:r:[]) = fmap fromEnum (B.unpack b)
+parsePort b = toEnum (shiftL l 8 + r)
+  where [l, r] = fmap fromEnum (B.unpack b)

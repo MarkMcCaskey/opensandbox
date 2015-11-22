@@ -68,7 +68,7 @@ type JavaError = [B.ByteString]
 
 type Error = [B.ByteString]
 
-type Log = [(Either JavaError LogEntry)]
+type Log = [Either JavaError LogEntry]
 
 
 -- | Parser for the timestamp of a log entry.
@@ -167,5 +167,5 @@ loadLogFiles path = do
     let fileList = List.drop 2 $ List.sort files
     let latest = List.last fileList
     let archived = List.init fileList
-    raw <- mapM BL.readFile $ map (path ++) archived
+    raw <- mapM (BL.readFile . (path ++)) archived
     return $ B.concat $ fmap (BL.toStrict . Gzip.decompress) raw

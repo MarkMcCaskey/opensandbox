@@ -39,15 +39,14 @@ getLatestMCSnapshot cacheDir = do
       Right v -> getMCSnapshot cacheDir v
 
 
-
 -- | Grabs a Minecraft snapshot from Mojang's servers
 -- param version: The version num of the target snapshot
 -- param cacheDir: The path to the cache directory
 -- returns: An IO action that saves the snapshot of said version to the said cache directory
 getMCSnapshot :: FilePath -> String -> IO ()
 getMCSnapshot dest version = do
-    let url = List.intercalate "/" [mcVersionsURL,version,(mcServerJar version)]
-    simpleHttp url >>= BL.writeFile (dest ++ "/" ++ (mcServerJar version))
+    let url = List.intercalate "/" [mcVersionsURL, version, mcServerJar version]
+    simpleHttp url >>= BL.writeFile (dest ++ "/" ++ mcServerJar version)
 
 
 findLatestMCSnapshot :: IO (Either String MCVersion)
@@ -59,7 +58,7 @@ findLatestMCSnapshot = do
 
 
 getMCVersionList :: IO (Either String VersionList)
-getMCVersionList = (eitherDecode <$> simpleHttp mcVersionsListURL)
+getMCVersionList = eitherDecode <$> simpleHttp mcVersionsListURL
 
 
 mcVersionsURL :: String

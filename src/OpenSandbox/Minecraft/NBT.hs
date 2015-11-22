@@ -21,18 +21,18 @@ data NBT = NBT Int NBTTagType NBTPayload deriving (Show,Eq,Read)
 
 
 data NBTTagType
-  = TAG_End
-  | TAG_Byte
-  | TAG_Short
-  | TAG_Int
-  | TAG_Long
-  | TAG_Float
-  | TAG_Double
-  | TAG_Byte_Array
-  | TAG_String
-  | TAG_List
-  | TAG_Compound
-  | TAG_Int_Array
+  = TAGEnd
+  | TAGByte
+  | TAGShort
+  | TAGInt
+  | TAGLong
+  | TAGFloat
+  | TAGDouble
+  | TAGByteArray
+  | TAGString
+  | TAGList
+  | TAGCompound
+  | TAGIntArray
   deriving (Show,Eq,Read,Enum)
 
 

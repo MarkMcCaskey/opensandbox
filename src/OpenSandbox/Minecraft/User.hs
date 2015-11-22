@@ -122,5 +122,5 @@ buildUserCache u = do
     if isNotCacheable
       then Left "Error: Cannot cache User with no expiration date!"
       else Right $ UserCacheEntry (userName u) (userUUID u) (formatCacheTime $ mkZonedTime $ fromJust $ userCacheExpiration u)
-  where formatCacheTime x = formatTime defaultTimeLocale "%F %T %z" x
+  where formatCacheTime = formatTime defaultTimeLocale "%F %T %z"
         mkZonedTime (t,z) = utcToZonedTime z t

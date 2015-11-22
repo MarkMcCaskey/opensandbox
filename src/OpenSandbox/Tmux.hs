@@ -32,7 +32,7 @@ type TmuxID = String
 
 
 sendTmux :: TmuxID -> MCCommand -> IO ()
-sendTmux t c = callCommand $ "tmux send -t " ++ t ++ " " ++ (show c) ++ " ENTER"
+sendTmux t c = callCommand $ "tmux send -t " ++ t ++ " " ++ show c ++ " ENTER"
 
 
 detachClient :: TmuxID -> IO ()

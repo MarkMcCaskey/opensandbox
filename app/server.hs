@@ -69,7 +69,7 @@ main :: IO ()
 main = do
     putStrLn "Welcome to OpenSandbox Server!"
     putStrLn "Loading OpenSandbox properties..."
-    putStrLn $ "Starting minecraft server version " ++ (show mcVersion)
+    putStrLn $ "Starting minecraft server version " ++ show mcVersion
     putStrLn "Loading properties"
     loadMCServerProperties mcSrvPath
     putStrLn "Default game type: SURVIVAL"
@@ -77,27 +77,14 @@ main = do
     (pubKey,privKey) <- generate 128 63
     let cert = encodeASN1' DER $ toASN1 (PubKeyRSA pubKey) []
     print cert
-    putStrLn $ "Starting Minecraft server on " ++ (show mcPort)
-    putStrLn $ "Preparing level " ++ (show mcWorld)
+    putStrLn $ "Starting Minecraft server on " ++ show mcPort
+    putStrLn $ "Preparing level " ++ show mcWorld
     putStrLn "Done!"
     sock <- socket AF_INET Stream 0
     setSocketOption sock ReuseAddr 1
     bindSocket sock (SockAddrInet mcPort iNADDR_ANY)
     listen sock 1
     mainLoop sock
-
-
-responsePacket = [ (Start Sequence)
-                 , (Start Sequence)
-                 , (OID [1,2,840,113549,1,1,1])
-                 , Null
-                 , (End Sequence)
-                 , (BitString (BitArray 0 "test"))
-                 , (End Sequence)
-                 , (Start Sequence)
-                 , (IntVal 52) -- Just a temp val
-                 , (IntVal 63) -- Just a temp val
-                 , (End Sequence)]
 
 
 loadMCServerProperties :: FilePath -> IO ()
@@ -115,7 +102,7 @@ mainLoop sock = do
 routeHandshake :: Socket -> ServerBoundStatus -> IO ()
 routeHandshake sock (Handshake _ _ _ 1) = runStatus sock
 routeHandshake sock (Handshake _ _ _ 2) = runLogin sock
-routeHandshake sock (Handshake _ _ _ _) = putStrLn "Error: Unknown state!"
+routeHandshake sock Handshake {}        = putStrLn "Error: Unknown state!"
 routeHandshake sock _                   = putStrLn "Error: Unknown handshake!"
 
 
@@ -125,20 +112,16 @@ runStatus sock = do
     putStrLn "|                   << Packet Report Begin >>                   |"
     putStrLn "================================================================="
     let response = BL.toStrict $ Aeson.encode $ buildResponse mcVersion 0 20 mcMotd
-    let response' = (B.cons (0 :: Word8) (B.cons (fromIntegral $ B.length response :: Word8) response))
+    let response' = B.cons (0 :: Word8) (B.cons (fromIntegral $ B.length response :: Word8) response)
     let outgoing = B.cons (fromIntegral $ B.length response' :: Word8) response'
     send sock outgoing
-    putStrLn "================================================================="
-    putStrLn "/////////////////////////////////////////////////////////////////"
-    putStrLn "================================================================="
+    mapM_ putStrLn bar
     ping <- recv sock 256
     putStrLn "[Raw Ping]"
     print ping
     print $ B.unpack ping
     maybePing sock ping
-    putStrLn "================================================================="
-    putStrLn "/////////////////////////////////////////////////////////////////"
-    putStrLn "================================================================="
+    mapM_ putStrLn bar
     putStrLn "|                    << Packet Report End >>                    |"
     putStrLn "================================================================="
     sClose sock
@@ -147,7 +130,7 @@ runStatus sock = do
 runLogin :: Socket -> IO ()
 runLogin sock = do
     loginStart <- recv sock 254
-    print $ (B.drop 3 loginStart) `B.append` " is logging in..."
+    print $ B.drop 3 loginStart `B.append` " is logging in..."
     let encryptRequest = undefined
     send sock encryptRequest
     encryptResponse <- recv sock 512
@@ -159,8 +142,8 @@ runLogin sock = do
 
 
 maybePing :: Socket -> B.ByteString -> IO ()
-maybePing sock maybePing = do
-    if ((B.length maybePing == 10) && ((B.index maybePing 1) == 1))
+maybePing sock maybePing =
+    if (B.length maybePing == 10) && (B.index maybePing 1 == 1)
         then do
               send sock maybePing
               return ()
@@ -168,3 +151,10 @@ maybePing sock maybePing = do
               packet <- recv sock 254
               send sock packet
               return ()
+
+
+bar :: [String]
+bar = [ "================================================================="
+      , "/////////////////////////////////////////////////////////////////"
+      , "================================================================="]
+

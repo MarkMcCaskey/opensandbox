@@ -78,7 +78,7 @@ minecraftServiceCmd rootPath v = "cd " ++ rootPath ++"; java -Xmx4G -Xms512M -XX
 
 
 runMinecraftServer :: [String] -> Service -> IO ()
-runMinecraftServer args srv = callCommand $ ("cd " ++ (srvPath srv) ++"; java -jar " ++ (srvPath srv) ++ "/" ++ (mcServerJar (srvVersion srv)) ++ " nogui")
+runMinecraftServer args srv = callCommand ("cd " ++ srvPath srv ++"; java -jar " ++ srvPath srv ++ "/" ++ mcServerJar (srvVersion srv) ++ " nogui")
 
 
 setupNewServer :: String -> IO ()
@@ -90,18 +90,18 @@ setupNewServer n = do
     putStrLn "Version: "
     v <- getLine
     putStrLn "Setting up new server..."
-    let newServer = Service n ("opensandbox:"++p) r (r ++ "/backup") (r ++ "/logs") "world" v
+    let newServer = Service n ("opensandbox:"++p) r (r ++ "/" ++ "backup") (r ++ "/" ++ "logs") "world" v
     createDirectoryIfMissing True (srvPath newServer)
     createDirectoryIfMissing True (srvBackupPath newServer)
     getMCSnapshot (srvPath newServer) (srvVersion newServer)
     runMinecraftServer [] newServer
-    eula <- readFile $ (srvPath newServer) ++ "/" ++ "eula.txt"
+    eula <- readFile $ srvPath newServer ++ "/" ++ "eula.txt"
     mapM_ putStrLn (lines eula)
     putStrLn "Do you Agree? (y/n)"
     c <- getChar
-    if (c == 'y')
-      then writeFile ((srvPath newServer) ++ "/" ++ "eula.txt") (unlines ((init $ lines eula) ++ ["eula=true"]))
-      else return ()
+    when (c == 'y') $
+      writeFile (srvPath newServer ++ "/" ++ "eula.txt")
+                (unlines (init (lines eula) ++ ["eula=true"]))
     newWindow (srvTmuxID newServer) (srvPath newServer) n
     sendTmux (srvTmuxID newServer) (minecraftServiceCmd (srvPath newServer) (srvVersion newServer))
     detachClient (srvTmuxID newServer)
@@ -116,24 +116,24 @@ shutdown = tmuxClose
 
 
 create :: Services -> ServiceName -> IO ()
-create slst n = do
-    case (Map.lookup n slst) of
+create slst n =
+    case Map.lookup n slst of
       Just s  -> putStrLn "Error: Service already exists!"
       Nothing -> setupNewServer n
 
 
 start :: Services -> ServiceName -> IO ()
-start slst n = do
-    case (Map.lookup n slst) of
+start slst n =
+    case Map.lookup n slst of
       Just s    -> mkTmuxWindow s >> launchServerInWindow s
       Nothing   -> putStrLn $ "Error: Cannot find service " ++ n ++ "!"
-  where mkTmuxWindow s = (newWindow (srvTmuxID s) (srvPath s) n)
+  where mkTmuxWindow s = newWindow (srvTmuxID s) (srvPath s) n
         launchServerInWindow s = sendTmux (srvTmuxID s) (minecraftServiceCmd (srvPath s) (srvVersion s))
 
 
 stop :: Services -> ServiceName -> IO ()
-stop slst n = do
-    case (Map.lookup n slst) of
+stop slst n =
+    case Map.lookup n slst of
       Just s  -> sendTmux (srvTmuxID s) "stop" >> callCommand "sleep 5" >> killWindow (srvTmuxID s)
       Nothing -> putStrLn $ "Error: Cannot find service " ++ n ++ "!"
 
@@ -164,12 +164,13 @@ whoison slst n = putStrLn $ "The following users are logged into " ++ n ++ "..."
 
 -- | Backs up the target Minecraft service.
 backup :: Services -> ServiceName -> IO ()
-backup slst n = case (Map.lookup n slst) of
-                  Just s -> fullBackup  (srvTmuxID s)
-                                        (srvPath s)
-                                        (srvBackupPath s)
-                                        [(srvWorld s), ("minecraft_server." ++ (srvVersion s) ++ ".jar")]
-                  Nothing -> putStrLn $ "Error: Cannot find service " ++ n ++ "!"
+backup slst n =
+    case Map.lookup n slst of
+      Just s -> fullBackup  (srvTmuxID s)
+                            (srvPath s)
+                            (srvBackupPath s)
+                            [srvWorld s, "minecraft_server." ++ srvVersion s ++ ".jar"]
+      Nothing -> putStrLn $ "Error: Cannot find service " ++ n ++ "!"
 
 
 upgrade :: Services -> ServiceName -> String -> String -> IO ()
@@ -186,8 +187,8 @@ downgrade slst n _ v = putStrLn "Error: Invalid command syntax!"
 -- Must be provided the list of services, the target service,
 -- and the message to say on the server.
 say :: Services -> ServiceName -> String -> IO ()
-say slst s m = do
-    case (Map.lookup s slst) of
+say slst s m =
+  case Map.lookup s slst of
       Just service  -> sendTmux (srvTmuxID service) ("say " ++ m)
       Nothing       -> putStrLn "Error: Service cannot be found!"
 
@@ -199,87 +200,87 @@ with slst s c = putStrLn $ "Running command " ++ c ++ "..."
 commands :: Services -> Parser (IO ())
 commands slst = subparser
     (  command "boot"
-      (info (helper <*> (pure boot))
+      (info (helper <*> pure boot)
         (fullDesc
         <> progDesc "Boots the Tmux Server"
         <> header "boot - starts the Tmux Server"))
     <> command "shutdown"
-      (info (helper <*> (pure shutdown))
+      (info (helper <*> pure shutdown)
         (fullDesc
         <> progDesc "Shuts down the Tmux Server"
         <> header "shutdown - closes the Tmux Server"))
     <> command "create"
-      (info (helper <*> ((create slst) <$> argument str idm))
+      (info (helper <*> (create slst <$> argument str idm))
         (fullDesc
         <> progDesc "minecraftctl create TARGET"
         <> header "create - creates a new minecraft server"))
     <> command "start"
-      (info (helper <*> ((start slst) <$> argument str idm))
+      (info (helper <*> (start slst <$> argument str idm))
         (fullDesc
         <> progDesc "Starts a TARGET server"
         <> header "start - starts a server"))
     <> command "stop"
-      (info (helper <*> ((stop slst) <$> argument str idm))
+      (info (helper <*> (stop slst <$> argument str idm))
         (fullDesc
         <> progDesc "Stops a TARGET server"
         <> header "stop - stops a server"))
     <> command "restart"
-      (info (helper <*> ((restart slst) <$> argument str idm))
+      (info (helper <*> (restart slst <$> argument str idm))
         (fullDesc
         <> progDesc "Restarts a TARGET server"
         <> header "restart - restarts a server"))
     <> command "status"
-      (info (helper <*> ((status slst) <$> argument str idm))
+      (info (helper <*> (status slst <$> argument str idm))
         (fullDesc
         <> progDesc "Obtains the status of TARGET service"
         <> header "status - get the status of the service"))
     <> command "enable"
-      (info (helper <*> ((enable slst) <$> argument str idm))
+      (info (helper <*> (enable slst <$> argument str idm))
         (fullDesc
         <> progDesc "Enables a TARGET server"
         <> header "enable - enables a server"))
     <> command "disable"
-      (info (helper <*> ((disable slst) <$> argument str idm))
+      (info (helper <*> (disable slst <$> argument str idm))
         (fullDesc
         <> progDesc "Disables a TARGET server"
         <> header "disable - disables a server"))
     <> command "reload"
-      (info (helper <*> ((reload slst) <$> argument str idm))
+      (info (helper <*> (reload slst <$> argument str idm))
         (fullDesc
         <> progDesc "Reloads a TARGET server"
         <> header "reload - reload a server"))
     <> command "whoison"
-      (info (helper <*> ((whoison slst) <$> argument str idm))
+      (info (helper <*> (whoison slst <$> argument str idm))
         (fullDesc
         <> progDesc "Lists all users currently logged in on TARGET"
         <> header "whoison - lists logged in users"))
     <> command "backup"
-      (info (helper <*> ((backup slst) <$> argument str idm))
+      (info (helper <*> (backup slst <$> argument str idm))
         (fullDesc
         <> progDesc "Backs up a TARGET server"
         <> header "backup - back ups a server"))
     <> command "upgrade"
-      (info (helper <*> ((upgrade slst) <$> argument str idm <*> argument str idm <*> argument str idm))
+      (info (helper <*> (upgrade slst <$> argument str idm <*> argument str idm <*> argument str idm))
         (fullDesc
         <> progDesc "Updates a TARGET server"
         <> header "upgrade - upgrades a server to the given version"))
     <> command "downgrade"
-      (info (helper <*> ((downgrade slst) <$> argument str idm <*> argument str idm <*> argument str idm))
+      (info (helper <*> (downgrade slst <$> argument str idm <*> argument str idm <*> argument str idm))
         (fullDesc
         <> progDesc "Downgrades a TARGET server"
         <> header "downgrade - downgrades a server to the given version"))
     <> command "say"
-      (info (helper <*> ((say slst) <$> argument str idm <*> argument str idm))
+      (info (helper <*> (say slst <$> argument str idm <*> argument str idm))
         (fullDesc
         <> progDesc "minecraftctl say TARGET"
         <> header "say - 'say' something on a server"))
     <> command "with"
-      (info (helper <*> ((with slst) <$> argument str idm <*> argument str idm))
+      (info (helper <*> (with slst <$> argument str idm <*> argument str idm))
         (fullDesc
         <> progDesc "with a TARGET server, run the following COMMAND"
         <> header "with - Run server commands via a given server")))
 
-opts slst = info (helper <*> (commands slst))
+opts slst = info (helper <*> commands slst)
     ( fullDesc
    <> progDesc "Controls Minecraft Servers"
    <> header "minecraftctl - [OPTIONS...] {COMMAND} ...")

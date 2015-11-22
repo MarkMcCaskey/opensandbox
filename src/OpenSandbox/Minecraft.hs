@@ -8,27 +8,14 @@
 -- Portability  : portable
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Minecraft
-    ( module OpenSandbox.Minecraft.Backup
-    , module OpenSandbox.Minecraft.BannedIP
-    , module OpenSandbox.Minecraft.BannedPlayer
-    , module OpenSandbox.Minecraft.Log
-    , module OpenSandbox.Minecraft.NBT
-    , module OpenSandbox.Minecraft.Op
-    , module OpenSandbox.Minecraft.Protocol
-    , module OpenSandbox.Minecraft.Update
-    , module OpenSandbox.Minecraft.User
-    , module OpenSandbox.Minecraft.WhiteList
-    ) where
-
-
-import OpenSandbox.Minecraft.Backup
-import OpenSandbox.Minecraft.BannedIP
-import OpenSandbox.Minecraft.BannedPlayer
-import OpenSandbox.Minecraft.Log
-import OpenSandbox.Minecraft.NBT
-import OpenSandbox.Minecraft.Op
-import OpenSandbox.Minecraft.Protocol
-import OpenSandbox.Minecraft.Update
-import OpenSandbox.Minecraft.User
-import OpenSandbox.Minecraft.WhiteList
+module OpenSandbox.Minecraft (module M) where
+import OpenSandbox.Minecraft.Backup       as M
+import OpenSandbox.Minecraft.BannedIP     as M
+import OpenSandbox.Minecraft.BannedPlayer as M
+import OpenSandbox.Minecraft.Log          as M
+import OpenSandbox.Minecraft.NBT          as M
+import OpenSandbox.Minecraft.Op           as M
+import OpenSandbox.Minecraft.Protocol     as M
+import OpenSandbox.Minecraft.Update       as M
+import OpenSandbox.Minecraft.User         as M
+import OpenSandbox.Minecraft.WhiteList    as M
