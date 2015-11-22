@@ -32,13 +32,16 @@ type TmuxID = String
 
 
 sendTmux :: TmuxID -> MCCommand -> IO ()
-sendTmux t c = callCommand $ "tmux send -t " ++ (show t) ++ " " ++ (show c) ++ " ENTER"
+sendTmux t c = callCommand $ "tmux send -t " ++ t ++ " " ++ (show c) ++ " ENTER"
+
 
 detachClient :: TmuxID -> IO ()
-detachClient t = callCommand $ "tmux detach-client -t " ++ t ++ " ENTER"
+detachClient t = callCommand $ "tmux detach-client -t " ++ t
+
 
 newWindow :: TmuxID -> FilePath -> String -> IO ()
-newWindow t d n = callCommand $ "tmux new-window -t " ++ t ++ " -c " ++ d ++ " -n " ++ n ++ "ENTER"
+newWindow t d n = callCommand $ "tmux new-window -t " ++ t ++ " -c " ++ d ++ " -n " ++ n
+
 
 killWindow :: TmuxID -> IO ()
 killWindow t = callCommand $ "tmux kill-window -t " ++ t
