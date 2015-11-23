@@ -84,7 +84,7 @@ instance Binary ClientBoundStatus where
 
 buildResponse :: T.Text -> Int -> Int -> T.Text -> ResponsePayload
 buildResponse version currentPlayers maxPlayers motd =
-    ResponsePayload (Version version 87)
+    ResponsePayload (Version version 89)
                     (Players maxPlayers currentPlayers)
                     (Description motd)
 
