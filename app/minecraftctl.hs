@@ -18,6 +18,7 @@ import            OpenSandbox.Minecraft.Update
 import            OpenSandbox.Tmux
 import            Options.Applicative
 import            System.Directory
+import            System.IO
 import            System.Process
 
 type Services = Map.Map ServiceName Service
@@ -83,19 +84,36 @@ runMinecraftServer args srv = callCommand ("cd " ++ srvPath srv ++"; java -jar "
 
 setupNewServer :: String -> IO ()
 setupNewServer n = do
-    putStrLn "Port: "
+    putStrLn "Welcome to Open Sandbox's Interactive Server Setup!"
+    putStrLn "Please provide the following:"
+    putStr "Port: "
+    hFlush stdout
     p <- getLine
-    putStrLn "What's the Server Path (eg. /srv/minecraft)?: "
+    putStr "Server Path (eg. /srv/minecraft)?: "
+    hFlush stdout
     r <- getLine
-    putStrLn "Version: "
+    putStr "Version: "
+    hFlush stdout
     v <- getLine
     putStrLn "Setting up new server..."
-    let newServer = Service n ("opensandbox:"++p) r (r ++ "/" ++ "backup") (r ++ "/" ++ "logs") "world" v
+    let newServer = Service
+                      n
+                      ("opensandbox:"++p)
+                      r
+                      (r ++ "/" ++ "backup")
+                      (r ++ "/" ++ "logs")
+                      "world"
+                      v
     createDirectoryIfMissing True (srvPath newServer)
     createDirectoryIfMissing True (srvBackupPath newServer)
+    putStr $ "Downloading minecraft." ++ v ++ ".jar..."
     getMCSnapshot (srvPath newServer) (srvVersion newServer)
+    putStrLn "[Done]"
     writeFile (srvPath newServer ++ "/server.properties") ("server-port="++p)
     runMinecraftServer [] newServer
+    putStrLn "----------------------------------------------------------------"
+    putStrLn "|           << Mojang's End User License Agreement >>          |"
+    putStrLn "----------------------------------------------------------------"
     eula <- readFile $ srvPath newServer ++ "/" ++ "eula.txt"
     mapM_ putStrLn (lines eula)
     putStrLn "Do you Agree? (y/n)"
@@ -107,6 +125,7 @@ setupNewServer n = do
     sendTmux (srvTmuxID newServer) (minecraftServiceCmd (srvPath newServer) (srvVersion newServer))
     callCommand "sleep 10"
     killWindow p
+    putStrLn "Server Setup Complete!"
 
 
 boot :: IO ()
@@ -290,5 +309,6 @@ opts slst = info (helper <*> commands slst)
 
 main :: IO ()
 main = do
+    --hSetBuffering stdin NoBuffering
     let defaultServices = Map.singleton "ecServer" ecServer
     join $ execParser (opts defaultServices)
