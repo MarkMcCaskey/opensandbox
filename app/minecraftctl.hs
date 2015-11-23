@@ -94,6 +94,7 @@ setupNewServer n = do
     createDirectoryIfMissing True (srvPath newServer)
     createDirectoryIfMissing True (srvBackupPath newServer)
     getMCSnapshot (srvPath newServer) (srvVersion newServer)
+    writeFile (srvPath newServer ++ "/server.properties") ("server-port="++p)
     runMinecraftServer [] newServer
     eula <- readFile $ srvPath newServer ++ "/" ++ "eula.txt"
     mapM_ putStrLn (lines eula)
@@ -104,7 +105,8 @@ setupNewServer n = do
                 (unlines (init (lines eula) ++ ["eula=true"]))
     newWindow (srvTmuxID newServer) (srvPath newServer) n
     sendTmux (srvTmuxID newServer) (minecraftServiceCmd (srvPath newServer) (srvVersion newServer))
-    detachClient (srvTmuxID newServer)
+    callCommand "sleep 10"
+    killWindow p
 
 
 boot :: IO ()

@@ -28,6 +28,7 @@ library
                             OpenSandbox.Minecraft.Protocol.Login
                             OpenSandbox.Minecraft.Protocol.Play
                             OpenSandbox.Minecraft.Protocol.Status
+                            OpenSandbox.Minecraft.ServerProperties
                             OpenSandbox.Minecraft.Update
                             OpenSandbox.Minecraft.User
                             OpenSandbox.Minecraft.WhiteList
@@ -40,6 +41,7 @@ library
                             bytestring,
                             containers,
                             directory,
+                            errors,
                             http-conduit,
                             iproute,
                             nbt,

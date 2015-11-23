@@ -11,13 +11,15 @@
 -------------------------------------------------------------------------------
 module OpenSandbox.Minecraft.ServerProperties
     ( ServerProperties
-    , readServerProperties
+    , readServerPropertiesRaw
+    , writeServerPropertiesRaw
     ) where
 
 
 import            Control.Error.Safe
 import            Data.Char
 import            Data.IP (IPv4 (..))
+import qualified  Data.Map as M
 import qualified  Data.Text as T
 import            Text.ParserCombinators.Parsec
 
@@ -151,20 +153,18 @@ data ServerProperties = ServerProperties
 --------------------------------------------------------------------------------
 
 
-readServerProperties :: FilePath -> IO (Either ParseError [(T.Text,T.Text)])
-readServerProperties path = do
+readServerPropertiesRaw :: FilePath -> IO (Either ParseError (M.Map T.Text T.Text))
+readServerPropertiesRaw path = do
     string <- readFile path
     let result = parse serverPropertiesFile "(I can't even...)" string
     case result of
         Left err -> return $ Left err
-        Right serverProperties -> return $ Right serverProperties
+        Right serverProperties -> return $ Right (M.fromList serverProperties)
 
 
-{-
-writeServerProperties :: FilePath -> M.Map T.Text T.Text -> IO ()
-writeServerProperties path config = writeFile path $ fromServerProperties config
+writeServerPropertiesRaw :: FilePath -> M.Map T.Text T.Text -> IO ()
+writeServerPropertiesRaw path config = writeFile path $ fromServerProperties config
     where fromServerProperties c = T.unpack $ T.unlines $ fmap mkLine $ M.toList c
--}
 
 --------------------------------------------------------------------------------
 -- Parsing
@@ -206,7 +206,7 @@ eol = char '\n'
 -------------------------------------------------------------------------------
 -- ServerProperties Builder
 -------------------------------------------------------------------------------
-
+{-
 buildServerProperties :: [(T.Text,T.Text)] -> ServerProperties
 buildServerProperties lst = do
         ServerProperties
@@ -251,11 +251,12 @@ buildServerProperties lst = do
             mkViewDistance $ f "view-distance" lst
             mkWhiteList $ f "white-list" lst
     where f str list = filter (==str) list
+-}
 -------------------------------------------------------------------------------
 -- Smart Constructors
 -------------------------------------------------------------------------------
 
-
+{-
 mkAllowFlight :: T.Text -> Either String AllowFlight
 mkAllowFlight raw = do
         case raw of
@@ -578,7 +579,7 @@ mkWhiteList raw = do
             ""      -> Right $ WhiteList False
             _       -> Left err
     where err = "Error: whitelist value invalid!"
-
+-}
 
 -------------------------------------------------------------------------------
 -- Helpers
