@@ -5,7 +5,7 @@
 -- License      : GPL3
 -- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
 -- Stability    : experimental
--- Portability  : portable
+-- Portability  : non-portable (requires Tmux)
 --
 -------------------------------------------------------------------------------
 module OpenSandbox
