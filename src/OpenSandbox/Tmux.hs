@@ -7,10 +7,15 @@
 -- Stability    : experimental
 -- Portability  : non-portable (requires Tmux)
 --
+-- Open Sandbox functions and types for controlling and manipulating Tmux.
 -------------------------------------------------------------------------------
 module OpenSandbox.Tmux
     ( TmuxID
-    , MCCommand
+    , TmuxSessionID
+    , TmuxWindowID
+    , tmuxID
+    , fmtTmuxID
+    , parseTmuxID
     , sendTmux
     , detachClient
     , newWindow
@@ -22,32 +27,63 @@ module OpenSandbox.Tmux
 
 
 import Data.Functor.Identity
+import OpenSandbox.Service
 import System.Directory
 import System.Exit
 import System.Process
 
 
-type MCCommand = String
+newtype TmuxID = TmuxID (TmuxSessionID,TmuxWindowID) deriving (Show,Read,Eq,Ord)
+
+type TmuxSessionID = String
+type TmuxWindowID = String
 
 
-type TmuxID = String
-
-type TmuxWindow = String
-
-sendTmux :: TmuxID -> MCCommand -> IO ()
-sendTmux t c = callCommand $ "tmux send -t " ++ t ++ " " ++ show c ++ " ENTER"
+tmuxID :: Service -> TmuxID
+tmuxID s = TmuxID $ ("opensandbox",(show $ srvPort s))
 
 
-detachClient :: TmuxWindow -> IO ()
-detachClient t = callCommand $ "tmux detach-client -t " ++ t
+fmtTmuxID :: TmuxID -> String
+fmtTmuxID (TmuxID (s,w)) = s ++ ":" ++ w
+
+
+-- | Takes a String `"sessionID" ++ ":" ++ "windowID"` and might build a TmuxID out of it.
+--
+-- > parseTmuxID "opensandbox:25565" = Just (TmuxID ("opensandbox","25565"))
+--
+-- It will return `Nothing` if it is given a string that has more or less than 1 ':' present in it.
+--
+-- > parseTmuxID "opensandbox:25565" = Just (TmuxID ("opensandbox","25565"))
+-- > parseTmuxID "opensandbox25565" = Nothing
+--
+-- It will also return `Nothing` if either the sessionID or the windowID are an empty string.
+--
+-- > parseTmuxID ":25565" = Nothing
+-- > parseTmuxID "opensandbox:" = Nothing
+parseTmuxID :: String -> Maybe TmuxID
+parseTmuxID x = if cnt ':' x == 1
+                  then if s /= [] && w /= []
+                          then Just (TmuxID (s,w))
+                          else Nothing
+                  else Nothing
+  where s = fst $ break (==':') x
+        w = tail . snd $ break (==':') x
+        cnt i lst = length $ filter (==i) lst
+
+sendTmux :: TmuxID -> String -> IO ()
+sendTmux t c = callCommand $ "tmux send -t " ++ fmtTmuxID t ++ " " ++ show c ++ " ENTER"
+
+
+detachClient :: TmuxWindowID -> IO ()
+detachClient w = callCommand $ "tmux detach-client -t " ++ w
 
 
 newWindow :: TmuxID -> FilePath -> String -> IO ()
-newWindow t d n = callCommand $ "tmux new-window -t " ++ t ++ " -c " ++ d ++ " -n " ++ n
+newWindow t d n = callCommand $ "tmux new-window -t " ++ fmtTmuxID t ++ " -c " ++ d ++ " -n " ++ n
 
 
-killWindow :: TmuxWindow -> IO ()
-killWindow t = callCommand $ "tmux kill-window -t " ++ t
+killWindow :: TmuxWindowID -> IO ()
+killWindow w = callCommand $ "tmux kill-window -t " ++ w
 
 
 isRunning :: IO Bool

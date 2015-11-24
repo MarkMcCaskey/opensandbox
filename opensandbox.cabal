@@ -17,6 +17,8 @@ cabal-version:              >=1.10
 library
     hs-source-dirs:         src
     exposed-modules:        OpenSandbox
+                            OpenSandbox.Command
+                            OpenSandbox.Config
                             OpenSandbox.Minecraft
                             OpenSandbox.Minecraft.Backup
                             OpenSandbox.Minecraft.BannedIP
@@ -32,6 +34,7 @@ library
                             OpenSandbox.Minecraft.Update
                             OpenSandbox.Minecraft.User
                             OpenSandbox.Minecraft.WhiteList
+                            OpenSandbox.Service
                             OpenSandbox.Tmux
     build-depends:          base >= 4.7 && < 5,
                             aeson,
@@ -39,6 +42,7 @@ library
                             binary,
                             bytes,
                             bytestring,
+                            ConfigFile,
                             containers,
                             directory,
                             errors,

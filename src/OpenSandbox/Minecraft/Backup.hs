@@ -10,11 +10,11 @@
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.Minecraft.Backup
-    ( standardBackup
-    , backupLabel
+    ( backupLabel
     , fullBackup
     ) where
 
+import            OpenSandbox.Service
 import            OpenSandbox.Tmux
 import qualified  Codec.Archive.Tar as Tar
 import qualified  Codec.Compression.GZip as GZip
@@ -22,10 +22,6 @@ import qualified  Data.ByteString.Lazy as BL
 import            Data.Time.Clock
 import            Data.Time.LocalTime
 import            Data.Time.Format
-
-
-standardBackup :: IO ()
-standardBackup = fullBackup "opensandbox:25565" "/srv/minecraft" "/home/oldmanmike/backup" ["world","minecraft_server.15w45a.jar"]
 
 
 backupLabel :: String -> String -> String

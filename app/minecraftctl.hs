@@ -16,6 +16,7 @@ import            Data.UUID
 import            OpenSandbox
 import            OpenSandbox.Minecraft.Backup
 import            OpenSandbox.Minecraft.Update
+import            OpenSandbox.Service
 import            OpenSandbox.Tmux
 import            Options.Applicative
 import            System.Directory
@@ -23,27 +24,10 @@ import            System.IO
 import            System.Process
 
 
-type Services = Map.Map ServiceName Service
-
-
-type ServiceName = String
-
-
-data Service = Service
-  { srvName       :: !ServiceName
-  , srvTmuxID     :: !TmuxID
-  , srvPath       :: !FilePath
-  , srvBackupPath :: !FilePath
-  , srvLogPath    :: !FilePath
-  , srvWorld      :: !String
-  , srvVersion    :: !String
-  } deriving (Show,Eq,Ord)
-
-
 testServer :: Service
 testServer = Service
   { srvName = "test"
-  , srvTmuxID = "opensandbox:25566"
+  , srvPort = 25566
   , srvPath = "/srv/test"
   , srvBackupPath = "/srv/test/backup"
   , srvLogPath = "/srv/test/logs"
@@ -55,7 +39,7 @@ testServer = Service
 ecServer :: Service
 ecServer = Service
   { srvName = "ecServer"
-  , srvTmuxID = "opensandbox:25565"
+  , srvPort = 25565
   , srvPath = "/srv/minecraft"
   , srvBackupPath = "/home/oldmanmike/backup"
   , srvLogPath = "/srv/minecraft/logs"
@@ -94,38 +78,35 @@ setupNewServer n = do
     putStr "Server Path (eg. /srv/minecraft)?: "
     hFlush stdout
     r <- getLine
+    putStr "World Name: "
+    hFlush stdout
+    w <- getLine
     putStr "Version: "
     hFlush stdout
     v <- getLine
     putStrLn "Setting up new server..."
-    let newServer = Service
-                      n
-                      ("opensandbox:"++p)
-                      r
-                      (r ++ "/" ++ "backup")
-                      (r ++ "/" ++ "logs")
-                      "world"
-                      v
+    let newServer = Service n (read p :: Int) r (r++"/backup") (r++"/logs") w v
     createDirectoryIfMissing True (srvPath newServer)
     createDirectoryIfMissing True (srvBackupPath newServer)
     putStr $ "Downloading minecraft." ++ v ++ ".jar..."
+    hFlush stdout
     getMCSnapshot (srvPath newServer) (srvVersion newServer)
     putStrLn "[Done]"
-    writeFile (srvPath newServer ++ "/server.properties") ("server-port="++p)
+    writeFile (srvPath newServer ++ "/server.properties") ("server-port="++p++"\n"++"level-name="++w)
     runMinecraftServer [] newServer
     putStrLn "----------------------------------------------------------------"
     putStrLn "|           << Mojang's End User License Agreement >>          |"
     putStrLn "----------------------------------------------------------------"
-    eula <- readFile $ srvPath newServer ++ "/" ++ "eula.txt"
+    eula <- readFile $ srvPath newServer ++ "/eula.txt"
     mapM_ putStrLn (lines eula)
     putStrLn "Do you Agree? (y/n)"
     c <- getChar
     when (c == 'y') $
-      writeFile (srvPath newServer ++ "/" ++ "eula.txt")
+      writeFile (srvPath newServer ++ "/eula.txt")
                 (unlines (init (lines eula) ++ ["eula=true"]))
-    newWindow (srvTmuxID newServer) (srvPath newServer) n
-    sendTmux (srvTmuxID newServer) (minecraftServiceCmd (srvPath newServer) (srvVersion newServer))
-    threadDelay 10000
+    newWindow (tmuxID newServer) (srvPath newServer) n
+    sendTmux (tmuxID newServer) (minecraftServiceCmd (srvPath newServer) (srvVersion newServer))
+    threadDelay 10000000
     killWindow p
     putStrLn "Server Setup Complete!"
 
@@ -150,14 +131,14 @@ start slst n =
     case Map.lookup n slst of
       Just s    -> mkTmuxWindow s >> launchServerInWindow s
       Nothing   -> putStrLn $ "Error: Cannot find service " ++ n ++ "!"
-  where mkTmuxWindow s = newWindow (srvTmuxID s) (srvPath s) n
-        launchServerInWindow s = sendTmux (srvTmuxID s) (minecraftServiceCmd (srvPath s) (srvVersion s))
+  where mkTmuxWindow s = newWindow (tmuxID s) (srvPath s) n
+        launchServerInWindow s = sendTmux (tmuxID s) (minecraftServiceCmd (srvPath s) (srvVersion s))
 
 
 stop :: Services -> ServiceName -> IO ()
 stop slst n =
     case Map.lookup n slst of
-      Just s  -> sendTmux (srvTmuxID s) "stop" >> callCommand "sleep 5" >> killWindow (srvTmuxID s)
+      Just s  -> sendTmux (tmuxID s) "stop" >> callCommand "sleep 5" >> killWindow (show $ srvPort s)
       Nothing -> putStrLn $ "Error: Cannot find service " ++ n ++ "!"
 
 
@@ -189,7 +170,7 @@ whoison slst n = putStrLn $ "The following users are logged into " ++ n ++ "..."
 backup :: Services -> ServiceName -> IO ()
 backup slst n =
     case Map.lookup n slst of
-      Just s -> fullBackup  (srvTmuxID s)
+      Just s -> fullBackup  (tmuxID s)
                             (srvPath s)
                             (srvBackupPath s)
                             [srvWorld s, "minecraft_server." ++ srvVersion s ++ ".jar"]
@@ -212,8 +193,8 @@ downgrade slst n _ v = putStrLn "Error: Invalid command syntax!"
 say :: Services -> ServiceName -> String -> IO ()
 say slst s m =
   case Map.lookup s slst of
-      Just service  -> sendTmux (srvTmuxID service) ("say " ++ m)
-      Nothing       -> putStrLn "Error: Service cannot be found!"
+      Just s  -> sendTmux (tmuxID s) ("say " ++ m)
+      Nothing -> putStrLn "Error: Service cannot be found!"
 
 
 with :: Services -> ServiceName -> String -> IO ()
