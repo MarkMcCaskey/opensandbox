@@ -1,4 +1,5 @@
 import Data.Either
+import Data.Maybe
 import qualified Data.Set as Set
 import OpenSandbox
 import Test.Hspec
@@ -77,3 +78,12 @@ main = hspec $ do
         input2 <- readUserCache (testSrvDir ++ "/" ++ "newusercache.json")
         (input1 == input2) `shouldBe` True
         removeFile (testSrvDir ++ "/" ++ "newusercache.json")
+    describe "OpenSandbox.Tmux.parseTmuxID" $ do
+      it "should build a TmuxID from a String ++ ':' ++ String" $ do
+        isJust (parseTmuxID "opensandbox:25565") `shouldBe` True
+      it "should return Nothing if it is given a string that has more or less than 1 ':'" $ do
+        parseTmuxID "opensandbox25565" `shouldBe` Nothing
+        parseTmuxID "opensandbox::25565" `shouldBe` Nothing
+      it "should return Nothing if either the sessionID or the windowID are an empty string" $ do
+        parseTmuxID ":25565" `shouldBe` Nothing
+        parseTmuxID "opensandbox:" `shouldBe` Nothing

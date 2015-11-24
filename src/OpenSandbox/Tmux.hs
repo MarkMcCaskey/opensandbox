@@ -25,15 +25,22 @@ module OpenSandbox.Tmux
     , tmuxClose
     ) where
 
-
+import Control.Monad
 import Data.Functor.Identity
 import OpenSandbox.Service
 import System.Directory
 import System.Exit
 import System.Process
+import Test.QuickCheck
 
 
 newtype TmuxID = TmuxID (TmuxSessionID,TmuxWindowID) deriving (Show,Read,Eq,Ord)
+
+instance Arbitrary TmuxID where
+  arbitrary = do
+    let s = arbitrary :: Gen String
+    let w = arbitrary :: Gen String
+    liftM (TmuxID) $ liftM2 (,) s w
 
 type TmuxSessionID = String
 type TmuxWindowID = String
@@ -53,7 +60,6 @@ fmtTmuxID (TmuxID (s,w)) = s ++ ":" ++ w
 --
 -- It will return `Nothing` if it is given a string that has more or less than 1 ':' present in it.
 --
--- > parseTmuxID "opensandbox:25565" = Just (TmuxID ("opensandbox","25565"))
 -- > parseTmuxID "opensandbox25565" = Nothing
 --
 -- It will also return `Nothing` if either the sessionID or the windowID are an empty string.
