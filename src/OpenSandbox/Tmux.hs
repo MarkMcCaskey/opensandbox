@@ -15,12 +15,14 @@ module OpenSandbox.Tmux
     , detachClient
     , newWindow
     , killWindow
+    , isRunning
     , tmuxInit
     , tmuxClose
     ) where
 
 
 import Data.Functor.Identity
+import System.Directory
 import System.Exit
 import System.Process
 
@@ -46,6 +48,10 @@ newWindow t d n = callCommand $ "tmux new-window -t " ++ t ++ " -c " ++ d ++ " -
 
 killWindow :: TmuxWindow -> IO ()
 killWindow t = callCommand $ "tmux kill-window -t " ++ t
+
+
+isRunning :: IO Bool
+isRunning = doesDirectoryExist "/tmp/tmux-1000"
 
 
 tmuxInit :: IO ()

@@ -9,6 +9,7 @@
 --
 -------------------------------------------------------------------------------
 
+import            Control.Concurrent
 import            Control.Monad
 import qualified  Data.Map as Map
 import            Data.UUID
@@ -20,6 +21,7 @@ import            Options.Applicative
 import            System.Directory
 import            System.IO
 import            System.Process
+
 
 type Services = Map.Map ServiceName Service
 
@@ -123,7 +125,7 @@ setupNewServer n = do
                 (unlines (init (lines eula) ++ ["eula=true"]))
     newWindow (srvTmuxID newServer) (srvPath newServer) n
     sendTmux (srvTmuxID newServer) (minecraftServiceCmd (srvPath newServer) (srvVersion newServer))
-    callCommand "sleep 10"
+    threadDelay 10000
     killWindow p
     putStrLn "Server Setup Complete!"
 
