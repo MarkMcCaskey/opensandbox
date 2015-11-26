@@ -59,10 +59,11 @@ mcMotd = "A Minecraft Server"
 
 
 data Server = Server
-  { srvName     :: T.Text
-  , srvCert     :: ASN1
-  , srvPubKey   :: PublicKey
-  , srvPrivKey  :: PrivateKey
+  { srvName         :: T.Text
+  , srvCert         :: B.ByteString
+  , srvPubKey       :: PublicKey
+  , srvPrivKey      :: PrivateKey
+  , srvVerifyToken  :: B.ByteString
   } deriving (Show,Eq)
 
 main :: IO ()
@@ -74,9 +75,10 @@ main = do
     loadMCServerProperties mcSrvPath
     putStrLn "Default game type: SURVIVAL"
     putStrLn "Generating key pair"
-    (pubKey,privKey) <- generate 128 63
+    (pubKey,privKey) <- generate 128 65537
     let cert = encodeASN1' DER $ toASN1 (PubKeyRSA pubKey) []
     print cert
+    let srv = Server "Opensandbox" cert pubKey privKey (B.pack [26,120,188,217])
     putStrLn $ "Starting Minecraft server on " ++ show mcPort
     putStrLn $ "Preparing level " ++ show mcWorld
     putStrLn "Done!"
@@ -84,26 +86,26 @@ main = do
     setSocketOption sock ReuseAddr 1
     bindSocket sock (SockAddrInet mcPort iNADDR_ANY)
     listen sock 1
-    mainLoop sock
+    mainLoop sock srv
 
 
 loadMCServerProperties :: FilePath -> IO ()
 loadMCServerProperties path = return ()
 
 
-mainLoop :: Socket -> IO ()
-mainLoop sock = do
+mainLoop :: Socket -> Server -> IO ()
+mainLoop sock srv = do
     (conn,_) <- accept sock
     packet <- recv conn 256
-    routeHandshake conn (decode (BL.fromStrict packet) :: ServerBoundStatus)
-    mainLoop sock
+    routeHandshake conn srv (decode (BL.fromStrict packet) :: ServerBoundStatus)
+    mainLoop sock srv
 
 
-routeHandshake :: Socket -> ServerBoundStatus -> IO ()
-routeHandshake sock (Handshake _ _ _ 1) = runStatus sock
-routeHandshake sock (Handshake _ _ _ 2) = runLogin sock
-routeHandshake sock Handshake {}        = putStrLn "Error: Unknown state!"
-routeHandshake sock _                   = putStrLn "Error: Unknown handshake!"
+routeHandshake :: Socket -> Server -> ServerBoundStatus -> IO ()
+routeHandshake sock srv (Handshake _ _ _ 1) = runStatus sock
+routeHandshake sock srv (Handshake _ _ _ 2) = runLogin sock srv
+routeHandshake sock srv (Handshake _ _ _ _) = putStrLn "Error: Unknown state!"
+routeHandshake sock srv _                   = putStrLn "Error: Unknown handshake!"
 
 
 runStatus :: Socket -> IO ()
@@ -127,18 +129,43 @@ runStatus sock = do
     sClose sock
 
 
-runLogin :: Socket -> IO ()
-runLogin sock = do
+runLogin :: Socket -> Server -> IO ()
+runLogin sock srv = do
     loginStart <- recv sock 254
     print $ B.drop 3 loginStart `B.append` " is logging in..."
-    let encryptRequest = undefined
-    send sock encryptRequest
+    send sock $ encryptionRequestPacket (srvCert srv) (srvVerifyToken srv)
     encryptResponse <- recv sock 512
+    print $ B.length encryptResponse
+    print $ B.unpack encryptResponse
     let loginSuccess = undefined
     send sock loginSuccess
     let setCompression = undefined
     send sock setCompression
     sClose sock
+
+
+encryptionRequestPacket :: B.ByteString -> B.ByteString -> B.ByteString
+encryptionRequestPacket c v = packetLength `B.append` packetID `B.append` payload
+  where packetLength = B.pack [(fromIntegral $ B.length payload :: Word8)]
+        packetID = B.singleton 1
+        payload = serverIDField `B.append` publicKeyField c `B.append` verifyTokenField v
+
+
+serverIDField :: B.ByteString
+serverIDField = packetLength `B.append` payload
+  where packetLength = B.pack [(fromIntegral $ B.length payload :: Word8)]
+        payload = B.singleton 0
+
+
+publicKeyField :: B.ByteString -> B.ByteString
+publicKeyField payload = packetLength `B.append` mystery `B.append` payload
+  where packetLength = B.pack [(fromIntegral $ B.length payload :: Word8)]
+        mystery = B.singleton 1
+
+
+verifyTokenField :: B.ByteString -> B.ByteString
+verifyTokenField payload = packetLength `B.append` payload
+  where packetLength = B.pack [(fromIntegral $ B.length payload :: Word8)]
 
 
 maybePing :: Socket -> B.ByteString -> IO ()
