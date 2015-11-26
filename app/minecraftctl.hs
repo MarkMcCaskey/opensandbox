@@ -12,7 +12,8 @@
 import            Control.Concurrent
 import            Control.Monad
 import qualified  Data.Map as Map
-import            Data.UUID
+import            Data.String
+import            Data.UUID hiding (fromString)
 import            OpenSandbox
 import            OpenSandbox.Minecraft.Backup
 import            OpenSandbox.Minecraft.Update
@@ -68,31 +69,43 @@ runMinecraftServer :: [String] -> Service -> IO ()
 runMinecraftServer args srv = callCommand ("cd " ++ srvPath srv ++"; java -jar " ++ srvPath srv ++ "/" ++ mcServerJar (srvVersion srv) ++ " nogui")
 
 
-setupNewServer :: String -> IO ()
-setupNewServer n = do
+prompt :: String -> Maybe String -> IO String
+prompt prompt maybeInput =
+    case maybeInput of
+      Just input -> return $ show input
+      Nothing -> do putStr prompt
+                    hFlush stdout
+                    x <- getLine
+                    return x
+
+
+promptInt :: String -> Maybe Int -> IO Int
+promptInt prompt maybeInput =
+    case maybeInput of
+      Just input -> return input
+      Nothing -> do putStr prompt
+                    hFlush stdout
+                    x <- getLine
+                    return (read x :: Int)
+
+
+setupNewServer :: String -> Maybe Int -> Maybe FilePath -> Maybe String -> Maybe String -> IO ()
+setupNewServer n maybeP maybeR maybeW maybeV = do
     putStrLn "Welcome to Open Sandbox's Interactive Server Setup!"
     putStrLn "Please provide the following:"
-    putStr "Port: "
-    hFlush stdout
-    p <- getLine
-    putStr "Server Path (eg. /srv/minecraft)?: "
-    hFlush stdout
-    r <- getLine
-    putStr "World Name: "
-    hFlush stdout
-    w <- getLine
-    putStr "Version: "
-    hFlush stdout
-    v <- getLine
+    p <- promptInt "Port: " maybeP
+    r <- prompt "Server Path (eg. /srv/minecraft): " maybeR
+    w <- prompt "World Name: " maybeW
+    v <- prompt "Version: " maybeV
     putStrLn "Setting up new server..."
-    let newServer = Service n (read p :: Int) r (r++"/backup") (r++"/logs") w v
+    let newServer = Service n p r (r++"/backup") (r++"/logs") w v
     createDirectoryIfMissing True (srvPath newServer)
     createDirectoryIfMissing True (srvBackupPath newServer)
     putStr $ "Downloading minecraft." ++ v ++ ".jar..."
     hFlush stdout
     getMCSnapshot (srvPath newServer) (srvVersion newServer)
     putStrLn "[Done]"
-    writeFile (srvPath newServer ++ "/server.properties") ("server-port="++p++"\n"++"level-name="++w)
+    writeFile (srvPath newServer ++ "/server.properties") ("server-port="++show p++"\n"++"level-name="++w)
     runMinecraftServer [] newServer
     putStrLn "----------------------------------------------------------------"
     putStrLn "|           << Mojang's End User License Agreement >>          |"
@@ -107,7 +120,7 @@ setupNewServer n = do
     newWindow (tmuxID newServer) (srvPath newServer) n
     sendTmux (tmuxID newServer) (minecraftServiceCmd (srvPath newServer) (srvVersion newServer))
     threadDelay 10000000
-    killWindow p
+    killWindow $ show p
     putStrLn "Server Setup Complete!"
 
 
@@ -119,11 +132,11 @@ shutdown :: IO ()
 shutdown = tmuxClose
 
 
-create :: Services -> ServiceName -> IO ()
-create slst n =
+create :: Services -> ServiceName -> Maybe Int -> Maybe String -> Maybe String -> Maybe String -> IO ()
+create slst n p r w v =
     case Map.lookup n slst of
       Just s  -> putStrLn "Error: Service already exists!"
-      Nothing -> setupNewServer n
+      Nothing -> setupNewServer n p r w v
 
 
 start :: Services -> ServiceName -> IO ()
@@ -201,6 +214,38 @@ with :: Services -> ServiceName -> String -> IO ()
 with slst s c = putStrLn $ "Running command " ++ c ++ "..."
 
 
+portOption :: Parser (Maybe Int)
+portOption = optional $ option auto
+  ( long "port"
+  <> short 'p'
+  <> metavar "LABEL"
+  <> help "Assign a service a PORT")
+
+
+rootPathOption :: Parser (Maybe String)
+rootPathOption = optional $ strOption
+  ( long "rootpath"
+  <> short 'r'
+  <> metavar "ROOTPATH"
+  <> help "Assign a service a root location ROOTPATH")
+
+
+worldOption :: Parser (Maybe String)
+worldOption = optional $ strOption
+  ( long "world"
+  <> short 'w'
+  <> metavar "WORLD"
+  <> help "Assign a service a WORLD")
+
+
+versionOption :: Parser (Maybe String)
+versionOption = optional $ strOption
+  ( long "version"
+  <> short 'v'
+  <> metavar "WORLD"
+  <> help "Assign a service a game VERSION")
+
+
 commands :: Services -> Parser (IO ())
 commands slst = subparser
     (  command "boot"
@@ -214,7 +259,12 @@ commands slst = subparser
         <> progDesc "Shuts down the Tmux Server"
         <> header "shutdown - closes the Tmux Server"))
     <> command "create"
-      (info (helper <*> (create slst <$> argument str idm))
+      (info (helper <*> (create slst
+                      <$> argument str idm
+                      <*> portOption
+                      <*> rootPathOption
+                      <*> worldOption
+                      <*> versionOption))
         (fullDesc
         <> progDesc "minecraftctl create TARGET"
         <> header "create - creates a new minecraft server"))

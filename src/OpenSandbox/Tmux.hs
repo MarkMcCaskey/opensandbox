@@ -76,6 +76,7 @@ parseTmuxID x = if cnt ':' x == 1
         w = tail . snd $ break (==':') x
         cnt i lst = length $ filter (==i) lst
 
+
 sendTmux :: TmuxID -> String -> IO ()
 sendTmux t c = callCommand $ "tmux send -t " ++ fmtTmuxID t ++ " " ++ show c ++ " ENTER"
 
