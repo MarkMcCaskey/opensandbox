@@ -1,11 +1,13 @@
-import Data.Either
-import Data.Maybe
-import qualified Data.Set as Set
-import OpenSandbox
-import Test.Hspec
-import Test.QuickCheck
-import Control.Exception (evaluate)
-import System.Directory
+import qualified  Data.ByteString as B
+import            Data.Either
+import            Data.Maybe
+import            Data.Serialize
+import qualified  Data.Set as Set
+import            OpenSandbox
+import            Test.Hspec
+import            Test.QuickCheck
+import            Control.Exception (evaluate)
+import            System.Directory
 
 
 testSrvDir :: FilePath
@@ -36,6 +38,10 @@ bannedPlayersPath :: FilePath
 bannedPlayersPath = testSrvDir ++ "/" ++ "banned-players.json"
 
 
+instance Arbitrary B.ByteString where
+  arbitrary = B.pack <$> arbitrary
+
+
 main :: IO ()
 main = hspec $ do
     describe "OpenSandbox.Minecraft.User.readUserCache" $ do
@@ -57,6 +63,7 @@ main = hspec $ do
       it "returns an empty list of users when reading empty usercache.json" $ do
         shouldBeNoUsers <-readUserCache userCacheEmptyPath
         (null $ head $ rights [shouldBeNoUsers]) `shouldBe` True
+
     describe "OpenSandbox.Minecraft.User.createUserGroup" $ do
       it "should return a set of the same size as usercache.json" $ do
         shouldBeUsers <- readUserCache userCachePath
@@ -71,6 +78,7 @@ main = hspec $ do
         shouldBeOneUser <- readUserCache userCacheSingletonPath
         let shouldBeUGroup = (createUserGroup.head $ rights [shouldBeOneUser])
         Set.size shouldBeUGroup `shouldBe` (1 :: Int)
+
     describe "OpenSandbox.Minecraft.User.writeUserCache" $ do
       it "should write out that which was just read" $ do
         input1 <- readUserCache userCachePath
@@ -78,6 +86,7 @@ main = hspec $ do
         input2 <- readUserCache (testSrvDir ++ "/" ++ "newusercache.json")
         (input1 == input2) `shouldBe` True
         removeFile (testSrvDir ++ "/" ++ "newusercache.json")
+
     describe "OpenSandbox.Tmux.parseTmuxID" $ do
       it "should build a TmuxID from a String ++ ':' ++ String" $ do
         isJust (parseTmuxID "opensandbox:25565") `shouldBe` True

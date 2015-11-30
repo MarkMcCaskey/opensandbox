@@ -7,20 +7,28 @@
 -- Stability    : experimental
 -- Portability  : portable
 --
+-- Bindings to the login section of the Minecraft protocol.
 -------------------------------------------------------------------------------
 module OpenSandbox.Minecraft.Protocol.Login
-  ( ClientBoundLogin
-  , ServerBoundLogin
+  ( ClientBoundLogin (..)
+  , ServerBoundLogin (..)
+  , encryptionRequestPacket
   ) where
 
-import            Data.Binary
-import            Data.Binary.Get
-import            Data.Binary.Put
+
+import            Data.Serialize
+import            Data.Serialize.Get
+import            Data.Serialize.Put
+--import            Data.Binary
+--import            Data.Binary.Get
+--import            Data.Binary.Put
 import qualified  Data.ByteString as B
 import qualified  Data.Text as T
 import            Data.Word
 
 
+-- | A data type that could represent any client bound packet associated with
+-- the login section of the minecraft protocol.
 data ClientBoundLogin
   = ClientBoundDisconnect B.ByteString
   | ClientBoundEncryptionRequest B.ByteString B.ByteString B.ByteString
@@ -29,13 +37,15 @@ data ClientBoundLogin
   deriving (Show,Eq)
 
 
+-- | A data type that could represent any server bound packet associated with
+-- the login section of the minecraft protocol.
 data ServerBoundLogin
   = ServerBoundLoginStart B.ByteString
   | ServerBoundEncryptionResponse B.ByteString B.ByteString
   deriving (Show,Eq)
 
 
-instance Binary ClientBoundLogin where
+instance Serialize ClientBoundLogin where
   put (ClientBoundDisconnect reason) = do
     put (fromIntegral $ 3 + B.length reason :: Word8)
     put (0 :: Word8)
@@ -44,9 +54,10 @@ instance Binary ClientBoundLogin where
   put (ClientBoundEncryptionRequest srvID pubKey privKey) = do
     put (fromIntegral $ 5 + B.length srvID + B.length pubKey + B.length privKey :: Word8)
     put (1 :: Word8)
-    put (fromIntegral $ B.length srvID :: Word8)
-    putByteString srvID
+    put (1 :: Word8)
+    put (0 :: Word8)
     put (fromIntegral $ B.length pubKey :: Word8)
+    put (1 :: Word8)
     putByteString pubKey
     put (fromIntegral $ B.length privKey :: Word8)
     putByteString privKey
@@ -62,16 +73,19 @@ instance Binary ClientBoundLogin where
     len <- getWord8
     packetID <- getWord8
     case packetID of
-      0 -> ClientBoundDisconnect <$> (getWord8 >>= (getByteString . fromIntegral))
-      1 -> ClientBoundEncryptionRequest <$> (getWord8 >>= (getByteString . fromIntegral))
-                                        <*> (getWord8 >>= (getByteString . fromIntegral))
-                                        <*> (getWord8 >>= (getByteString . fromIntegral))
-      2 -> ClientBoundLoginSuccess <$> (getWord8 >>= (getByteString . fromIntegral))
-                                   <*> (getWord8 >>= (getByteString . fromIntegral))
+      0 -> ClientBoundDisconnect
+            <$> (getWord8 >>= (getByteString . fromIntegral))
+      1 -> ClientBoundEncryptionRequest
+            <$> (getWord8 >>= (getByteString . fromIntegral))
+            <*> (fmap (B.drop 1) (getWord8 >>= (getByteString . fromIntegral)))
+            <*> (getWord8 >>= (getByteString . fromIntegral))
+      2 -> ClientBoundLoginSuccess
+            <$> (getWord8 >>= (getByteString . fromIntegral))
+            <*> (getWord8 >>= (getByteString . fromIntegral))
       3 -> ClientBoundSetCompression <$> getWord16be
-      _ -> fail "Unrecognized packet!"
 
-instance Binary ServerBoundLogin where
+
+instance Serialize ServerBoundLogin where
   put (ServerBoundLoginStart payload) = do
     put (fromIntegral $ 3 + B.length payload :: Word8)
     put (0 :: Word8)
@@ -92,4 +106,29 @@ instance Binary ServerBoundLogin where
       0 -> ServerBoundLoginStart <$> (getWord8 >>= (getByteString . fromIntegral))
       1 -> ServerBoundEncryptionResponse <$> (getWord8 >>= (getByteString . fromIntegral))
                                           <*> (getWord8 >>= (getByteString . fromIntegral))
-      _ -> fail "Unrecognized packet!"
+
+
+encryptionRequestPacket :: B.ByteString -> B.ByteString -> B.ByteString
+encryptionRequestPacket c v = packetLength `B.append` packetID `B.append` payload
+  where packetLength = B.pack [(fromIntegral $ B.length payload :: Word8)]
+        packetID = B.singleton 1
+        payload = serverIDField `B.append` publicKeyField c `B.append` verifyTokenField v
+
+
+serverIDField :: B.ByteString
+serverIDField = packetLength `B.append` payload
+  where packetLength = B.pack [(fromIntegral $ B.length payload :: Word8)]
+        payload = B.singleton 0
+
+
+publicKeyField :: B.ByteString -> B.ByteString
+publicKeyField payload = packetLength `B.append` mystery `B.append` payload
+  where packetLength = B.pack [(fromIntegral $ B.length payload :: Word8)]
+        mystery = B.singleton 1
+
+
+verifyTokenField :: B.ByteString -> B.ByteString
+verifyTokenField payload = packetLength `B.append` payload
+  where packetLength = B.pack [(fromIntegral $ B.length payload :: Word8)]
+
+

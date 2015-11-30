@@ -23,10 +23,11 @@ module OpenSandbox.Minecraft.Protocol.Status
 import qualified  Data.Aeson as Aeson
 import qualified  Data.ByteString.Char8 as B
 import qualified  Data.Text as T
-import            Data.Binary
-import            Data.Binary.Get
-import            Data.Binary.Put
 import            Data.Bits
+import            Data.Serialize
+import            Data.Serialize.Get
+import            Data.Serialize.Put
+import            Data.Word
 import            GHC.Generics
 
 
@@ -43,7 +44,7 @@ data ClientBoundStatus
     deriving (Show,Eq,Read)
 
 
-instance Binary ServerBoundStatus where
+instance Serialize ServerBoundStatus where
   put (Handshake v a p s) = do
     put (fromIntegral $ 6 + B.length a :: Word8)
     put (0 :: Word8)
@@ -66,12 +67,16 @@ instance Binary ServerBoundStatus where
       _ -> fail "Unrecognized packet!"
 
 
-instance Binary ClientBoundStatus where
+instance Serialize ClientBoundStatus where
   put (Response payload) = do
     put (fromIntegral $ 2 + B.length payload :: Word8)
     put (0 :: Word8)
     put (fromIntegral $ B.length payload :: Word8)
     putByteString payload
+  put (Pong payload) = do
+    put (fromIntegral $ 2 + 8 :: Word8)
+    put (1 :: Word8)
+    put payload
 
   get = do
     _ <- getWord8
@@ -80,6 +85,7 @@ instance Binary ClientBoundStatus where
       0 -> Response <$> (getWord8 >>= (getByteString . fromIntegral))
       1 -> Pong <$> (get :: Get Word64)
       _ -> fail "Unrecognized packet!"
+
 
 
 buildResponse :: T.Text -> Int -> Int -> T.Text -> ResponsePayload

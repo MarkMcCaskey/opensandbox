@@ -11,19 +11,17 @@
 -------------------------------------------------------------------------------
 
 
---import            Codec.Crypto.RSA
 import            Control.Concurrent
 import            Crypto.PubKey.RSA
---import            Crypto.Random
 import qualified  Data.Aeson as Aeson
 import            Data.ASN1.BinaryEncoding
 import            Data.ASN1.Encoding
 import            Data.ASN1.BitArray
 import            Data.ASN1.Types
-import            Data.Binary
 import            Data.Bytes.VarInt
 import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Lazy as BL
+import            Data.Serialize
 import qualified  Data.Text as T
 import            Data.Word
 import            Data.X509
@@ -97,15 +95,15 @@ mainLoop :: Socket -> Server -> IO ()
 mainLoop sock srv = do
     (conn,_) <- accept sock
     packet <- recv conn 256
-    routeHandshake conn srv (decode (BL.fromStrict packet) :: ServerBoundStatus)
+    routeHandshake conn srv (decode packet :: Either String ServerBoundStatus)
     mainLoop sock srv
 
 
-routeHandshake :: Socket -> Server -> ServerBoundStatus -> IO ()
-routeHandshake sock srv (Handshake _ _ _ 1) = runStatus sock
-routeHandshake sock srv (Handshake _ _ _ 2) = runLogin sock srv
-routeHandshake sock srv (Handshake _ _ _ _) = putStrLn "Error: Unknown state!"
-routeHandshake sock srv _                   = putStrLn "Error: Unknown handshake!"
+routeHandshake :: Socket -> Server -> Either String ServerBoundStatus -> IO ()
+routeHandshake sock srv (Right (Handshake _ _ _ 1)) = runStatus sock
+routeHandshake sock srv (Right (Handshake _ _ _ 2)) = runLogin sock srv
+routeHandshake sock srv (Right (Handshake _ _ _ _)) = putStrLn "Error: Unknown state!"
+routeHandshake sock srv (Left _)                    = putStrLn "Error: Unknown packet"
 
 
 runStatus :: Socket -> IO ()
@@ -133,39 +131,20 @@ runLogin :: Socket -> Server -> IO ()
 runLogin sock srv = do
     loginStart <- recv sock 254
     print $ B.drop 3 loginStart `B.append` " is logging in..."
-    send sock $ encryptionRequestPacket (srvCert srv) (srvVerifyToken srv)
+    let encryptRequest = ClientBoundEncryptionRequest "" (srvCert srv) (srvVerifyToken srv)
+    let encryptRequestRaw = encode encryptRequest
+    send sock encryptRequestRaw
     encryptResponse <- recv sock 512
-    print $ B.length encryptResponse
-    print $ B.unpack encryptResponse
     let loginSuccess = undefined
     send sock loginSuccess
     let setCompression = undefined
     send sock setCompression
+    runPlay sock srv
     sClose sock
 
 
-encryptionRequestPacket :: B.ByteString -> B.ByteString -> B.ByteString
-encryptionRequestPacket c v = packetLength `B.append` packetID `B.append` payload
-  where packetLength = B.pack [(fromIntegral $ B.length payload :: Word8)]
-        packetID = B.singleton 1
-        payload = serverIDField `B.append` publicKeyField c `B.append` verifyTokenField v
-
-
-serverIDField :: B.ByteString
-serverIDField = packetLength `B.append` payload
-  where packetLength = B.pack [(fromIntegral $ B.length payload :: Word8)]
-        payload = B.singleton 0
-
-
-publicKeyField :: B.ByteString -> B.ByteString
-publicKeyField payload = packetLength `B.append` mystery `B.append` payload
-  where packetLength = B.pack [(fromIntegral $ B.length payload :: Word8)]
-        mystery = B.singleton 1
-
-
-verifyTokenField :: B.ByteString -> B.ByteString
-verifyTokenField payload = packetLength `B.append` payload
-  where packetLength = B.pack [(fromIntegral $ B.length payload :: Word8)]
+runPlay :: Socket -> Server -> IO ()
+runPlay sock srv = undefined
 
 
 maybePing :: Socket -> B.ByteString -> IO ()
