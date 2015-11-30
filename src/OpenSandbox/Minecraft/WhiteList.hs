@@ -98,14 +98,14 @@ reloadWhiteList t = sendTmux t "whitelist reload"
 -- param:   The whitelist to enable.
 -- returns: A whitelist with the enabled flag set to true.
 enableWhiteList :: WhiteList -> WhiteList
-enableWhiteList w = WhiteList { enabled = True }
+enableWhiteList w = WhiteList (whiteList w) True (whiteListPath w)
 
 
 -- | Disable a whitelist
 -- param:   The whitelist to disable.
 -- returns: A whitelist with the enable flag set to false.
 disableWhiteList :: WhiteList -> WhiteList
-disableWhiteList w = WhiteList { enabled = False }
+disableWhiteList w = WhiteList (whiteList w) False (whiteListPath w)
 
 
 -- | Add a user to a whitelist
