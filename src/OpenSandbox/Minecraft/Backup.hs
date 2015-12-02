@@ -33,7 +33,7 @@ fullBackup t rootDir backupDir targets = do
     sendTmux t "say SERVER BACKUP STARTING. Server going readonly..."
     time <- getCurrentTime
     zone <- getCurrentTimeZone
-    let label = backupLabel "ecserver3" $ formatTime defaultTimeLocale "%y-%m-%dT%H:%M:%S" (utcToLocalTime zone time)
+    let label = backupLabel "ecserver3" $ formatTime defaultTimeLocale "%y-%m-%dT%H-%M-%S" (utcToLocalTime zone time)
     sendTmux t "save-off"
     sendTmux t "save-all"
     sendTmux t "say Archiving..."
