@@ -10,6 +10,7 @@
 -------------------------------------------------------------------------------
 module OpenSandbox.Minecraft.Protocol.Play
     ( ClientBoundPlay
+    , ServerBoundPlay
     ) where
 
 import qualified  Data.ByteString as B
@@ -19,6 +20,7 @@ import            Data.Serialize.Put
 import            Data.Word
 
 type VarInt = Word8
+
 
 type Position = Word64
 
@@ -290,3 +292,67 @@ instance Serialize ClientBoundPlay where
       0x49 -> return ClientBoundUpdateAttributes
       0x4a -> return ClientBoundEntityEffect
       _    -> undefined
+
+
+instance Serialize ServerBoundPlay where
+  put ServerBoundKeepAlive = undefined
+  put ServerBoundChat = undefined
+  put ServerBoundUseEntity = undefined
+  put ServerBoundFlying = undefined
+  put ServerBoundPosition = undefined
+  put ServerBoundLook = undefined
+  put ServerBoundPositionLook = undefined
+  put ServerBoundBlockDig = undefined
+  put ServerBoundBlockPlace = undefined
+  put ServerBoundHeldItemSlot = undefined
+  put ServerBoundArmAnimation = undefined
+  put ServerBoundEntityAction = undefined
+  put ServerBoundSteerVehicle = undefined
+  put ServerBoundCloseWindow = undefined
+  put ServerBoundWindowClick = undefined
+  put ServerBoundTransaction = undefined
+  put ServerBoundSetCreativeSlot = undefined
+  put ServerBoundEnchantItem = undefined
+  put ServerBoundUpdateSign = undefined
+  put ServerBoundAbilities = undefined
+  put ServerBoundTabComplete = undefined
+  put ServerBoundSettings = undefined
+  put ServerBoundClientCommand = undefined
+  put ServerBoundCustomPayload = undefined
+  put ServerBoundSpectate = undefined
+  put ServerBoundResourcePackReceive = undefined
+  put ServerBoundUseItem = undefined
+
+  get = do
+    _ <- getWord8
+    packetID <- getWord8
+    case packetID of
+      0x00 -> return ServerBoundTabComplete
+      0x01 -> return ServerBoundChat
+      0x02 -> return ServerBoundClientCommand
+      0x03 -> return ServerBoundSettings
+      0x04 -> return ServerBoundTransaction
+      0x05 -> return ServerBoundEnchantItem
+      0x06 -> return ServerBoundWindowClick
+      0x07 -> return ServerBoundCloseWindow
+      0x08 -> return ServerBoundCustomPayload
+      0x09 -> return ServerBoundUseEntity
+      0x0a -> return ServerBoundKeepAlive
+      0x0b -> return ServerBoundPosition
+      0x0c -> return ServerBoundPositionLook
+      0x0d -> return ServerBoundLook
+      0x0e -> return ServerBoundFlying
+      0x0f -> return ServerBoundAbilities
+      0x10 -> return ServerBoundBlockDig
+      0x11 -> return ServerBoundEntityAction
+      0x12 -> return ServerBoundSteerVehicle
+      0x13 -> return ServerBoundResourcePackReceive
+      0x14 -> return ServerBoundHeldItemSlot
+      0x15 -> return ServerBoundSetCreativeSlot
+      0x16 -> return ServerBoundUpdateSign
+      0x17 -> return ServerBoundArmAnimation
+      0x18 -> return ServerBoundSpectate
+      0x19 -> return ServerBoundBlockPlace
+      0x1a -> return ServerBoundUseItem
+      _    -> undefined
+
