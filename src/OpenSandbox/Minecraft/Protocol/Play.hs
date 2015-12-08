@@ -8,7 +8,9 @@
 -- Portability  : portable
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Minecraft.Protocol.Play where
+module OpenSandbox.Minecraft.Protocol.Play
+    ( ClientBoundPlay
+    ) where
 
 import qualified  Data.ByteString as B
 import            Data.Serialize
@@ -47,7 +49,7 @@ data ClientBoundPlay
   | ClientBoundEntityLook
   | ClientBoundEntityMoveLook
   | ClientBoundEntityTeleport
-  | ClientBoundHeadRotation
+  | ClientBoundEntityHeadRotation
   | ClientBoundEntityStatus
   | ClientBoundAttachEntity
   | ClientBoundEntityMetadata
@@ -67,11 +69,11 @@ data ClientBoundPlay
   | ClientBoundGameStateChange
   | ClientBoundSpawnEntityWeather
   | ClientBoundOpenWindow
-  | ClientBoundClose
+  | ClientBoundCloseWindow
   | ClientBoundSetSlot
   | ClientBoundWindowItems
   | ClientBoundCraftProgressBar
-  | ClientBoundTransactions
+  | ClientBoundTransaction
   | ClientBoundUpdateSign
   | ClientBoundMap
   | ClientBoundTileEntityData
@@ -91,7 +93,7 @@ data ClientBoundPlay
   | ClientBoundCamera
   | ClientBoundWorldBorder
   | ClientBoundTitle
-  | ClientBoundSetCompression
+  | ClientBoundPlaySetCompression
   | ClientBoundPlayerlistHeader
   | ClientBoundResourcePackSend
   | ClientBoundBossBar
@@ -157,7 +159,7 @@ instance Serialize ClientBoundPlay where
   put ClientBoundEntityLook = undefined
   put ClientBoundEntityMoveLook = undefined
   put ClientBoundEntityTeleport = undefined
-  put ClientBoundHeadRotation = undefined
+  put ClientBoundEntityHeadRotation = undefined
   put ClientBoundEntityStatus = undefined
   put ClientBoundAttachEntity = undefined
   put ClientBoundEntityMetadata = undefined
@@ -177,11 +179,11 @@ instance Serialize ClientBoundPlay where
   put ClientBoundGameStateChange = undefined
   put ClientBoundSpawnEntityWeather = undefined
   put ClientBoundOpenWindow = undefined
-  put ClientBoundClose = undefined
+  put ClientBoundCloseWindow = undefined
   put ClientBoundSetSlot = undefined
   put ClientBoundWindowItems = undefined
   put ClientBoundCraftProgressBar = undefined
-  put ClientBoundTransactions = undefined
+  put ClientBoundTransaction = undefined
   put ClientBoundUpdateSign = undefined
   put ClientBoundMap = undefined
   put ClientBoundTileEntityData = undefined
@@ -201,9 +203,90 @@ instance Serialize ClientBoundPlay where
   put ClientBoundCamera = undefined
   put ClientBoundWorldBorder = undefined
   put ClientBoundTitle = undefined
-  put ClientBoundSetCompression = undefined
+  put ClientBoundPlaySetCompression = undefined
   put ClientBoundPlayerlistHeader = undefined
   put ClientBoundResourcePackSend = undefined
   put ClientBoundBossBar = undefined
   put ClientBoundSetCooldown = undefined
   put ClientBoundUnloadChunk = undefined
+
+  get = do
+    _ <- getWord8
+    packetID <- getWord8
+    case packetID of
+      0x00 -> return ClientBoundSpawnEntity
+      0x01 -> return ClientBoundSpawnEntityExperienceOrb
+      0x02 -> return ClientBoundSpawnEntityWeather
+      0x03 -> return ClientBoundSpawnEntityLiving
+      0x04 -> return ClientBoundSpawnEntityPainting
+      0x05 -> return ClientBoundNamedEntitySpawn
+      0x06 -> return ClientBoundAnimation
+      0x07 -> return ClientBoundStatistics
+      0x08 -> return ClientBoundBlockBreakAnimation
+      0x09 -> return ClientBoundTileEntityData
+      0x0c -> return ClientBoundBossBar
+      0x0d -> return ClientBoundDifficulty
+      0x0e -> return ClientBoundTabComplete
+      0x11 -> return ClientBoundTransaction
+      0x12 -> return ClientBoundCloseWindow
+      0x13 -> return ClientBoundOpenWindow
+      0x14 -> return ClientBoundWindowItems
+      0x15 -> return ClientBoundCraftProgressBar
+      0x16 -> return ClientBoundSetSlot
+      0x17 -> return ClientBoundSetCooldown
+      0x18 -> return ClientBoundCustomPayload
+      0x19 -> return ClientBoundKickDisconnect
+      0x0a -> return ClientBoundBlockAction
+      0x0b -> return ClientBoundBlockChange
+      0x0f -> return ClientBoundChat
+      0x10 -> return ClientBoundMultiBlockChange
+      0x1a -> return ClientBoundEntityStatus
+      0x1b -> return ClientBoundExplosion
+      0x1c -> return ClientBoundUnloadChunk
+      0x1d -> return ClientBoundPlaySetCompression
+      0x1e -> return ClientBoundGameStateChange
+      0x1f -> return ClientBoundKeepAlive
+      0x20 -> return ClientBoundMapChunk
+      0x21 -> return ClientBoundWorldEvent
+      0x22 -> return ClientBoundWorldParticles
+      0x23 -> return ClientBoundNamedSoundEffect
+      0x24 -> return ClientBoundLogin
+      0x25 -> return ClientBoundMap
+      0x26 -> return ClientBoundRelEntityMove
+      0x27 -> return ClientBoundEntityMoveLook
+      0x28 -> return ClientBoundEntityLook
+      0x29 -> return ClientBoundEntity
+      0x2a -> return ClientBoundOpenSignEntity
+      0x2b -> return ClientBoundAbilities
+      0x2c -> return ClientBoundCombatEvent
+      0x2d -> return ClientBoundPlayerInfo
+      0x2e -> return ClientBoundPosition
+      0x2f -> return ClientBoundBed
+      0x30 -> return ClientBoundEntityDestroy
+      0x31 -> return ClientBoundRemoveEntityEffect
+      0x32 -> return ClientBoundResourcePackSend
+      0x33 -> return ClientBoundRespawn
+      0x34 -> return ClientBoundEntityHeadRotation
+      0x35 -> return ClientBoundWorldBorder
+      0x36 -> return ClientBoundCamera
+      0x37 -> return ClientBoundHeldItemSlot
+      0x38 -> return ClientBoundScoreBoardDisplayObjective
+      0x39 -> return ClientBoundEntityMetadata
+      0x3a -> return ClientBoundAttachEntity
+      0x3b -> return ClientBoundEntityVelocity
+      0x3c -> return ClientBoundEntityEquipment
+      0x3d -> return ClientBoundExperience
+      0x3e -> return ClientBoundUpdateHealth
+      0x3f -> return ClientBoundScoreBoardObjective
+      0x40 -> return ClientBoundScoreBoardTeam
+      0x41 -> return ClientBoundScoreBoardScore
+      0x42 -> return ClientBoundSpawnPosition
+      0x43 -> return ClientBoundUpdateTime
+      0x44 -> return ClientBoundTitle
+      0x45 -> return ClientBoundUpdateSign
+      0x46 -> return ClientBoundPlayerlistHeader
+      0x47 -> return ClientBoundCollect
+      0x48 -> return ClientBoundEntityTeleport
+      0x49 -> return ClientBoundUpdateAttributes
+      0x4a -> return ClientBoundEntityEffect
+      _    -> undefined
