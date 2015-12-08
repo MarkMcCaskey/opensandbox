@@ -58,6 +58,7 @@ mcMotd = "A Minecraft Server"
 
 data Server = Server
   { srvName         :: T.Text
+  , srvAuthEnabled  :: Bool
   , srvCert         :: B.ByteString
   , srvPubKey       :: PublicKey
   , srvPrivKey      :: PrivateKey
@@ -76,7 +77,7 @@ main = do
     (pubKey,privKey) <- generate 128 65537
     let cert = encodeASN1' DER $ toASN1 (PubKeyRSA pubKey) []
     print cert
-    let srv = Server "Opensandbox" cert pubKey privKey (B.pack [26,120,188,217])
+    let srv = Server "Opensandbox" False cert pubKey privKey (B.pack [26,120,188,217])
     putStrLn $ "Starting Minecraft server on " ++ show mcPort
     putStrLn $ "Preparing level " ++ show mcWorld
     putStrLn "Done!"
@@ -131,10 +132,10 @@ runLogin :: Socket -> Server -> IO ()
 runLogin sock srv = do
     loginStart <- recv sock 254
     print $ B.drop 3 loginStart `B.append` " is logging in..."
-    let encryptRequest = ClientBoundEncryptionRequest "" (srvCert srv) (srvVerifyToken srv)
-    let encryptRequestRaw = encode encryptRequest
-    send sock encryptRequestRaw
-    encryptResponse <- recv sock 512
+    --let encryptRequest = ClientBoundEncryptionRequest "" (srvCert srv) (srvVerifyToken srv)
+    --let encryptRequestRaw = encode encryptRequest
+    --send sock encryptRequestRaw
+    --encryptResponse <- recv sock 512
     let loginSuccess = undefined
     send sock loginSuccess
     let setCompression = undefined
