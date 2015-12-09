@@ -132,14 +132,8 @@ runLogin :: Socket -> Server -> IO ()
 runLogin sock srv = do
     loginStart <- recv sock 254
     print $ B.drop 3 loginStart `B.append` " is logging in..."
-    --let encryptRequest = ClientBoundEncryptionRequest "" (srvCert srv) (srvVerifyToken srv)
-    --let encryptRequestRaw = encode encryptRequest
-    --send sock encryptRequestRaw
-    --encryptResponse <- recv sock 512
     let loginSuccess = undefined
     send sock loginSuccess
-    let setCompression = undefined
-    send sock setCompression
     runPlay sock srv
     sClose sock
 
