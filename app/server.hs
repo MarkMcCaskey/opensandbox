@@ -21,8 +21,11 @@ import            Data.ASN1.Types
 import            Data.Bytes.VarInt
 import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Lazy as BL
+import            Data.Maybe
 import            Data.Serialize
+import qualified  Data.Set as Set
 import qualified  Data.Text as T
+import            Data.UUID
 import            Data.Word
 import            Data.X509
 import            GHC.Generics
@@ -30,6 +33,7 @@ import            Network.Socket hiding (send,recv)
 import            Network.Socket.ByteString
 import            OpenSandbox
 import            OpenSandbox.Minecraft.Protocol
+import            OpenSandbox.Minecraft.User
 
 
 mcPort :: PortNumber
@@ -64,6 +68,7 @@ data Server = Server
   , srvPrivKey      :: PrivateKey
   , srvVerifyToken  :: B.ByteString
   } deriving (Show,Eq)
+
 
 main :: IO ()
 main = do
@@ -132,10 +137,16 @@ runLogin :: Socket -> Server -> IO ()
 runLogin sock srv = do
     loginStart <- recv sock 254
     print $ B.drop 3 loginStart `B.append` " is logging in..."
+    let myUUID = fromString "26449ad6-c7b6-3dc7-82d8-4f1be396a621"
+    let me = if isJust myUUID
+                then myUUID >>= \u -> return (User u "oldmanmike" Nothing Nothing)
+                else Nothing
+    print me
     let loginSuccess = undefined
     send sock loginSuccess
     runPlay sock srv
     sClose sock
+
 
 
 runPlay :: Socket -> Server -> IO ()
@@ -158,4 +169,3 @@ bar :: [String]
 bar = [ "================================================================="
       , "/////////////////////////////////////////////////////////////////"
       , "================================================================="]
-

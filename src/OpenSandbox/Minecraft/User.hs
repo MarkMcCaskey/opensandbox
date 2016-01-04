@@ -14,10 +14,7 @@
 module OpenSandbox.Minecraft.User (
     -- * Core User Types
       User (..)
-    , UserGroup
-
-    -- * User Management
-    , createUserGroup
+    , Group (..)
 
     -- * Loading & Saving usercache.json
     , readUserCache
@@ -29,9 +26,9 @@ import            Control.Monad
 import            Data.Aeson
 import qualified  Data.ByteString.Lazy as B
 import            Data.Either
-import            Data.List
+import qualified  Data.List as List
+import qualified  Data.Map as Map
 import            Data.Maybe
-import            Data.Set
 import qualified  Data.Text as T
 import            Data.Time.Clock
 import            Data.Time.Format
@@ -42,15 +39,23 @@ import            Data.UUID.Aeson
 
 -- | The core high-level type OpenSandbox uses for representing users.
 data User = User
-  { userName              :: !T.Text
-  , userUUID              :: !UUID
+  { userUUID              :: !UUID
+  , userName              :: !T.Text
   , userRealName          :: Maybe T.Text
   , userCacheExpiration   :: Maybe (UTCTime,TimeZone)
   } deriving (Show,Eq,Ord)
 
 
 -- | Users can be organized into groups.
-type UserGroup = Set User
+data Group = Group
+  { groupID       :: Int
+  , groupLabel    :: T.Text
+  , groupUsers    :: [User]
+  } deriving (Show,Eq,Ord)
+
+
+nobody :: Group
+nobody = Group 0 "nobody" []
 
 
 -- | An internal type used for representing entries in usercache.json as is.
@@ -77,14 +82,7 @@ instance ToJSON UserCacheEntry where
                , "expiresOn"    .= expiresOn
                ]
 
-
--- | Takes a list of users, sorts it, and then converts it to a 'UserGroup',
--- which is just a set of users.
-createUserGroup :: [User] -> UserGroup
-createUserGroup [] = empty
-createUserGroup [x] = singleton x
-createUserGroup u = fromDistinctAscList $ sort u
-
+-------------------------------------------------------------------------------
 
 -- | Given a path for a valid usercache.json, this function will try to parse it
 -- into a list of 'User's (no duplicates). Otherwise it will return an error.
@@ -93,7 +91,7 @@ readUserCache path = do
     eitherUserEntries <- eitherDecode <$> B.readFile path
     case eitherUserEntries of
       Left err          -> return $ Left $ "Error >> " ++ err
-      Right userEntries -> return $ Right (nub (fmap buildUser userEntries))
+      Right userEntries -> return $ Right (List.nub (fmap buildUser userEntries))
 
 
 -- | Given a path for a new usercache.json, this function will convert a list
@@ -109,7 +107,7 @@ writeUserCache path users = do
 -- | Converts a low-level 'UserCacheEntry' type produced by decoding the json
 -- is usercache.json into Open Sandbox's high-level User type.
 buildUser :: UserCacheEntry -> User
-buildUser u = User (name u) (uuid u) Nothing (Just $ mkTimeTuple $ parseCacheTime $ expiresOn u)
+buildUser u = User (uuid u) (name u) Nothing (Just $ mkTimeTuple $ parseCacheTime $ expiresOn u)
   where parseCacheTime x = parseTimeOrError False defaultTimeLocale "%F %T %z" x :: ZonedTime
         mkTimeTuple t = (zonedTimeToUTC t, zonedTimeZone t)
 

@@ -2,4 +2,4 @@ flags: {}
 packages:
 - '.'
 extra-deps: [uuid-aeson-0.1.0.0, nbt-0.5.1]
-resolver: nightly-2015-12-01
+resolver: nightly-2016-01-02

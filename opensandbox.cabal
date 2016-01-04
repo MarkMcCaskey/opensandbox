@@ -88,10 +88,12 @@ executable server
                             bytes,
                             bytestring,
                             cereal,
+                            containers,
                             cryptonite,
                             network,
                             opensandbox,
                             text,
+                            uuid,
                             x509
     default-language:       Haskell2010
 
