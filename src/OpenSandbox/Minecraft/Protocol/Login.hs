@@ -13,6 +13,7 @@ module OpenSandbox.Minecraft.Protocol.Login
   ( ClientBoundLogin (..)
   , ServerBoundLogin (..)
   , encryptionRequestPacket
+  , loginSuccess
   ) where
 
 
@@ -24,7 +25,11 @@ import            Data.Serialize.Put
 --import            Data.Binary.Put
 import qualified  Data.ByteString as B
 import qualified  Data.Text as T
+import            Data.Text.Encoding
+import            Data.UUID
 import            Data.Word
+
+import            OpenSandbox.Minecraft.User
 
 
 -- | A data type that could represent any client bound packet associated with
@@ -113,6 +118,21 @@ encryptionRequestPacket c v = packetLength `B.append` packetID `B.append` payloa
   where packetLength = B.pack [(fromIntegral $ B.length payload :: Word8)]
         packetID = B.singleton 1
         payload = serverIDField `B.append` publicKeyField c `B.append` verifyTokenField v
+
+
+loginSuccess :: User -> B.ByteString
+loginSuccess u = packetLength `B.append` packetID `B.append` payload u
+    where packetLength = B.pack [(fromIntegral $ B.length (payload u) + B.length packetID :: Word8)]
+          packetID = B.singleton 2
+          payload u = fieldLength (packUUID u)
+                      `B.append` (packUUID u)
+                      `B.append` fieldLength (packUser u)
+                      `B.append` (packUser u)
+          packUUID u = toASCIIBytes $ userUUID u
+          packUser u = encodeUtf8 $ userName u
+
+fieldLength :: B.ByteString -> B.ByteString
+fieldLength payload = B.pack [(fromIntegral $ B.length payload :: Word8)]
 
 
 serverIDField :: B.ByteString

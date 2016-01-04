@@ -25,7 +25,9 @@ import            Data.Maybe
 import            Data.Serialize
 import qualified  Data.Set as Set
 import qualified  Data.Text as T
+import            Data.Text.Encoding
 import            Data.UUID
+import            Data.UUID.V4
 import            Data.Word
 import            Data.X509
 import            GHC.Generics
@@ -136,17 +138,13 @@ runStatus sock = do
 runLogin :: Socket -> Server -> IO ()
 runLogin sock srv = do
     loginStart <- recv sock 254
-    print $ B.drop 3 loginStart `B.append` " is logging in..."
-    let myUUID = fromString "26449ad6-c7b6-3dc7-82d8-4f1be396a621"
-    let me = if isJust myUUID
-                then myUUID >>= \u -> return (User u "oldmanmike" Nothing Nothing)
-                else Nothing
-    print me
-    let loginSuccess = undefined
-    send sock loginSuccess
+    let someUsername = decodeUtf8 $ B.drop 3 loginStart
+    someUUID <- nextRandom
+    let someUser = User someUUID someUsername Nothing Nothing
+    print someUser
+    send sock (loginSuccess someUser)
     runPlay sock srv
     sClose sock
-
 
 
 runPlay :: Socket -> Server -> IO ()

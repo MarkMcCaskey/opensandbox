@@ -16,6 +16,7 @@ module OpenSandbox.Minecraft.User (
       User (..)
     , Group (..)
 
+    , buildUser
     -- * Loading & Saving usercache.json
     , readUserCache
     , writeUserCache
@@ -82,6 +83,12 @@ instance ToJSON UserCacheEntry where
                , "expiresOn"    .= expiresOn
                ]
 
+buildUser :: Maybe UUID -> Maybe T.Text -> Maybe T.Text -> Maybe (UTCTime,TimeZone) -> Either String User
+buildUser maybeUUID maybeUsername maybeRealname maybeCacheExp =
+  if (isJust maybeUUID) && (isJust maybeUsername)
+    then Right $ User (fromJust maybeUUID) (fromJust maybeUsername) maybeRealname maybeCacheExp
+    else Left $ "Error: Invalid uuid or username"
+
 -------------------------------------------------------------------------------
 
 -- | Given a path for a valid usercache.json, this function will try to parse it
@@ -91,7 +98,7 @@ readUserCache path = do
     eitherUserEntries <- eitherDecode <$> B.readFile path
     case eitherUserEntries of
       Left err          -> return $ Left $ "Error >> " ++ err
-      Right userEntries -> return $ Right (List.nub (fmap buildUser userEntries))
+      Right userEntries -> return $ Right (List.nub (fmap fromUserCacheEntry userEntries))
 
 
 -- | Given a path for a new usercache.json, this function will convert a list
@@ -99,23 +106,23 @@ readUserCache path = do
 -- writes it out to disk.
 writeUserCache :: FilePath -> [User] -> IO ()
 writeUserCache path users = do
-  let userCache = rights $ fmap buildUserCache users
+  let userCache = rights $ fmap toUserCacheEntry users
   let json = encode userCache
   B.writeFile path json
 
 
 -- | Converts a low-level 'UserCacheEntry' type produced by decoding the json
 -- is usercache.json into Open Sandbox's high-level User type.
-buildUser :: UserCacheEntry -> User
-buildUser u = User (uuid u) (name u) Nothing (Just $ mkTimeTuple $ parseCacheTime $ expiresOn u)
+fromUserCacheEntry :: UserCacheEntry -> User
+fromUserCacheEntry u = User (uuid u) (name u) Nothing (Just $ mkTimeTuple $ parseCacheTime $ expiresOn u)
   where parseCacheTime x = parseTimeOrError False defaultTimeLocale "%F %T %z" x :: ZonedTime
         mkTimeTuple t = (zonedTimeToUTC t, zonedTimeZone t)
 
 
 -- | Converts Open Sandbox's high-level 'User' type down into the low-level
 -- 'UserCacheEntry' type, which can be easily encoded into JSON.
-buildUserCache :: User -> Either String UserCacheEntry
-buildUserCache u = do
+toUserCacheEntry :: User -> Either String UserCacheEntry
+toUserCacheEntry u = do
     let isNotCacheable = isNothing $ userCacheExpiration u
     if isNotCacheable
       then Left "Error: Cannot cache User with no expiration date!"
