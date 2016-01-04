@@ -97,7 +97,7 @@ readUserCache :: FilePath -> IO (Either String [User])
 readUserCache path = do
     eitherUserEntries <- eitherDecode <$> B.readFile path
     case eitherUserEntries of
-      Left err          -> return $ Left $ "Error >> " ++ err
+      Left err          -> return $ Left ("Error >> " ++ err)
       Right userEntries -> return $ Right (List.nub (fmap fromUserCacheEntry userEntries))
 
 
