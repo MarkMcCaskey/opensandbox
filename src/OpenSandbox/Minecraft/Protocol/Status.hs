@@ -90,7 +90,7 @@ instance Serialize ClientBoundStatus where
 
 buildResponse :: T.Text -> Int -> Int -> T.Text -> ResponsePayload
 buildResponse version currentPlayers maxPlayers motd =
-    ResponsePayload (Version version 89)
+    ResponsePayload (Version version 94)
                     (Players maxPlayers currentPlayers)
                     (Description motd)
 
