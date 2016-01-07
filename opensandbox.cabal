@@ -7,7 +7,7 @@ bug-reports:                https://github.com/oldmanmike/opensandbox/issues
 license:                    GPL-3
 license-file:               LICENSE
 author:                     Michael Carpenter
-maintainer:                 Michael Carpenter <oldmanmike.dev@gmail.com>
+maintainer:                 Michael Carpenter <mcarpenter.dev@gmail.com>
 copyright:                  Copyright (C) 2015 Michael Carpenter
 category:                   Game
 build-type:                 Simple
