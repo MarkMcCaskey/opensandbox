@@ -10,13 +10,14 @@
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.Minecraft.Protocol.Status
-    ( ClientBoundStatus (..)
+    ( Status (..)
+    , ClientBoundStatus (..)
     , ServerBoundStatus (..)
-    , ResponsePayload
+    , StatusPayload
     , Version
     , Players
     , Description
-    , buildResponse
+    , buildStatus
     ) where
 
 
@@ -30,6 +31,12 @@ import            Data.Serialize.Put
 import            Data.Word
 import            GHC.Generics
 
+data Status = Status
+  { srvCurrentVersion :: !T.Text
+  , srvCurrentPlayers :: !Int
+  , srvMaxPlayers     :: !Int
+  , srvMotd           :: !T.Text
+  } deriving (Show,Eq)
 
 data ServerBoundStatus
     = Handshake Word8 B.ByteString Word16 Word8
@@ -88,22 +95,22 @@ instance Serialize ClientBoundStatus where
 
 
 
-buildResponse :: T.Text -> Int -> Int -> T.Text -> ResponsePayload
-buildResponse version currentPlayers maxPlayers motd =
-    ResponsePayload (Version version 94)
-                    (Players maxPlayers currentPlayers)
-                    (Description motd)
+buildStatus :: Status -> StatusPayload
+buildStatus (Status version currentPlayers maxPlayers motd) =
+    StatusPayload (Version version 94)
+                  (Players maxPlayers currentPlayers)
+                  (Description motd)
 
 
-data ResponsePayload = ResponsePayload
+data StatusPayload = StatusPayload
   { version       :: Version
   , players       :: Players
   , description   :: Description
   } deriving (Generic,Show,Eq,Read)
 
 
-instance Aeson.ToJSON ResponsePayload
-instance Aeson.FromJSON ResponsePayload
+instance Aeson.ToJSON StatusPayload
+instance Aeson.FromJSON StatusPayload
 
 
 data Version = Version

@@ -34,12 +34,11 @@ import            GHC.Generics
 import            Network.Socket hiding (send,recv)
 import            Network.Socket.ByteString
 import            OpenSandbox
+import            OpenSandbox.Config
 import            OpenSandbox.Minecraft.Protocol
 import            OpenSandbox.Minecraft.User
 
 
-mcPort :: PortNumber
-mcPort = 25567
 
 
 mcVersion :: T.Text
@@ -50,47 +49,68 @@ mcSrvPath :: FilePath
 mcSrvPath = "."
 
 
-mcWorld :: T.Text
-mcWorld = "world"
+data GameType = Survival | Creative | Adventure | Hardcore | Spectator
+  deriving (Show,Eq)
 
-
-mcMaxPlayers :: Int
-mcMaxPlayers = 20
-
-
-mcMotd :: T.Text
-mcMotd = "A Minecraft Server"
-
+data Encryption = Encryption
+  { getCert         :: B.ByteString
+  , getPubKey       :: PublicKey
+  , getPrivKey      :: PrivateKey
+  , getVerifyToken  :: B.ByteString
+  } deriving (Show,Eq)
 
 data Server = Server
   { srvName         :: T.Text
-  , srvAuthEnabled  :: Bool
-  , srvCert         :: B.ByteString
-  , srvPubKey       :: PublicKey
-  , srvPrivKey      :: PrivateKey
-  , srvVerifyToken  :: B.ByteString
+  , srvEncryption   :: Maybe Encryption
+  , srvCompression  :: Maybe Compression
+  , srvStatus       :: Status
   } deriving (Show,Eq)
+
+configEncryption :: MCConfig -> IO (Maybe Encryption)
+configEncryption config =
+  if mcOnlineMode config == True
+    then do
+      putStrLn "Encryption Enabled"
+      putStrLn "Generating key pair"
+      (pubKey,privKey) <- generate 128 65537
+      let cert = encodeASN1' DER $ toASN1 (PubKeyRSA pubKey) []
+      return (Just (Encryption cert pubKey privKey (B.pack [26,120,188,217])))
+    else do
+      putStrLn "Encryption Disabled"
+      return Nothing
+
+
+configCompression :: MCConfig -> IO (Maybe Compression)
+configCompression config =
+  if mcNetworkCompressionThreshold config /= Nothing
+    then do
+      putStrLn "Compression Enabled"
+      return (mcNetworkCompressionThreshold config)
+    else do
+      putStrLn "Compression Disabled" >> return Nothing
 
 
 main :: IO ()
 main = do
+    let config = defaultConfig
+    let port = 25567
     putStrLn "Welcome to OpenSandbox Server!"
     putStrLn "Loading OpenSandbox properties..."
     putStrLn $ "Starting minecraft server version " ++ show mcVersion
     putStrLn "Loading properties"
     loadMCServerProperties mcSrvPath
     putStrLn "Default game type: SURVIVAL"
-    putStrLn "Generating key pair"
-    (pubKey,privKey) <- generate 128 65537
-    let cert = encodeASN1' DER $ toASN1 (PubKeyRSA pubKey) []
-    print cert
-    let srv = Server "Opensandbox" False cert pubKey privKey (B.pack [26,120,188,217])
-    putStrLn $ "Starting Minecraft server on " ++ show mcPort
-    putStrLn $ "Preparing level " ++ show mcWorld
+    maybeEncryption <- configEncryption config
+    maybeCompression <- configCompression config
+    putStrLn $ "Starting Minecraft server on " ++ show port
+    putStrLn $ "Preparing level " ++ show (mcLevelName config)
     putStrLn "Done!"
+    let currentPlayers = 0
+    let status = Status mcVersion currentPlayers (mcMaxPlayers config) (mcMotd config)
+    let srv = Server "Opensandbox" maybeEncryption maybeCompression status
     sock <- socket AF_INET Stream 0
     setSocketOption sock ReuseAddr 1
-    bindSocket sock (SockAddrInet mcPort iNADDR_ANY)
+    bindSocket sock (SockAddrInet (toEnum port) iNADDR_ANY)
     listen sock 1
     mainLoop sock srv
 
@@ -108,18 +128,18 @@ mainLoop sock srv = do
 
 
 routeHandshake :: Socket -> Server -> Either String ServerBoundStatus -> IO ()
-routeHandshake sock srv (Right (Handshake _ _ _ 1)) = runStatus sock
+routeHandshake sock srv (Right (Handshake _ _ _ 1)) = runStatus sock srv
 routeHandshake sock srv (Right (Handshake _ _ _ 2)) = runLogin sock srv
 routeHandshake sock srv (Right (Handshake _ _ _ _)) = putStrLn "Error: Unknown state!"
 routeHandshake sock srv (Left _)                    = putStrLn "Error: Unknown packet"
 
 
-runStatus :: Socket -> IO ()
-runStatus sock = do
+runStatus :: Socket -> Server -> IO ()
+runStatus sock srv = do
     putStrLn "================================================================="
     putStrLn "|                   << Packet Report Begin >>                   |"
     putStrLn "================================================================="
-    let response = BL.toStrict $ Aeson.encode $ buildResponse mcVersion 0 20 mcMotd
+    let response = BL.toStrict $ Aeson.encode $ buildStatus (srvStatus srv)
     let response' = B.cons (0 :: Word8) (B.cons (fromIntegral $ B.length response :: Word8) response)
     let outgoing = B.cons (fromIntegral $ B.length response' :: Word8) response'
     send sock outgoing

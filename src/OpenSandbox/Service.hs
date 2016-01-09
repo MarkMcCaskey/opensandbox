@@ -9,10 +9,10 @@
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.Service
-    ( Service (..)
-    , Services
-    , ServiceName
-    ) where
+  ( Service (..)
+  , Services
+  , ServiceName
+  ) where
 
 import qualified  Data.Map as Map
 
