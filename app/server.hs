@@ -49,9 +49,6 @@ mcSrvPath :: FilePath
 mcSrvPath = "."
 
 
-data GameType = Survival | Creative | Adventure | Hardcore | Spectator
-  deriving (Show,Eq)
-
 data Encryption = Encryption
   { getCert         :: B.ByteString
   , getPubKey       :: PublicKey
@@ -66,28 +63,28 @@ data Server = Server
   , srvStatus       :: Status
   } deriving (Show,Eq)
 
-configEncryption :: MCConfig -> IO (Maybe Encryption)
+configEncryption :: Config -> IO (Maybe Encryption)
 configEncryption config =
   if mcOnlineMode config == True
     then do
-      putStrLn "Encryption Enabled"
+      putStrLn "Encryption: [ENABLED]"
       putStrLn "Generating key pair"
       (pubKey,privKey) <- generate 128 65537
       let cert = encodeASN1' DER $ toASN1 (PubKeyRSA pubKey) []
       return (Just (Encryption cert pubKey privKey (B.pack [26,120,188,217])))
     else do
-      putStrLn "Encryption Disabled"
+      putStrLn "Encryption: [DISABLED]"
       return Nothing
 
 
-configCompression :: MCConfig -> IO (Maybe Compression)
+configCompression :: Config -> IO (Maybe Compression)
 configCompression config =
   if mcNetworkCompressionThreshold config /= Nothing
     then do
-      putStrLn "Compression Enabled"
+      putStrLn "Compression: [ENABLED]"
       return (mcNetworkCompressionThreshold config)
     else do
-      putStrLn "Compression Disabled" >> return Nothing
+      putStrLn "Compression: [DISABLED]" >> return Nothing
 
 
 main :: IO ()

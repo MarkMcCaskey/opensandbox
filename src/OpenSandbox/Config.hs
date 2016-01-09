@@ -10,7 +10,7 @@
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.Config
-  ( MCConfig (..)
+  ( Config (..)
   , Difficulty (..)
   , GameMode (..)
   , LevelType (..)
@@ -18,16 +18,27 @@ module OpenSandbox.Config
   , defaultConfig
   ) where
 
-import            Data.ConfigFile
-import qualified  Data.Text as T
-{-
-serviceToConfig :: Service -> ConfigParser
-serviceToConfig srv = do
-    c1 <- add_section emptyCP (srvName s)
-    c2 <- set c1 (srvName s) "port"
--}
 
-data MCConfig = MCConfig
+import qualified  Data.Text as T
+
+
+data Difficulty = Peaceful | Easy | Normal | Hard
+  deriving (Show,Enum,Eq)
+
+
+data GameMode = Survival | Creative | Adventure | Spectator
+  deriving (Show,Enum,Eq)
+
+
+data LevelType = Default | Flat | LargeBiomes | Amplified | Customized
+  deriving (Show,Eq)
+
+
+data Compression = Everything | Int
+  deriving (Show,Eq)
+
+
+data Config = Config
   { mcAllowFlight                 :: !Bool
   , mcAllowNether                 :: !Bool
   , mcAnnouncePlayerAchievements  :: !Bool
@@ -70,19 +81,7 @@ data MCConfig = MCConfig
   } deriving (Show,Eq)
 
 
-data Difficulty = Peaceful | Easy | Normal | Hard
-  deriving (Show,Enum,Eq)
-
-data GameMode = Survival | Creative | Adventure | Spectator
-  deriving (Show,Enum,Eq)
-
-data LevelType = Default | Flat | LargeBiomes | Amplified | Customized
-  deriving (Show,Eq)
-
-data Compression = Everything | Int
-  deriving (Show,Eq)
-
-defaultConfig = MCConfig
+defaultConfig = Config
   { mcAllowFlight                 = False
   , mcAllowNether                 = True
   , mcAnnouncePlayerAchievements  = True
