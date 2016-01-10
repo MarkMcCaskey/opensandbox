@@ -12,12 +12,22 @@
 </p>
 
 <p align="center">
-  A modular, user-centric Minecraft Server.
+  A modular, user-centric, concurrent Minecraft Server.
 </p>
+
+Open Sandbox is a WIP, free and open source, custom Minecraft server implemented in Haskell.
+The goal of this server is not to perfectly clone the features of the Notchian server, but rather to improve on the original game through purely server-side features that maintain Notchian client compatibility.
+
+Planned features are:
+* Online, incremental, and purely functional world generation
+* Content version control for blocks & chunks (snapshotting, rollback/undo, branching, etc.)
+* Pervasive parallelism and concurrency support (multi-threaded, GPGPU, distributed)
+* Significantly better sysadmin tools
+* Modular, composable, and orthogonal DSL for good modding support and server customization.
 
 ## Installation
 
-As of right now, you can only build opensandbox from source.
+As of right now, you can only build Open Sandbox from source.
 The following is with `stack`
 ```bash
 git clone http://github.com/oldmanmike/opensandbox.git
@@ -47,4 +57,4 @@ or...
 ```bash
 cabal run
 ```
-As of right now, it's not even possible to log onto the server. This will change soon.
+Keep your shirt on, the server doesn't do much yet. Like I said, WIP.
