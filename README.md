@@ -48,3 +48,7 @@ or...
 cabal run
 ```
 As of right now, it's not even possible to log onto the server. This will change soon.
+
+## Contributing
+
+Pull requests and bug reports are welcome even at this early date. Everything is subject to change right now, so many flaws are present and known right now. However, Haskellers interested in the project should feel free to find a role for themselves. I'm not a Haskell expert, so I don't expect a contributor to be either.
