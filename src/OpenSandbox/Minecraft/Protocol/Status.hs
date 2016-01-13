@@ -85,7 +85,7 @@ instance Serialize ServerBoundStatus where
 
 instance Serialize ClientBoundStatus where
   put (Response payload) = do
-    put (fromIntegral $ 1 + B.length payload :: Word8)
+    put (fromIntegral $ 2 + B.length payload :: Word8)
     put (0 :: Word8)
     put (fromIntegral $ B.length payload :: Word8)
     putByteString payload

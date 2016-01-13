@@ -116,8 +116,8 @@ mainLoop sock srv = do
     (conn,_) <- accept sock
     packet <- recv conn 256
     putStrLn $ "Incoming: " ++ show (B.unpack packet)
-    -- putStrLn $ "Parsing: " ++ show (B.unpack (B.take (1 + (fromIntegral $ B.head packet)) packet))
-    -- putStrLn $ "Resulting Parse: " ++ show (map B.unpack (splitPacket packet))
+    putStrLn $ "Parsing: " ++ show (B.unpack (B.take (1 + (fromIntegral $ B.head packet)) packet))
+    putStrLn $ "Resulting Parse: " ++ show (map B.unpack (splitPacket packet))
     mapM_ (route conn srv . (decode :: B.ByteString -> Either String ServerBoundStatus)) (splitPacket packet)
     mainLoop sock srv
 
@@ -147,26 +147,21 @@ route sock srv (Left err)
   = putStrLn $ "Error: " ++ err
 
 
-maybePing :: Socket -> B.ByteString -> IO ()
-maybePing sock maybePing =
-    if (B.length maybePing == 10) && (B.index maybePing 1 == 1)
-        then do
-              send sock maybePing
-              return ()
-        else do
-              packet <- recv sock 254
-              send sock packet
-              return ()
-
-
 runStatus :: Socket -> Server -> IO ()
 runStatus sock srv = do
-    let response = Response $ BL.toStrict $ Aeson.encode $ buildStatus (srvStatus srv)
-    let outgoing = runPut $ put response
-    --let response = BL.toStrict $ Aeson.encode $ buildStatus (srvStatus srv)
-    --let response' = B.cons (0 :: Word8) (B.cons (fromIntegral $ B.length response :: Word8) response)
-    --let outgoing = B.cons (fromIntegral $ B.length response' :: Word8) response'
-    send sock outgoing
+    startPing <- recv sock 2
+    let response1 = Response $ BL.toStrict $ Aeson.encode $ buildStatus (srvStatus srv)
+    let outgoing1 = runPut $ put response1
+    --let response2 = BL.toStrict $ Aeson.encode $ buildStatus (srvStatus srv)
+    --let response2' = B.cons (0 :: Word8) (B.cons (fromIntegral $ B.length response2 :: Word8) response2)
+    --let outgoing2 = B.cons (fromIntegral $ B.length response2' :: Word8) response2'
+    --putStrLn "Response 1"
+    --putStrLn $ show (B.unpack outgoing1)
+    --putStrLn "Response 2"
+    --putStrLn $ show (B.unpack outgoing2)
+    send sock outgoing1
+    ping <- recv sock 10
+    send sock ping
     sClose sock
 
 
