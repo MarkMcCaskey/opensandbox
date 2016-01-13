@@ -40,8 +40,9 @@ data Status = Status
 
 data ServerBoundStatus
     = Handshake Word8 B.ByteString Word16 Word8
-    | Request
+    | PingStart
     | Ping Word64
+    | Request
     deriving (Show,Eq,Read)
 
 
@@ -60,17 +61,25 @@ instance Serialize ServerBoundStatus where
     putByteString a
     put p
     put s
+  put PingStart = do
+    put (1 :: Word8)
+    put (0 :: Word8)
   put (Ping payload) = do
     put (fromIntegral $ 2 + 8 :: Word8)
     put (1 :: Word8)
     putWord64be payload
 
   get = do
-    _ <- getWord8
+    len <- getWord8
     packetID <- getWord8
     case packetID of
-      0 -> Handshake <$> getWord8 <*> (getWord8 >>= (getByteString . fromIntegral)) <*> getWord16be <*> getWord8
-      1 -> Ping <$> (get :: Get Word64)
+      0 -> case len of
+            1 -> return PingStart
+            _ -> Handshake <$> getWord8 <*> (getWord8 >>= (getByteString . fromIntegral)) <*> getWord16be <*> getWord8
+      1 -> case len of
+            10 -> Ping <$> (get :: Get Word64)
+            254 -> return Request
+            _ -> fail "Unrecognized packet with Packet ID 1!"
       _ -> fail "Unrecognized packet!"
 
 

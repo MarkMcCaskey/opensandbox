@@ -39,8 +39,6 @@ import            OpenSandbox.Minecraft.Protocol
 import            OpenSandbox.Minecraft.User
 
 
-
-
 mcVersion :: T.Text
 mcVersion = "15w51b"
 
@@ -89,14 +87,11 @@ configCompression config =
 
 main :: IO ()
 main = do
+    putStrLn "Welcome to the OpenSandbox Minecraft Server!"
     let config = defaultConfig
     let port = 25567
-    putStrLn "Welcome to OpenSandbox Server!"
-    putStrLn "Loading OpenSandbox properties..."
     putStrLn $ "Starting minecraft server version " ++ show mcVersion
-    putStrLn "Loading properties"
-    loadMCServerProperties mcSrvPath
-    putStrLn "Default game type: SURVIVAL"
+    putStrLn $ "Default game type: " ++ show (mcLevelType config)
     maybeEncryption <- configEncryption config
     maybeCompression <- configCompression config
     putStrLn $ "Starting Minecraft server on " ++ show port
@@ -113,42 +108,60 @@ main = do
 
 
 loadMCServerProperties :: FilePath -> IO ()
-loadMCServerProperties path = return ()
+loadMCServerProperties path = putStrLn "Loading server properties..."
 
 
 mainLoop :: Socket -> Server -> IO ()
 mainLoop sock srv = do
     (conn,_) <- accept sock
     packet <- recv conn 256
-    routeHandshake conn srv (decode packet :: Either String ServerBoundStatus)
+    putStrLn $ "Incoming: " ++ show (B.unpack packet)
+    putStrLn $ "Parsing: " ++ show (B.unpack (B.take (1 + (fromIntegral $ B.head packet)) packet))
+    putStrLn $ "Resulting Parse: " ++ show (map B.unpack (splitPacket packet))
+    mapM_ (route conn srv . (decode :: B.ByteString -> Either String ServerBoundStatus)) (splitPacket packet)
     mainLoop sock srv
 
+splitPacket :: B.ByteString -> [B.ByteString]
+splitPacket "" = []
+splitPacket packet = if (B.length packet /=  1 + (fromIntegral $ B.head packet))
+                        then do let (x,xs) = B.splitAt (1 + (fromIntegral $ B.head packet)) packet
+                                let xs' = splitPacket xs
+                                x:xs'
+                        else [packet]
 
-routeHandshake :: Socket -> Server -> Either String ServerBoundStatus -> IO ()
-routeHandshake sock srv (Right (Handshake _ _ _ 1)) = runStatus sock srv
-routeHandshake sock srv (Right (Handshake _ _ _ 2)) = runLogin sock srv
-routeHandshake sock srv (Right (Handshake _ _ _ _)) = putStrLn "Error: Unknown state!"
-routeHandshake sock srv (Left _)                    = putStrLn "Error: Unknown packet"
+
+route :: Socket -> Server -> Either String ServerBoundStatus -> IO ()
+route sock srv (Right PingStart)
+  = putStrLn "--> Routing PingStart" -- >> (recv sock 10 >>= \x -> send sock x >> return ())
+route sock srv (Right (Ping payload))
+  = putStrLn "--> Routing Ping" >> (send sock $ encode (Ping payload)) >> return ()
+route sock srv (Right Request)
+  = putStrLn "--> Routing Request" >> return ()
+route sock srv (Right (Handshake _ _ _ 1))
+  = putStrLn "--> Routing Status Handshake" >> runStatus sock srv
+route sock srv (Right (Handshake _ _ _ 2))
+  = putStrLn "--> Routing Login Handshake" >> runLogin sock srv
+route sock srv (Right (Handshake _ _ _ _))
+  = putStrLn "Error: Unknown state!"
+route sock srv (Left err)
+  = putStrLn $ "Error: " ++ err
 
 
 runStatus :: Socket -> Server -> IO ()
 runStatus sock srv = do
-    putStrLn "================================================================="
-    putStrLn "|                   << Packet Report Begin >>                   |"
-    putStrLn "================================================================="
-    let response = BL.toStrict $ Aeson.encode $ buildStatus (srvStatus srv)
-    let response' = B.cons (0 :: Word8) (B.cons (fromIntegral $ B.length response :: Word8) response)
-    let outgoing = B.cons (fromIntegral $ B.length response' :: Word8) response'
-    send sock outgoing
-    mapM_ putStrLn bar
-    ping <- recv sock 256
-    putStrLn "[Raw Ping]"
-    print ping
-    print $ B.unpack ping
-    maybePing sock ping
-    mapM_ putStrLn bar
-    putStrLn "|                    << Packet Report End >>                    |"
-    putStrLn "================================================================="
+    startPing <- recv sock 2
+    let response1 = Response $ BL.toStrict $ Aeson.encode $ buildStatus (srvStatus srv)
+    let outgoing1 = runPut $ put response1
+    --let response2 = BL.toStrict $ Aeson.encode $ buildStatus (srvStatus srv)
+    --let response2' = B.cons (0 :: Word8) (B.cons (fromIntegral $ B.length response2 :: Word8) response2)
+    --let outgoing2 = B.cons (fromIntegral $ B.length response2' :: Word8) response2'
+    --putStrLn "Response 1"
+    --putStrLn $ show (B.unpack outgoing1)
+    --putStrLn "Response 2"
+    --putStrLn $ show (B.unpack outgoing2)
+    send sock outgoing1
+    ping <- recv sock 10
+    send sock ping
     sClose sock
 
 
@@ -166,21 +179,3 @@ runLogin sock srv = do
 
 runPlay :: Socket -> Server -> IO ()
 runPlay sock srv = undefined
-
-
-maybePing :: Socket -> B.ByteString -> IO ()
-maybePing sock maybePing =
-    if (B.length maybePing == 10) && (B.index maybePing 1 == 1)
-        then do
-              send sock maybePing
-              return ()
-        else do
-              packet <- recv sock 254
-              send sock packet
-              return ()
-
-
-bar :: [String]
-bar = [ "================================================================="
-      , "/////////////////////////////////////////////////////////////////"
-      , "================================================================="]
