@@ -11,26 +11,19 @@
 -------------------------------------------------------------------------------
 
 
-import            Control.Concurrent
 import            Crypto.PubKey.RSA
 import qualified  Data.Aeson as Aeson
 import            Data.ASN1.BinaryEncoding
 import            Data.ASN1.Encoding
-import            Data.ASN1.BitArray
 import            Data.ASN1.Types
-import            Data.Bytes.VarInt
 import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Lazy as BL
-import            Data.Maybe
 import            Data.Serialize
-import qualified  Data.Set as Set
 import qualified  Data.Text as T
 import            Data.Text.Encoding
 import            Data.UUID
 import            Data.UUID.V4
-import            Data.Word
 import            Data.X509
-import            GHC.Generics
 import            Network.Socket hiding (send,recv)
 import            Network.Socket.ByteString
 import            OpenSandbox
@@ -54,12 +47,14 @@ data Encryption = Encryption
   , getVerifyToken  :: B.ByteString
   } deriving (Show,Eq)
 
+
 data Server = Server
   { srvName         :: T.Text
   , srvEncryption   :: Maybe Encryption
   , srvCompression  :: Maybe Compression
   , srvStatus       :: Status
   } deriving (Show,Eq)
+
 
 configEncryption :: Config -> IO (Maybe Encryption)
 configEncryption config =
@@ -121,6 +116,7 @@ mainLoop sock srv = do
     mapM_ (route conn srv . (decode :: B.ByteString -> Either String ServerBoundStatus)) (splitPacket packet)
     mainLoop sock srv
 
+
 splitPacket :: B.ByteString -> [B.ByteString]
 splitPacket "" = []
 splitPacket packet = if (B.length packet /=  1 + (fromIntegral $ B.head packet))
@@ -171,4 +167,4 @@ runLogin sock srv = do
 
 
 runPlay :: Socket -> Server -> IO ()
-runPlay sock srv = undefined
+runPlay sock srv = return ()
