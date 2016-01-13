@@ -152,13 +152,6 @@ runStatus sock srv = do
     startPing <- recv sock 2
     let response1 = Response $ BL.toStrict $ Aeson.encode $ buildStatus (srvStatus srv)
     let outgoing1 = runPut $ put response1
-    --let response2 = BL.toStrict $ Aeson.encode $ buildStatus (srvStatus srv)
-    --let response2' = B.cons (0 :: Word8) (B.cons (fromIntegral $ B.length response2 :: Word8) response2)
-    --let outgoing2 = B.cons (fromIntegral $ B.length response2' :: Word8) response2'
-    --putStrLn "Response 1"
-    --putStrLn $ show (B.unpack outgoing1)
-    --putStrLn "Response 2"
-    --putStrLn $ show (B.unpack outgoing2)
     send sock outgoing1
     ping <- recv sock 10
     send sock ping
