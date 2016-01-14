@@ -12,6 +12,7 @@
 module OpenSandbox.Protocol.Login
   ( ClientBoundLogin (..)
   , ServerBoundLogin (..)
+  , runLogin
   , encryptionRequestPacket
   , loginSuccess
   ) where
@@ -20,16 +21,30 @@ module OpenSandbox.Protocol.Login
 import            Data.Serialize
 import            Data.Serialize.Get
 import            Data.Serialize.Put
---import            Data.Binary
---import            Data.Binary.Get
---import            Data.Binary.Put
 import qualified  Data.ByteString as B
 import qualified  Data.Text as T
 import            Data.Text.Encoding
 import            Data.UUID
+import            Data.UUID.V4
 import            Data.Word
+import            Network.Socket hiding (send,recv)
+import            Network.Socket.ByteString
 
+import            OpenSandbox.Protocol.Play
+import            OpenSandbox.Server
 import            OpenSandbox.User
+
+
+runLogin :: Server -> Socket -> IO ()
+runLogin srv sock = do
+    loginStart <- recv sock 254
+    let someUsername = decodeUtf8 $ B.drop 3 loginStart
+    someUUID <- nextRandom
+    let someUser = User someUUID someUsername Nothing Nothing
+    print someUser
+    send sock (loginSuccess someUser)
+    runPlay srv sock
+    sClose sock
 
 
 -- | A data type that could represent any client bound packet associated with

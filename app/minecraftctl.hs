@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 -------------------------------------------------------------------------------
 -- |
 -- File         : minecraftctl.hs
@@ -17,7 +18,7 @@ import            Data.UUID hiding (fromString)
 import            OpenSandbox
 import            OpenSandbox.Backup
 import            OpenSandbox.Update
-import            OpenSandbox.Service
+import            OpenSandbox.Server
 import            OpenSandbox.Tmux
 import            Options.Applicative
 import            System.Directory
@@ -25,8 +26,8 @@ import            System.IO
 import            System.Process
 
 
-testServer :: Service
-testServer = Service
+testServer :: Server
+testServer = Server
   { srvName = "test"
   , srvPort = 25566
   , srvPath = "/srv/test"
@@ -34,11 +35,18 @@ testServer = Service
   , srvLogPath = "/srv/test/logs"
   , srvWorld = "world"
   , srvVersion = "15w47c"
+  , srvPlayers = 0
+  , srvMaxPlayers = 20
+  , srvMotd = "A Minecraft server"
+  , srvEncryption = Nothing
+  , srvCompression = Nothing
+  , srvEnabled = True
+  , srvUp = False
   }
 
 
-ecServer :: Service
-ecServer = Service
+ecServer :: Server
+ecServer = Server
   { srvName = "ecServer"
   , srvPort = 25565
   , srvPath = "/srv/minecraft"
@@ -46,6 +54,13 @@ ecServer = Service
   , srvLogPath = "/srv/minecraft/logs"
   , srvWorld = "world"
   , srvVersion = "15w47c"
+  , srvPlayers = 0
+  , srvMaxPlayers = 20
+  , srvMotd = "A Minecraft server"
+  , srvEncryption = Nothing
+  , srvCompression = Nothing
+  , srvEnabled = True
+  , srvUp = False
   }
 
 
@@ -65,7 +80,7 @@ minecraftServiceCmd :: FilePath -> String -> String
 minecraftServiceCmd rootPath v = "cd " ++ rootPath ++"; java -Xmx4G -Xms512M -XX:+UseConcMarkSweepGC -XX:+CMSIncrementalPacing -XX:ParallelGCThreads=4 -XX:+AggressiveOpts -jar minecraft_server." ++ v ++ ".jar nogui"
 
 
-runMinecraftServer :: [String] -> Service -> IO ()
+runMinecraftServer :: [String] -> Server -> IO ()
 runMinecraftServer args srv = callCommand ("cd " ++ srvPath srv ++"; java -jar " ++ srvPath srv ++ "/" ++ mcServerJar (srvVersion srv) ++ " nogui")
 
 
@@ -98,7 +113,7 @@ setupNewServer n maybeP maybeR maybeW maybeV = do
     w <- prompt "World Name: " maybeW
     v <- prompt "Version: " maybeV
     putStrLn "Setting up new server..."
-    let newServer = Service n p r (r++"/backup") (r++"/logs") w v
+    let newServer = Server n p r (r++"/backup") (r++"/logs") w v 0 20 "" Nothing Nothing False False
     createDirectoryIfMissing True (srvPath newServer)
     createDirectoryIfMissing True (srvBackupPath newServer)
     putStr $ "Downloading minecraft." ++ v ++ ".jar..."
@@ -132,14 +147,14 @@ shutdown :: IO ()
 shutdown = tmuxClose
 
 
-create :: Services -> ServiceName -> Maybe Int -> Maybe String -> Maybe String -> Maybe String -> IO ()
+create :: Servers -> String -> Maybe Int -> Maybe String -> Maybe String -> Maybe String -> IO ()
 create slst n p r w v =
     case Map.lookup n slst of
       Just s  -> putStrLn "Error: Service already exists!"
       Nothing -> setupNewServer n p r w v
 
 
-start :: Services -> ServiceName -> IO ()
+start :: Servers -> String -> IO ()
 start slst n =
     case Map.lookup n slst of
       Just s    -> mkTmuxWindow s >> launchServerInWindow s
@@ -148,39 +163,39 @@ start slst n =
         launchServerInWindow s = sendTmux (tmuxID s) (minecraftServiceCmd (srvPath s) (srvVersion s))
 
 
-stop :: Services -> ServiceName -> IO ()
+stop :: Servers -> String -> IO ()
 stop slst n =
     case Map.lookup n slst of
       Just s  -> sendTmux (tmuxID s) "stop" >> callCommand "sleep 5" >> killWindow (show $ srvPort s)
       Nothing -> putStrLn $ "Error: Cannot find service " ++ n ++ "!"
 
 
-status :: Services -> ServiceName -> IO ()
+status :: Servers -> String -> IO ()
 status slst n = putStrLn $ "Getting status of " ++ n ++ "..."
 
 
-enable :: Services -> ServiceName -> IO ()
+enable :: Servers -> String -> IO ()
 enable slst n = putStrLn $ "Disabling " ++ n ++ "..."
 
 
-disable :: Services -> ServiceName -> IO ()
+disable :: Servers -> String -> IO ()
 disable slst n = putStrLn $ "Disabling " ++ n ++ "..."
 
 
-restart :: Services -> ServiceName -> IO ()
+restart :: Servers -> String -> IO ()
 restart slst n = putStrLn $ "Restarting " ++ n ++ "..."
 
 
-reload :: Services -> ServiceName -> IO ()
+reload :: Servers -> String -> IO ()
 reload slst n = putStrLn $ "Reloading " ++ n ++ "..."
 
 
-whoison :: Services -> ServiceName -> IO ()
+whoison :: Servers -> String -> IO ()
 whoison slst n = putStrLn $ "The following users are logged into " ++ n ++ "..."
 
 
 -- | Backs up the target Minecraft service.
-backup :: Services -> ServiceName -> IO ()
+backup :: Servers -> String -> IO ()
 backup slst n =
     case Map.lookup n slst of
       Just s -> fullBackup  (tmuxID s)
@@ -190,12 +205,12 @@ backup slst n =
       Nothing -> putStrLn $ "Error: Cannot find service " ++ n ++ "!"
 
 
-upgrade :: Services -> ServiceName -> String -> String -> IO ()
+upgrade :: Servers -> String -> String -> String -> IO ()
 upgrade slst n "to" v = putStrLn $ "Upgrading " ++ n ++ "..."
 upgrade slst n _ v = putStrLn "Error: Invalid command syntax!"
 
 
-downgrade :: Services -> ServiceName -> String -> String -> IO ()
+downgrade :: Servers -> String -> String -> String -> IO ()
 downgrade slst n "to" v = putStrLn $ "Downgrading " ++ n ++ "..."
 downgrade slst n _ v = putStrLn "Error: Invalid command syntax!"
 
@@ -203,14 +218,14 @@ downgrade slst n _ v = putStrLn "Error: Invalid command syntax!"
 -- | Executes the 'say' command in the target Minecraft server.
 -- Must be provided the list of services, the target service,
 -- and the message to say on the server.
-say :: Services -> ServiceName -> String -> IO ()
+say :: Servers -> String -> String -> IO ()
 say slst s m =
   case Map.lookup s slst of
       Just s  -> sendTmux (tmuxID s) ("say " ++ m)
       Nothing -> putStrLn "Error: Service cannot be found!"
 
 
-with :: Services -> ServiceName -> String -> IO ()
+with :: Servers -> String -> String -> IO ()
 with slst s c = putStrLn $ "Running command " ++ c ++ "..."
 
 
@@ -246,7 +261,7 @@ versionOption = optional $ strOption
   <> help "Assign a service a game VERSION")
 
 
-commands :: Services -> Parser (IO ())
+commands :: Servers -> Parser (IO ())
 commands slst = subparser
     (  command "boot"
       (info (helper <*> pure boot)

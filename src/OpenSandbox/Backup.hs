@@ -14,7 +14,7 @@ module OpenSandbox.Backup
     , fullBackup
     ) where
 
-import            OpenSandbox.Service
+import            OpenSandbox.Server
 import            OpenSandbox.Tmux
 import qualified  Codec.Archive.Tar as Tar
 import qualified  Codec.Compression.GZip as GZip

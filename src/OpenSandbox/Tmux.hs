@@ -27,7 +27,7 @@ module OpenSandbox.Tmux
 
 import Control.Monad
 import Data.Functor.Identity
-import OpenSandbox.Service
+import OpenSandbox.Server
 import System.Directory
 import System.Exit
 import System.Process
@@ -46,7 +46,7 @@ type TmuxSessionID = String
 type TmuxWindowID = String
 
 
-tmuxID :: Service -> TmuxID
+tmuxID :: Server -> TmuxID
 tmuxID s = TmuxID $ ("opensandbox",(show $ srvPort s))
 
 

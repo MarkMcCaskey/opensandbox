@@ -11,6 +11,7 @@
 module OpenSandbox.Protocol.Play
     ( ClientBoundPlay
     , ServerBoundPlay
+    , runPlay
     ) where
 
 import qualified  Data.ByteString as B
@@ -18,6 +19,10 @@ import            Data.Serialize
 import            Data.Serialize.Get
 import            Data.Serialize.Put
 import            Data.Word
+import            Network.Socket hiding (send,recv)
+import            Network.Socket.ByteString
+
+import            OpenSandbox.Server
 
 type MC_Bool      = Word8
 type MC_Byte      = Word8
@@ -42,6 +47,9 @@ type MC_UUID      = B.ByteString
 type MC_Optional  = Maybe B.ByteString
 type MC_Array     = B.ByteString
 type MC_ByteArray = B.ByteString
+
+runPlay :: Server -> Socket -> IO ()
+runPlay srv sock = return ()
 
 idLength :: Word8
 idLength = 1

@@ -15,12 +15,19 @@ module OpenSandbox.Config
   , GameMode (..)
   , LevelType (..)
   , Compression (..)
+  , Encryption (..)
   , defaultConfig
+  , configEncryption
+  , configCompression
   ) where
 
-
+import            Crypto.PubKey.RSA
+import            Data.ASN1.BinaryEncoding
+import            Data.ASN1.Encoding
+import            Data.ASN1.Types
+import qualified  Data.ByteString as B
 import qualified  Data.Configurator as C
-import qualified  Data.Text as T
+import            Data.X509
 
 
 data Difficulty = Peaceful | Easy | Normal | Hard
@@ -39,6 +46,14 @@ data Compression = Everything | Int
   deriving (Show,Eq)
 
 
+data Encryption = Encryption
+  { getCert         :: B.ByteString
+  , getPubKey       :: PublicKey
+  , getPrivKey      :: PrivateKey
+  , getVerifyToken  :: B.ByteString
+  } deriving (Show,Eq)
+
+
 data Config = Config
   { mcAllowFlight                 :: !Bool
   , mcAllowNether                 :: !Bool
@@ -50,26 +65,26 @@ data Config = Config
   , mcForceGamemode               :: !Bool
   , mcGameMode                    :: !GameMode
   , mcGenerateStructures          :: !Bool
-  , mcGeneratorSettings           :: !T.Text
+  , mcGeneratorSettings           :: !String
   , mcHardcore                    :: !Bool
-  , mcLevelName                   :: !T.Text
-  , mcLevelSeed                   :: !T.Text
+  , mcLevelName                   :: !String
+  , mcLevelSeed                   :: !String
   , mcLevelType                   :: !LevelType
   , mcMaxBuildHeight              :: !Int
   , mcMaxPlayers                  :: !Int
   , mcMaxTickTime                 :: !(Maybe Int)
   , mcMaxWorldSize                :: !Int
-  , mcMotd                        :: !T.Text
+  , mcMotd                        :: !String
   , mcNetworkCompressionThreshold :: !(Maybe Compression)
   , mcOnlineMode                  :: !Bool
   , mcOpPermissionLevel           :: !Int
   , mcPlayerIdleTimeout           :: !Int
   , mcPvp                         :: !Bool
   , mcQueryPort                   :: !Int
-  , mcRconPassword                :: !T.Text
-  , mcResourcePack                :: !T.Text
-  , mcResourcePackHash            :: !T.Text
-  , mcServerIP                    :: !T.Text
+  , mcRconPassword                :: !String
+  , mcResourcePack                :: !String
+  , mcResourcePackHash            :: !String
+  , mcServerIP                    :: !String
   , mcServerPort                  :: !Int
   , mcSnooperEnabled              :: !Bool
   , mcSpawnAnimals                :: !Bool
@@ -124,3 +139,25 @@ defaultConfig = Config
   , mcWhiteList                   = False }
 
 
+configEncryption :: Config -> IO (Maybe Encryption)
+configEncryption config =
+  if mcOnlineMode config == True
+    then do
+      putStrLn "Encryption: [ENABLED]"
+      putStrLn "Generating key pair"
+      (pubKey,privKey) <- generate 128 65537
+      let cert = encodeASN1' DER $ toASN1 (PubKeyRSA pubKey) []
+      return (Just (Encryption cert pubKey privKey (B.pack [26,120,188,217])))
+    else do
+      putStrLn "Encryption: [DISABLED]"
+      return Nothing
+
+
+configCompression :: Config -> IO (Maybe Compression)
+configCompression config =
+  if mcNetworkCompressionThreshold config /= Nothing
+    then do
+      putStrLn "Compression: [ENABLED]"
+      return (mcNetworkCompressionThreshold config)
+    else do
+      putStrLn "Compression: [DISABLED]" >> return Nothing

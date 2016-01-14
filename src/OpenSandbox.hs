@@ -19,7 +19,7 @@ import OpenSandbox.NBT                as O
 import OpenSandbox.Op                 as O
 import OpenSandbox.Protocol           as O
 import OpenSandbox.ServerProperties   as O
-import OpenSandbox.Service            as O
+import OpenSandbox.Server             as O
 import OpenSandbox.Tmux               as O
 import OpenSandbox.Update             as O
 import OpenSandbox.User               as O

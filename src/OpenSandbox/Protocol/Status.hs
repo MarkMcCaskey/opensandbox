@@ -10,19 +10,20 @@
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.Protocol.Status
-    ( Status (..)
-    , ClientBoundStatus (..)
+    ( ClientBoundStatus (..)
     , ServerBoundStatus (..)
     , StatusPayload
     , Version
     , Players
     , Description
+    , runStatus
     , buildStatus
     ) where
 
 
 import qualified  Data.Aeson as Aeson
 import qualified  Data.ByteString.Char8 as B
+import qualified  Data.ByteString.Lazy as BL
 import qualified  Data.Text as T
 import            Data.Bits
 import            Data.Serialize
@@ -30,14 +31,29 @@ import            Data.Serialize.Get
 import            Data.Serialize.Put
 import            Data.Word
 import            GHC.Generics
+import            Network.Socket hiding (send,recv)
+import            Network.Socket.ByteString
 
+import            OpenSandbox.Server
+
+runStatus :: Server -> Socket -> IO ()
+runStatus srv sock = do
+    startPing <- recv sock 2
+    let response1 = Response $ BL.toStrict $ Aeson.encode $ buildStatus (srvVersion srv) (srvPlayers srv) (srvMaxPlayers srv) (srvMotd srv)
+    let outgoing1 = runPut $ put response1
+    send sock outgoing1
+    ping <- recv sock 10
+    send sock ping
+    sClose sock
+
+{-
 data Status = Status
   { srvCurrentVersion :: !T.Text
   , srvCurrentPlayers :: !Int
   , srvMaxPlayers     :: !Int
   , srvMotd           :: !T.Text
   } deriving (Show,Eq)
-
+-}
 data ServerBoundStatus
     = Handshake Word8 B.ByteString Word16 Word8
     | PingStart
@@ -103,9 +119,8 @@ instance Serialize ClientBoundStatus where
       _ -> fail "Unrecognized packet!"
 
 
-
-buildStatus :: Status -> StatusPayload
-buildStatus (Status version currentPlayers maxPlayers motd) =
+buildStatus :: String -> Int -> Int -> String -> StatusPayload
+buildStatus version currentPlayers maxPlayers motd =
     StatusPayload (Version version 94)
                   (Players maxPlayers currentPlayers)
                   (Description motd)
@@ -123,7 +138,7 @@ instance Aeson.FromJSON StatusPayload
 
 
 data Version = Version
-  { name      :: T.Text
+  { name      :: String
   , protocol  :: Int
   } deriving (Generic,Eq,Show,Read)
 
@@ -143,7 +158,7 @@ instance Aeson.FromJSON Players
 
 
 data Description = Description
-  { text    :: T.Text
+  { text    :: String
   } deriving (Generic,Eq,Show,Read)
 
 
