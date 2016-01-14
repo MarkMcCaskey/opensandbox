@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 -------------------------------------------------------------------------------
 -- |
--- Module:      : OpenSandbox.Minecraft.BannedIP
+-- Module:      : OpenSandbox.BannedIP
 -- Copyright    : (c) 2015 Michael Carpenter
 -- License      : GPL3
 -- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
@@ -10,7 +10,7 @@
 -- Portability  : portable
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Minecraft.BannedIP
+module OpenSandbox.BannedIP
     ( BannedIP
     , readBannedIPs
     , writeBannedIPs

@@ -15,8 +15,8 @@ import qualified  Data.Map as Map
 import            Data.String
 import            Data.UUID hiding (fromString)
 import            OpenSandbox
-import            OpenSandbox.Minecraft.Backup
-import            OpenSandbox.Minecraft.Update
+import            OpenSandbox.Backup
+import            OpenSandbox.Update
 import            OpenSandbox.Service
 import            OpenSandbox.Tmux
 import            Options.Applicative

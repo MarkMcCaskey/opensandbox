@@ -28,8 +28,8 @@ import            Network.Socket hiding (send,recv)
 import            Network.Socket.ByteString
 import            OpenSandbox
 import            OpenSandbox.Config
-import            OpenSandbox.Minecraft.Protocol
-import            OpenSandbox.Minecraft.User
+import            OpenSandbox.Protocol
+import            OpenSandbox.User
 
 
 mcVersion :: T.Text

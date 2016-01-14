@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 -------------------------------------------------------------------------------
 -- |
--- Module       : OpenSandbox.Minecraft.WhiteList
+-- Module       : OpenSandbox.WhiteList
 -- Copyright    : (c) 2015 Michael Carpenter
 -- License      : GPL3
 -- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
@@ -21,7 +21,7 @@
 --  * Removed users
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Minecraft.WhiteList
+module OpenSandbox.WhiteList
     ( WhiteList
     , readWhiteList
     , writeWhiteList
@@ -40,7 +40,7 @@ import            Data.UUID
 import            Data.UUID.Aeson
 import            GHC.Generics
 
-import OpenSandbox.Minecraft.User
+import OpenSandbox.User
 import OpenSandbox.Tmux
 
 

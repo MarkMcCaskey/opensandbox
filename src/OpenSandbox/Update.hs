@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 -------------------------------------------------------------------------------
 -- |
--- Module       : OpenSandbox.Minecraft.Update
+-- Module       : OpenSandbox.Update
 -- Copyright    : (c) 2015 Michael Carpenter
 -- License      : GPL3
 -- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
@@ -10,7 +10,7 @@
 -- Portability  : portable
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Minecraft.Update
+module OpenSandbox.Update
     ( findLatestMCSnapshot
     , getLatestMCSnapshot
     , getMCSnapshot

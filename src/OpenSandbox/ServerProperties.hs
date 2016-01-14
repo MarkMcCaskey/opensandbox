@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 -------------------------------------------------------------------------------
 -- |
--- Module       : OpenSandbox.Minecraft.ServerProperties
+-- Module       : OpenSandbox.ServerProperties
 -- Copyright    : (c) 2015 Michael Carpenter
 -- License      : GPL3
 -- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
@@ -9,7 +9,7 @@
 -- Portability  : portable
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Minecraft.ServerProperties
+module OpenSandbox.ServerProperties
     ( ServerProperties
     , readServerPropertiesRaw
     , writeServerPropertiesRaw

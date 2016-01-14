@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 -------------------------------------------------------------------------------
 -- |
--- Module       : OpenSandbox.Minecraft.Op
+-- Module       : OpenSandbox.Op
 -- Copyright    : (c) 2015 Michael Carpenter
 -- License      : GPL3
 -- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
@@ -10,7 +10,7 @@
 -- Portability  : portable
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Minecraft.Op
+module OpenSandbox.Op
     ( Op
     , readOps
     , writeOps
@@ -29,7 +29,7 @@ import qualified  Data.Text as T
 import            Data.UUID
 import            Data.UUID.Aeson
 import            GHC.Generics
-import qualified  OpenSandbox.Minecraft.User as U
+import qualified  OpenSandbox.User as U
 
 
 data Op = Op

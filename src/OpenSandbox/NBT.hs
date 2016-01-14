@@ -1,6 +1,6 @@
 -------------------------------------------------------------------------------
 -- |
--- Module           : OpenSandbox.Minecraft.NBT
+-- Module           : OpenSandbox.NBT
 -- Copyright        : (c) 2015 Michael Carpenter
 -- License          : GPL3
 -- Maintainer       : Michael Carpenter <oldmanmike.dev@gmail.com>
@@ -8,7 +8,7 @@
 -- Portability      : portable
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Minecraft.NBT (NBT) where
+module OpenSandbox.NBT (NBT) where
 
 
 import            Data.Binary

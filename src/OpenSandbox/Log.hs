@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 -------------------------------------------------------------------------------
 -- |
--- Module       : OpenSandbox.Minecraft.Log
+-- Module       : OpenSandbox.Log
 -- Copyright    : (c) 2015 Michael Carpenter
 -- License      : GPL3
 -- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
@@ -9,7 +9,7 @@
 -- Portability  : portable
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Minecraft.Log
+module OpenSandbox.Log
     ( LogEntry
     , Log
     , logEntryParser
@@ -27,7 +27,7 @@ import            Data.Attoparsec.ByteString.Char8
 import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Lazy as BL
 import qualified  Data.List as List
-import            OpenSandbox.Minecraft.User
+import            OpenSandbox.User
 import            Prelude hiding (takeWhile)
 import            System.Directory
 

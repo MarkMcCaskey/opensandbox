@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 -------------------------------------------------------------------------------
 -- |
--- Module       : OpenSandbox.Minecraft.User
+-- Module       : OpenSandbox.User
 -- Copyright    : (c) 2015 Michael Carpenter
 -- License      : GPL3
 -- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
@@ -11,7 +11,7 @@
 -- Basic bindings for loading and parsing the usercache.json
 -- of a Minecraft server.
 -------------------------------------------------------------------------------
-module OpenSandbox.Minecraft.User (
+module OpenSandbox.User (
     -- * Core User Types
       User (..)
     , Group (..)

@@ -19,21 +19,20 @@ library
     exposed-modules:        OpenSandbox
                             OpenSandbox.Command
                             OpenSandbox.Config
-                            OpenSandbox.Minecraft
-                            OpenSandbox.Minecraft.Backup
-                            OpenSandbox.Minecraft.BannedIP
-                            OpenSandbox.Minecraft.BannedPlayer
-                            OpenSandbox.Minecraft.Log
-                            OpenSandbox.Minecraft.NBT
-                            OpenSandbox.Minecraft.Op
-                            OpenSandbox.Minecraft.Protocol
-                            OpenSandbox.Minecraft.Protocol.Login
-                            OpenSandbox.Minecraft.Protocol.Play
-                            OpenSandbox.Minecraft.Protocol.Status
-                            OpenSandbox.Minecraft.ServerProperties
-                            OpenSandbox.Minecraft.Update
-                            OpenSandbox.Minecraft.User
-                            OpenSandbox.Minecraft.WhiteList
+                            OpenSandbox.Backup
+                            OpenSandbox.BannedIP
+                            OpenSandbox.BannedPlayer
+                            OpenSandbox.Log
+                            OpenSandbox.NBT
+                            OpenSandbox.Op
+                            OpenSandbox.Protocol
+                            OpenSandbox.Protocol.Login
+                            OpenSandbox.Protocol.Play
+                            OpenSandbox.Protocol.Status
+                            OpenSandbox.ServerProperties
+                            OpenSandbox.Update
+                            OpenSandbox.User
+                            OpenSandbox.WhiteList
                             OpenSandbox.Service
                             OpenSandbox.Tmux
     build-depends:          base >= 4.7 && < 5,

@@ -1,6 +1,6 @@
 -------------------------------------------------------------------------------
 -- |
--- Module       : OpenSandbox.Minecraft.Protocol.Play
+-- Module       : OpenSandbox.Protocol.Play
 -- Copyright    : (c) 2015 Michael Carpenter
 -- License      : GPL3
 -- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
@@ -8,7 +8,7 @@
 -- Portability  : portable
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Minecraft.Protocol.Play
+module OpenSandbox.Protocol.Play
     ( ClientBoundPlay
     , ServerBoundPlay
     ) where

@@ -1,6 +1,6 @@
 -------------------------------------------------------------------------------
 -- |
--- Module       : OpenSandbox.Minecraft.Protocol.Login
+-- Module       : OpenSandbox.Protocol.Login
 -- Copyright    : (c) 2015 Michael Carpenter
 -- License      : GPL3
 -- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
@@ -9,7 +9,7 @@
 --
 -- Bindings to the login section of the Minecraft protocol.
 -------------------------------------------------------------------------------
-module OpenSandbox.Minecraft.Protocol.Login
+module OpenSandbox.Protocol.Login
   ( ClientBoundLogin (..)
   , ServerBoundLogin (..)
   , encryptionRequestPacket
@@ -29,7 +29,7 @@ import            Data.Text.Encoding
 import            Data.UUID
 import            Data.Word
 
-import            OpenSandbox.Minecraft.User
+import            OpenSandbox.User
 
 
 -- | A data type that could represent any client bound packet associated with

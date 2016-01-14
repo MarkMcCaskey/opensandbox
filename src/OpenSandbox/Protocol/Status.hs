@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 -------------------------------------------------------------------------------
 -- |
--- Module       : OpenSandbox.Minecraft.Protocol.Status
+-- Module       : OpenSandbox.Protocol.Status
 -- Copyright    : (c) 2015 Michael Carpenter
 -- License      : GPL3
 -- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
@@ -9,7 +9,7 @@
 -- Portability  : portable
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Minecraft.Protocol.Status
+module OpenSandbox.Protocol.Status
     ( Status (..)
     , ClientBoundStatus (..)
     , ServerBoundStatus (..)
