@@ -19,7 +19,7 @@ import            OpenSandbox
 
 
 myVersion :: String
-myVersion = "15w51b"
+myVersion = "16w02a"
 
 myBackupPath :: FilePath
 myBackupPath = "backup"
