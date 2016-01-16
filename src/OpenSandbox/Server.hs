@@ -14,7 +14,7 @@ module OpenSandbox.Server
   ) where
 
 import qualified  Data.Map as M
-
+import            Network.Socket
 import            OpenSandbox.Config
 
 type Servers = M.Map String Server
@@ -22,7 +22,7 @@ type Servers = M.Map String Server
 
 data Server = Server
   { srvName         :: String
-  , srvPort         :: Int
+  , srvPort         :: PortNumber
   , srvPath         :: FilePath
   , srvBackupPath   :: FilePath
   , srvLogPath      :: FilePath

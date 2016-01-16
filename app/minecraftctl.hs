@@ -113,7 +113,7 @@ setupNewServer n maybeP maybeR maybeW maybeV = do
     w <- prompt "World Name: " maybeW
     v <- prompt "Version: " maybeV
     putStrLn "Setting up new server..."
-    let newServer = Server n p r (r++"/backup") (r++"/logs") w v 0 20 "" Nothing Nothing False False
+    let newServer = Server n (toEnum p) r (r++"/backup") (r++"/logs") w v 0 20 "" Nothing Nothing False False
     createDirectoryIfMissing True (srvPath newServer)
     createDirectoryIfMissing True (srvBackupPath newServer)
     putStr $ "Downloading minecraft." ++ v ++ ".jar..."

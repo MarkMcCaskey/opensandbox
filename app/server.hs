@@ -10,13 +10,11 @@
 --
 -------------------------------------------------------------------------------
 
-
 import qualified  Data.ByteString as B
 import            Data.Serialize
 import            Network.Socket hiding (send,recv)
 import            Network.Socket.ByteString
 import            OpenSandbox
-
 
 myVersion :: String
 myVersion = "16w02a"
@@ -30,14 +28,14 @@ myLogPath = "log"
 mySrvPath :: FilePath
 mySrvPath = "."
 
-myPort :: Int
+myPort :: PortNumber
 myPort = 25567
 
 main :: IO ()
 main = do
     putStrLn "Welcome to the OpenSandbox Minecraft Server!"
     let config = defaultConfig
-    let port = 25567
+    let port = myPort
     putStrLn $ "Starting minecraft server version " ++ show myVersion
     putStrLn $ "Default game type: " ++ show (mcLevelType config)
     maybeEncryption <- configEncryption config
@@ -64,14 +62,9 @@ main = do
                 }
     sock <- socket AF_INET Stream 0
     setSocketOption sock ReuseAddr 1
-    bindSocket sock (SockAddrInet (toEnum port) iNADDR_ANY)
+    bindSocket sock (SockAddrInet port iNADDR_ANY)
     listen sock 1
     mainLoop srv sock
-
-
-loadMCServerProperties :: FilePath -> IO ()
-loadMCServerProperties path = putStrLn "Loading server properties..."
-
 
 mainLoop :: Server -> Socket -> IO ()
 mainLoop srv sock = do
@@ -83,7 +76,6 @@ mainLoop srv sock = do
     mapM_ (route srv conn . (decode :: B.ByteString -> Either String ServerBoundStatus)) (splitPacket packet)
     mainLoop srv sock
 
-
 splitPacket :: B.ByteString -> [B.ByteString]
 splitPacket "" = []
 splitPacket packet = if (B.length packet /=  1 + (fromIntegral $ B.head packet))
@@ -91,7 +83,6 @@ splitPacket packet = if (B.length packet /=  1 + (fromIntegral $ B.head packet))
                                 let xs' = splitPacket xs
                                 x:xs'
                         else [packet]
-
 
 route :: Server -> Socket -> Either String ServerBoundStatus -> IO ()
 route srv sock (Right PingStart)
