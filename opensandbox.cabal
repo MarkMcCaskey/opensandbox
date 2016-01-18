@@ -17,6 +17,7 @@ cabal-version:              >=1.10
 library
     hs-source-dirs:         src
     exposed-modules:        OpenSandbox
+                            OpenSandbox.Client
                             OpenSandbox.Command
                             OpenSandbox.Config
                             OpenSandbox.Backup
@@ -39,10 +40,14 @@ library
                             aeson,
                             asn1-encoding,
                             asn1-types,
+                            async,
                             attoparsec,
                             binary,
                             bytestring,
                             cereal,
+                            conduit,
+                            conduit-combinators,
+                            conduit-extra,
                             configurator,
                             containers,
                             cryptonite,
@@ -56,6 +61,8 @@ library
                             process,
                             QuickCheck,
                             RSA,
+                            stm,
+                            stm-conduit,
                             tar,
                             text,
                             time,

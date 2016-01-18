@@ -357,6 +357,5 @@ opts slst = info (helper <*> commands slst)
 
 main :: IO ()
 main = do
-    --hSetBuffering stdin NoBuffering
     let defaultServices = Map.singleton "ecServer" ecServer
     join $ execParser (opts defaultServices)

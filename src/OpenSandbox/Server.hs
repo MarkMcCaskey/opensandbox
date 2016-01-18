@@ -13,12 +13,11 @@ module OpenSandbox.Server
   , Servers
   ) where
 
-import qualified  Data.Map as M
+import qualified  Data.Map as Map
 import            Network.Socket
 import            OpenSandbox.Config
 
-type Servers = M.Map String Server
-
+type Servers = Map.Map String Server
 
 data Server = Server
   { srvName         :: String
@@ -36,4 +35,3 @@ data Server = Server
   , srvEnabled      :: Bool
   , srvUp           :: Bool
   } deriving (Show,Eq)
-
