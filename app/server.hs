@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 -------------------------------------------------------------------------------
 -- |
 -- File         : server.hs
@@ -11,7 +12,10 @@
 -------------------------------------------------------------------------------
 
 import qualified  Data.ByteString as B
+import            Data.Conduit
+import            Data.Conduit.TMChan
 import            Data.Serialize
+import            Control.Concurrent.STM
 import            Network.Socket hiding (send,recv)
 import            Network.Socket.ByteString
 import            OpenSandbox
@@ -30,6 +34,9 @@ mySrvPath = "."
 
 myPort :: PortNumber
 myPort = 25567
+
+sendPacket :: Client -> ClientBoundPacket -> STM ()
+sendPacket Client{..} packet = writeTMChan clientChan packet
 
 main :: IO ()
 main = do

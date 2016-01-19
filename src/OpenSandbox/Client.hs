@@ -14,14 +14,15 @@ import            Data.Conduit
 import            Data.Conduit.Network
 import            Data.Conduit.TMChan
 import qualified  Data.ByteString as B
-import qualified  Data.ByteString.Char8 as BS
 import            Control.Concurrent.STM
 
-type ClientName = BS.ByteString
+import            OpenSandbox.Protocol
+
+type ClientName = B.ByteString
 
 data Client = Client
   { clientName    :: ClientName
-  , clientChan    :: TMChan B.ByteString
+  , clientChan    :: TMChan ClientBoundPacket
   , clientApp     :: AppData
   }
 

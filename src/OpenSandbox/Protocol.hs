@@ -8,7 +8,18 @@
 -- Portability  : portable
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Protocol (module P) where
+module OpenSandbox.Protocol
+  ( module P
+  , ClientBoundPacket
+  , ServerBoundPacket
+  ) where
+
 import OpenSandbox.Protocol.Login   as P
 import OpenSandbox.Protocol.Play    as P
 import OpenSandbox.Protocol.Status  as P
+
+data ClientBoundPacket =
+  ClientBoundLogin | ClientBoundPlay | ClientBoundStatus deriving (Show,Eq)
+
+data ServerBoundPacket =
+  ServerBoundLogin | ServerBoundPlay | ServerBoundStatus deriving (Show,Eq)

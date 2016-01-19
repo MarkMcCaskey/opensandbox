@@ -93,8 +93,11 @@ executable server
     build-depends:          base,
                             bytestring,
                             cereal,
+                            conduit,
                             network,
-                            opensandbox
+                            opensandbox,
+                            stm,
+                            stm-conduit
     default-language:       Haskell2010
 
 test-suite opensandbox-test
