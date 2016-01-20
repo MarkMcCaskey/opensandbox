@@ -39,7 +39,7 @@ sendPacket :: Client -> ClientBoundPacket -> STM ()
 sendPacket Client{..} packet = writeTMChan clientChan packet
 
 main :: IO ()
-main = do
+main = withSocketsDo $ do
     putStrLn "Welcome to the OpenSandbox Minecraft Server!"
     let config = defaultConfig
     let port = myPort
@@ -77,9 +77,9 @@ mainLoop :: Server -> Socket -> IO ()
 mainLoop srv sock = do
     (conn,_) <- accept sock
     packet <- recv conn 256
-    putStrLn $ "Incoming: " ++ show (B.unpack packet)
-    putStrLn $ "Parsing: " ++ show (B.unpack (B.take (1 + (fromIntegral $ B.head packet)) packet))
-    putStrLn $ "Resulting Parse: " ++ show (map B.unpack (splitPacket packet))
+    -- putStrLn $ "Incoming: " ++ show (B.unpack packet)
+    -- putStrLn $ "Parsing: " ++ show (B.unpack (B.take (1 + (fromIntegral $ B.head packet)) packet))
+    -- putStrLn $ "Resulting Parse: " ++ show (map B.unpack (splitPacket packet))
     mapM_ (route srv conn . (decode :: B.ByteString -> Either String ServerBoundStatus)) (splitPacket packet)
     mainLoop srv sock
 
