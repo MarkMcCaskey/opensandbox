@@ -70,24 +70,9 @@ main = withSocketsDo $ do
                 , srvUp = False
                 }
     runTCPServer (serverSettings 25567 "*") $ \app -> appSource app $$ printPacketSink
-    --runListener srv port serverLoop
 
 printPacketSink :: Sink B.ByteString IO ()
-printPacketSink = do
-    maybePacket <- await
-    case maybePacket of
-      Nothing -> return ()
-      Just packet -> do
-        liftIO $ print $ B.unpack packet
-        printPacketSink
-
-runListener :: Server -> PortNumber -> (Server -> Socket -> IO ()) -> IO ()
-runListener srv port handler = do
-    sock <- socket AF_INET Stream 0
-    setSocketOption sock ReuseAddr 1
-    bindSocket sock (SockAddrInet port iNADDR_ANY)
-    listen sock 1
-    handler srv sock
+printPacketSink = awaitForever $ liftIO . print . B.unpack
 
 serverLoop :: Server -> Socket -> IO ()
 serverLoop srv sock = do
