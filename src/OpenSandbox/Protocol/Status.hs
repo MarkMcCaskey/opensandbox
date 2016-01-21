@@ -121,7 +121,7 @@ instance Serialize ClientBoundStatus where
 
 buildStatus :: String -> Int -> Int -> String -> StatusPayload
 buildStatus version currentPlayers maxPlayers motd =
-    StatusPayload (Version version 95)
+    StatusPayload (Version version 96)
                   (Players maxPlayers currentPlayers)
                   (Description motd)
 

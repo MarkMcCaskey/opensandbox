@@ -13,6 +13,7 @@
 
 import qualified  Data.ByteString as B
 import            Data.Conduit
+import            Data.Conduit.Network
 import            Data.Conduit.TMChan
 import            Data.Serialize
 import            Control.Concurrent.STM
@@ -21,7 +22,7 @@ import            Network.Socket.ByteString
 import            OpenSandbox
 
 myVersion :: String
-myVersion = "16w02a"
+myVersion = "16w03a"
 
 myBackupPath :: FilePath
 myBackupPath = "backup"
@@ -59,7 +60,7 @@ main = withSocketsDo $ do
                 , srvLogPath = myLogPath
                 , srvWorld = "world"
                 , srvVersion = myVersion
-                , srvPlayers = 0
+                , srvPlayers = currentPlayers
                 , srvMaxPlayers = (mcMaxPlayers config)
                 , srvMotd = (mcMotd config)
                 , srvEncryption = maybeEncryption
@@ -67,21 +68,22 @@ main = withSocketsDo $ do
                 , srvEnabled = False
                 , srvUp = False
                 }
+    runListener srv port serverLoop
+
+runListener :: Server -> PortNumber -> (Server -> Socket -> IO ()) -> IO ()
+runListener srv port handler = do
     sock <- socket AF_INET Stream 0
     setSocketOption sock ReuseAddr 1
     bindSocket sock (SockAddrInet port iNADDR_ANY)
     listen sock 1
-    mainLoop srv sock
+    handler srv sock
 
-mainLoop :: Server -> Socket -> IO ()
-mainLoop srv sock = do
+serverLoop :: Server -> Socket -> IO ()
+serverLoop srv sock = do
     (conn,_) <- accept sock
     packet <- recv conn 256
-    -- putStrLn $ "Incoming: " ++ show (B.unpack packet)
-    -- putStrLn $ "Parsing: " ++ show (B.unpack (B.take (1 + (fromIntegral $ B.head packet)) packet))
-    -- putStrLn $ "Resulting Parse: " ++ show (map B.unpack (splitPacket packet))
     mapM_ (route srv conn . (decode :: B.ByteString -> Either String ServerBoundStatus)) (splitPacket packet)
-    mainLoop srv sock
+    serverLoop srv sock
 
 splitPacket :: B.ByteString -> [B.ByteString]
 splitPacket "" = []

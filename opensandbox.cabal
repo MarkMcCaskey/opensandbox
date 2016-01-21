@@ -94,6 +94,7 @@ executable server
                             bytestring,
                             cereal,
                             conduit,
+                            conduit-extra,
                             network,
                             opensandbox,
                             stm,
