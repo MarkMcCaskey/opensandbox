@@ -80,21 +80,6 @@ deserializeStatus = conduitGet (get :: Get ServerBoundStatus)
 printSink :: Show i => Sink i IO ()
 printSink = awaitForever $ liftIO . print
 
-serverLoop :: Server -> Socket -> IO ()
-serverLoop srv sock = do
-    (conn,_) <- accept sock
-    packet <- recv conn 256
-    mapM_ (route srv conn . (decode :: B.ByteString -> Either String ServerBoundStatus)) (splitPacket packet)
-    serverLoop srv sock
-
-splitPacket :: B.ByteString -> [B.ByteString]
-splitPacket "" = []
-splitPacket packet = if (B.length packet /=  1 + (fromIntegral $ B.head packet))
-                        then do let (x,xs) = B.splitAt (1 + (fromIntegral $ B.head packet)) packet
-                                let xs' = splitPacket xs
-                                x:xs'
-                        else [packet]
-
 route :: Server -> Socket -> Either String ServerBoundStatus -> IO ()
 route srv sock (Right PingStart)
   = putStrLn "--> Routing PingStart" -- >> (recv sock 10 >>= \x -> send sock x >> return ())
