@@ -11,6 +11,7 @@
 --
 -------------------------------------------------------------------------------
 
+import            Control.Monad.IO.Class
 import qualified  Data.ByteString as B
 import            Data.Conduit
 import            Data.Conduit.Network
@@ -68,7 +69,17 @@ main = withSocketsDo $ do
                 , srvEnabled = False
                 , srvUp = False
                 }
-    runListener srv port serverLoop
+    runTCPServer (serverSettings 25567 "*") $ \app -> appSource app $$ printPacketSink
+    --runListener srv port serverLoop
+
+printPacketSink :: Sink B.ByteString IO ()
+printPacketSink = do
+    maybePacket <- await
+    case maybePacket of
+      Nothing -> return ()
+      Just packet -> do
+        liftIO $ print $ B.unpack packet
+        printPacketSink
 
 runListener :: Server -> PortNumber -> (Server -> Socket -> IO ()) -> IO ()
 runListener srv port handler = do

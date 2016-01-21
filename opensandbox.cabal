@@ -98,7 +98,8 @@ executable server
                             network,
                             opensandbox,
                             stm,
-                            stm-conduit
+                            stm-conduit,
+                            transformers
     default-language:       Haskell2010
 
 test-suite opensandbox-test
