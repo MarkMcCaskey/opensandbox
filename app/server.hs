@@ -11,9 +11,12 @@
 --
 -------------------------------------------------------------------------------
 
+import            Control.Monad.Catch
 import            Control.Monad.IO.Class
+import            Control.Monad.Trans.Class
 import qualified  Data.ByteString as B
 import            Data.Conduit
+import            Data.Conduit.Cereal
 import            Data.Conduit.Network
 import            Data.Conduit.TMChan
 import            Data.Serialize
@@ -69,10 +72,13 @@ main = withSocketsDo $ do
                 , srvEnabled = False
                 , srvUp = False
                 }
-    runTCPServer (serverSettings 25567 "*") $ \app -> appSource app $$ printPacketSink
+    runTCPServer (serverSettings 25567 "*") $ \app -> appSource app $$ deserializeStatus =$= printSink
 
-printPacketSink :: Sink B.ByteString IO ()
-printPacketSink = awaitForever $ liftIO . print . B.unpack
+deserializeStatus :: MonadThrow m => Conduit B.ByteString m ServerBoundStatus
+deserializeStatus = conduitGet (get :: Get ServerBoundStatus)
+
+printSink :: Show i => Sink i IO ()
+printSink = awaitForever $ liftIO . print
 
 serverLoop :: Server -> Socket -> IO ()
 serverLoop srv sock = do
