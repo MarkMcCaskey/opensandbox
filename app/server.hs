@@ -11,6 +11,9 @@
 --
 -------------------------------------------------------------------------------
 
+import qualified  Data.Aeson as Aeson
+import qualified  Data.ByteString.Lazy as BL
+
 import            Control.Monad.Catch
 import            Control.Monad.IO.Class
 import            Control.Monad.Trans.Class
@@ -72,13 +75,30 @@ main = withSocketsDo $ do
                 , srvEnabled = False
                 , srvUp = False
                 }
-    runTCPServer (serverSettings 25567 "*") $ \app -> appSource app $$ deserializeStatus =$= printSink
+    runTCPServer (serverSettings 25567 "*") $ \app -> appSource app $$ deserializeStatus =$= handler srv =$= serializeStatus =$= appSink app
 
 deserializeStatus :: MonadThrow m => Conduit B.ByteString m ServerBoundStatus
 deserializeStatus = conduitGet (get :: Get ServerBoundStatus)
 
-printSink :: Show i => Sink i IO ()
-printSink = awaitForever $ liftIO . print
+serializeStatus :: MonadThrow m => Conduit ClientBoundStatus m B.ByteString
+serializeStatus = conduitPut (put :: Putter ClientBoundStatus)
+
+handler :: Server -> Conduit ServerBoundStatus IO ClientBoundStatus
+handler srv = do
+  maybeHandshake <- await
+  case maybeHandshake of
+    Just (Handshake _ _ _ 1) ->
+      do  let version = srvVersion srv
+          let players = srvPlayers srv
+          let maxPlayers = srvMaxPlayers srv
+          let motd = srvMotd srv
+          yield (Response $ BL.toStrict $ Aeson.encode $ buildStatus version players maxPlayers motd)
+    Just (Handshake _ _ _ 2) -> return ()
+    Just (PingStart) -> return ()
+    Just (Ping payload) ->
+      do  yield (Pong payload)
+    Just _ -> return ()
+    Nothing -> return ()
 
 route :: Server -> Socket -> Either String ServerBoundStatus -> IO ()
 route srv sock (Right PingStart)
@@ -95,3 +115,7 @@ route srv sock (Right (Handshake _ _ _ _))
   = putStrLn "Error: Unknown state!"
 route srv sock (Left err)
   = putStrLn $ "Error: " ++ err
+
+printSink :: Show i => Sink i IO ()
+printSink = awaitForever $ liftIO . print
+

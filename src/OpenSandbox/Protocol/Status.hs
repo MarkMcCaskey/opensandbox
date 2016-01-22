@@ -18,6 +18,7 @@ module OpenSandbox.Protocol.Status
     , Description
     , runStatus
     , buildStatus
+    , buildResponse
     ) where
 
 
@@ -45,6 +46,9 @@ runStatus srv sock = do
     ping <- recv sock 10
     send sock ping
     sClose sock
+
+buildResponse :: StatusPayload -> ClientBoundStatus
+buildResponse s = Response $ BL.toStrict $ Aeson.encode s
 
 {-
 data Status = Status
