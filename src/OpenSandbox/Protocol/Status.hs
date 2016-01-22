@@ -16,7 +16,6 @@ module OpenSandbox.Protocol.Status
     , Version
     , Players
     , Description
-    , runStatus
     , buildStatus
     , buildResponse
     ) where
@@ -37,27 +36,6 @@ import            Network.Socket.ByteString
 
 import            OpenSandbox.Server
 
-runStatus :: Server -> Socket -> IO ()
-runStatus srv sock = do
-    startPing <- recv sock 2
-    let response1 = Response $ BL.toStrict $ Aeson.encode $ buildStatus (srvVersion srv) (srvPlayers srv) (srvMaxPlayers srv) (srvMotd srv)
-    let outgoing1 = runPut $ put response1
-    send sock outgoing1
-    ping <- recv sock 10
-    send sock ping
-    sClose sock
-
-buildResponse :: StatusPayload -> ClientBoundStatus
-buildResponse s = Response $ BL.toStrict $ Aeson.encode s
-
-{-
-data Status = Status
-  { srvCurrentVersion :: !T.Text
-  , srvCurrentPlayers :: !Int
-  , srvMaxPlayers     :: !Int
-  , srvMotd           :: !T.Text
-  } deriving (Show,Eq)
--}
 data ServerBoundStatus
     = Handshake Word8 B.ByteString Word16 Word8
     | PingStart
@@ -132,6 +110,8 @@ buildStatus version currentPlayers maxPlayers motd =
                   (Players maxPlayers currentPlayers)
                   (Description motd)
 
+buildResponse :: StatusPayload -> ClientBoundStatus
+buildResponse s = Response $ BL.toStrict $ Aeson.encode s
 
 data StatusPayload = StatusPayload
   { version       :: Version
@@ -171,8 +151,3 @@ data Description = Description
 
 instance Aeson.ToJSON Description
 instance Aeson.FromJSON Description
-
-
-parsePort :: B.ByteString -> Word16
-parsePort b = toEnum (shiftL l 8 + r)
-  where [l, r] = fmap fromEnum (B.unpack b)

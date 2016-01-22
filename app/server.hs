@@ -43,9 +43,6 @@ mySrvPath = "."
 myPort :: PortNumber
 myPort = 25567
 
-sendPacket :: Client -> ClientBoundPacket -> STM ()
-sendPacket Client{..} packet = writeTMChan clientChan packet
-
 main :: IO ()
 main = withSocketsDo $ do
     putStrLn "Welcome to the OpenSandbox Minecraft Server!"
@@ -104,23 +101,3 @@ handler srv = do
       do  yield (Pong payload)
     Just _ -> return ()
     Nothing -> return ()
-
-route :: Server -> Socket -> Either String ServerBoundStatus -> IO ()
-route srv sock (Right PingStart)
-  = putStrLn "--> Routing PingStart" -- >> (recv sock 10 >>= \x -> send sock x >> return ())
-route srv sock (Right (Ping payload))
-  = putStrLn "--> Routing Ping" >> (send sock $ encode (Ping payload)) >> return ()
-route srv sock (Right Request)
-  = putStrLn "--> Routing Request" >> return ()
-route srv sock (Right (Handshake _ _ _ 1))
-  = putStrLn "--> Routing Status Handshake" >> runStatus srv sock
-route srv sock (Right (Handshake _ _ _ 2))
-  = putStrLn "--> Routing Login Handshake" >> runLogin srv sock
-route srv sock (Right (Handshake _ _ _ _))
-  = putStrLn "Error: Unknown state!"
-route srv sock (Left err)
-  = putStrLn $ "Error: " ++ err
-
-printSink :: Show i => Sink i IO ()
-printSink = awaitForever $ liftIO . print
-
