@@ -96,10 +96,13 @@ instance Serialize ServerBoundStatus where
       0 -> case len of
             1 -> return PingStart
             _ -> Handshake <$> getWord8 <*> (getWord8 >>= (getByteString . fromIntegral)) <*> getWord16be <*> getWord8
+      1 -> Ping <$> (get :: Get Word64)
+      {-
       1 -> case len of
             10 -> Ping <$> (get :: Get Word64)
             254 -> return Request
-            _ -> fail "Unrecognized packet with Packet ID 1!"
+            _ -> fail ("Unrecognized packet with Packet ID 1! It seems to be " ++ show len)
+            -}
       _ -> fail "Unrecognized packet!"
 
 
@@ -110,7 +113,7 @@ instance Serialize ClientBoundStatus where
     put (fromIntegral $ B.length payload :: Word8)
     putByteString payload
   put (Pong payload) = do
-    put (fromIntegral $ 2 + 8 :: Word8)
+    put (fromIntegral $ 1 + 8 :: Word8) -- (NOTE) This is probably a bug from Mojang
     put (1 :: Word8)
     put payload
 

@@ -88,11 +88,16 @@ handler srv = do
   maybeHandshake <- await
   case maybeHandshake of
     Just (Handshake _ _ _ 1) ->
-      do  let version = srvVersion srv
+      do  maybePingStart <- await
+          let version = srvVersion srv
           let players = srvPlayers srv
           let maxPlayers = srvMaxPlayers srv
           let motd = srvMotd srv
           yield (Response $ BL.toStrict $ Aeson.encode $ buildStatus version players maxPlayers motd)
+          maybePing <- await
+          case maybePing of
+            Just (Ping payload) -> yield (Pong payload)
+            Nothing -> return ()
     Just (Handshake _ _ _ 2) -> return ()
     Just (PingStart) -> return ()
     Just (Ping payload) ->
