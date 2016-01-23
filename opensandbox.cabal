@@ -99,10 +99,7 @@ executable server
                             conduit-extra,
                             exceptions,
                             network,
-                            opensandbox,
-                            stm,
-                            stm-conduit,
-                            transformers
+                            opensandbox
     default-language:       Haskell2010
 
 test-suite opensandbox-test

@@ -15,15 +15,11 @@ import qualified  Data.Aeson as Aeson
 import qualified  Data.ByteString.Lazy as BL
 
 import            Control.Monad.Catch
-import            Control.Monad.IO.Class
-import            Control.Monad.Trans.Class
 import qualified  Data.ByteString as B
 import            Data.Conduit
 import            Data.Conduit.Cereal
 import            Data.Conduit.Network
-import            Data.Conduit.TMChan
 import            Data.Serialize
-import            Control.Concurrent.STM
 import            Network.Socket hiding (send,recv)
 import            Network.Socket.ByteString
 import            OpenSandbox
@@ -40,7 +36,7 @@ myLogPath = "log"
 mySrvPath :: FilePath
 mySrvPath = "."
 
-myPort :: PortNumber
+myPort :: Int
 myPort = 25567
 
 main :: IO ()
@@ -95,9 +91,16 @@ handler srv = do
           case maybePing of
             Just (Ping payload) -> yield (Pong payload)
             Nothing -> return ()
-    Just (Handshake _ _ _ 2) -> return ()
-    Just (PingStart) -> return ()
-    Just (Ping payload) ->
-      do  yield (Pong payload)
+    {-
+    Just (Handshake _ _ _ 2) ->
+    do    maybeLoginStart <- await
+          case maybeLoginStart of
+            Just loginStart ->
+              do  let someUsername = decodeUtf8 $ B.drop 3 loginStart
+                  someUUID <- nextRandom
+                  let someUser = User someUUID someUsername Nothing Nothing
+                  yield (ClientBoundLoginSuccess someUUID someUser
+            Nothing -> return ()
+    -}
     Just _ -> return ()
     Nothing -> return ()

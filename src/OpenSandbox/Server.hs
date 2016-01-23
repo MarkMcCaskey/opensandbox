@@ -14,14 +14,13 @@ module OpenSandbox.Server
   ) where
 
 import qualified  Data.Map as Map
-import            Network.Socket
 import            OpenSandbox.Config
 
 type Servers = Map.Map String Server
 
 data Server = Server
   { srvName         :: String
-  , srvPort         :: PortNumber
+  , srvPort         :: Int
   , srvPath         :: FilePath
   , srvBackupPath   :: FilePath
   , srvLogPath      :: FilePath

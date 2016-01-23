@@ -12,40 +12,13 @@
 module OpenSandbox.Protocol.Login
   ( ClientBoundLogin (..)
   , ServerBoundLogin (..)
-  , runLogin
-  , encryptionRequestPacket
-  , loginSuccess
   ) where
-
 
 import            Data.Serialize
 import            Data.Serialize.Get
 import            Data.Serialize.Put
 import qualified  Data.ByteString as B
-import qualified  Data.Text as T
-import            Data.Text.Encoding
-import            Data.UUID
-import            Data.UUID.V4
 import            Data.Word
-import            Network.Socket hiding (send,recv)
-import            Network.Socket.ByteString
-
-import            OpenSandbox.Protocol.Play
-import            OpenSandbox.Server
-import            OpenSandbox.User
-
-
-runLogin :: Server -> Socket -> IO ()
-runLogin srv sock = do
-    loginStart <- recv sock 254
-    let someUsername = decodeUtf8 $ B.drop 3 loginStart
-    someUUID <- nextRandom
-    let someUser = User someUUID someUsername Nothing Nothing
-    print someUser
-    send sock (loginSuccess someUser)
-    runPlay srv sock
-    sClose sock
-
 
 -- | A data type that could represent any client bound packet associated with
 -- the login section of the minecraft protocol.
@@ -126,44 +99,3 @@ instance Serialize ServerBoundLogin where
       0 -> ServerBoundLoginStart <$> (getWord8 >>= (getByteString . fromIntegral))
       1 -> ServerBoundEncryptionResponse <$> (getWord8 >>= (getByteString . fromIntegral))
                                           <*> (getWord8 >>= (getByteString . fromIntegral))
-
-
-encryptionRequestPacket :: B.ByteString -> B.ByteString -> B.ByteString
-encryptionRequestPacket c v = packetLength `B.append` packetID `B.append` payload
-  where packetLength = B.pack [(fromIntegral $ B.length payload :: Word8)]
-        packetID = B.singleton 1
-        payload = serverIDField `B.append` publicKeyField c `B.append` verifyTokenField v
-
-
-loginSuccess :: User -> B.ByteString
-loginSuccess u = packetLength `B.append` packetID `B.append` payload u
-    where packetLength = B.pack [(fromIntegral $ B.length (payload u) + B.length packetID :: Word8)]
-          packetID = B.singleton 2
-          payload u = fieldLength (packUUID u)
-                      `B.append` (packUUID u)
-                      `B.append` fieldLength (packUser u)
-                      `B.append` (packUser u)
-          packUUID u = toASCIIBytes $ userUUID u
-          packUser u = encodeUtf8 $ userName u
-
-fieldLength :: B.ByteString -> B.ByteString
-fieldLength payload = B.pack [(fromIntegral $ B.length payload :: Word8)]
-
-
-serverIDField :: B.ByteString
-serverIDField = packetLength `B.append` payload
-  where packetLength = B.pack [(fromIntegral $ B.length payload :: Word8)]
-        payload = B.singleton 0
-
-
-publicKeyField :: B.ByteString -> B.ByteString
-publicKeyField payload = packetLength `B.append` mystery `B.append` payload
-  where packetLength = B.pack [(fromIntegral $ B.length payload :: Word8)]
-        mystery = B.singleton 1
-
-
-verifyTokenField :: B.ByteString -> B.ByteString
-verifyTokenField payload = packetLength `B.append` payload
-  where packetLength = B.pack [(fromIntegral $ B.length payload :: Word8)]
-
-
