@@ -100,6 +100,7 @@ executable server
                             exceptions,
                             network,
                             opensandbox,
+                            streaming-commons,
                             text,
                             transformers,
                             uuid

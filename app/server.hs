@@ -11,14 +11,13 @@
 --
 -------------------------------------------------------------------------------
 
-import qualified  Data.Aeson as Aeson
-import qualified  Data.ByteString.Lazy as BL
-
 import            Control.Monad.Catch
 import            Control.Monad.IO.Class
 import            Control.Monad.Trans.Class
 import            Control.Monad.Trans.State.Lazy
+import qualified  Data.Aeson as Aeson
 import qualified  Data.ByteString as B
+import qualified  Data.ByteString.Lazy as BL
 import            Data.Conduit
 import            Data.Conduit.Cereal
 import            Data.Conduit.Network
@@ -74,17 +73,27 @@ main = withSocketsDo $ do
                 , srvEnabled = False
                 , srvUp = False
                 }
-    runTCPServer (serverSettings 25567 "*") $ \app -> appSource app $$ deserialize =$= handler srv =$= serialize =$= appSink app
+    runTCPServer (serverSettings 25567 "*")
+      $ \app -> flip evalStateT 0
+      $ packetSource app
+      $$ deserialize
+      =$= handler srv
+      =$= serialize
+      =$= packetSink app
 
+packetSource :: AppData -> Source (StateT Int IO) B.ByteString
+packetSource app = transPipe lift $ appSource app
 
-deserialize :: Conduit B.ByteString IO ServerBoundPacket
-deserialize = do
-  (liftIO $ print "Testing") >> conduitGet (S.get :: S.Get ServerBoundPacket)
+packetSink :: AppData -> Sink B.ByteString (StateT Int IO) ()
+packetSink app = transPipe lift $ appSink app
 
-serialize :: Conduit ClientBoundPacket IO B.ByteString
+deserialize :: Conduit B.ByteString (StateT Int IO) ServerBoundPacket
+deserialize = conduitGet (S.get :: S.Get ServerBoundPacket)
+
+serialize :: Conduit ClientBoundPacket (StateT Int IO) B.ByteString
 serialize = conduitPut (S.put :: S.Putter ClientBoundPacket)
 
-handler :: Server -> Conduit ServerBoundPacket IO ClientBoundPacket
+handler :: Server -> Conduit ServerBoundPacket (StateT Int IO) ClientBoundPacket
 handler srv = do
   maybeHandshake <- await
   case maybeHandshake of
