@@ -20,9 +20,11 @@ import            OpenSandbox.Protocol
 
 type ClientName = B.ByteString
 
+data ClientState = Status | Login | Play
+
 data Client = Client
   { clientName    :: ClientName
-  , clientChan    :: TMChan ClientBoundPacket
+  , clientChan    :: TMChan B.ByteString
   , clientApp     :: AppData
   }
 

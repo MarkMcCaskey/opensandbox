@@ -15,11 +15,17 @@ import qualified  Data.Aeson as Aeson
 import qualified  Data.ByteString.Lazy as BL
 
 import            Control.Monad.Catch
+import            Control.Monad.IO.Class
+import            Control.Monad.Trans.Class
+import            Control.Monad.Trans.State.Lazy
 import qualified  Data.ByteString as B
 import            Data.Conduit
 import            Data.Conduit.Cereal
 import            Data.Conduit.Network
-import            Data.Serialize
+import qualified  Data.Serialize as S
+import            Data.Text.Encoding
+import            Data.UUID
+import            Data.UUID.V4
 import            Network.Socket hiding (send,recv)
 import            Network.Socket.ByteString
 import            OpenSandbox
@@ -68,39 +74,40 @@ main = withSocketsDo $ do
                 , srvEnabled = False
                 , srvUp = False
                 }
-    runTCPServer (serverSettings 25567 "*") $ \app -> appSource app $$ deserializeStatus =$= handler srv =$= serializeStatus =$= appSink app
+    runTCPServer (serverSettings 25567 "*") $ \app -> appSource app $$ deserialize =$= handler srv =$= serialize =$= appSink app
 
-deserializeStatus :: MonadThrow m => Conduit B.ByteString m ServerBoundStatus
-deserializeStatus = conduitGet (get :: Get ServerBoundStatus)
 
-serializeStatus :: MonadThrow m => Conduit ClientBoundStatus m B.ByteString
-serializeStatus = conduitPut (put :: Putter ClientBoundStatus)
+deserialize :: Conduit B.ByteString IO ServerBoundPacket
+deserialize = do
+  (liftIO $ print "Testing") >> conduitGet (S.get :: S.Get ServerBoundPacket)
 
-handler :: Server -> Conduit ServerBoundStatus IO ClientBoundStatus
+serialize :: Conduit ClientBoundPacket IO B.ByteString
+serialize = conduitPut (S.put :: S.Putter ClientBoundPacket)
+
+handler :: Server -> Conduit ServerBoundPacket IO ClientBoundPacket
 handler srv = do
   maybeHandshake <- await
   case maybeHandshake of
-    Just (Handshake _ _ _ 1) ->
+    Just (SBS (Handshake _ _ _ 1)) ->
       do  maybePingStart <- await
           let version = srvVersion srv
           let players = srvPlayers srv
           let maxPlayers = srvMaxPlayers srv
           let motd = srvMotd srv
-          yield (Response $ BL.toStrict $ Aeson.encode $ buildStatus version players maxPlayers motd)
+          yield (CBS (Response $ BL.toStrict $ Aeson.encode $ buildStatus version players maxPlayers motd))
           maybePing <- await
           case maybePing of
-            Just (Ping payload) -> yield (Pong payload)
+            Just (SBS (Ping payload)) -> yield (CBS (Pong payload))
             Nothing -> return ()
-    {-
-    Just (Handshake _ _ _ 2) ->
-    do    maybeLoginStart <- await
+    Just (SBS (Handshake _ _ _ 2)) ->
+      do  maybeLoginStart <- await
           case maybeLoginStart of
-            Just loginStart ->
-              do  let someUsername = decodeUtf8 $ B.drop 3 loginStart
-                  someUUID <- nextRandom
+            Just (SBL (ServerBoundLoginStart username)) ->
+              do  let someUsername = decodeUtf8 $ B.drop 3 username
+                  someUUID <- liftIO $ nextRandom
                   let someUser = User someUUID someUsername Nothing Nothing
-                  yield (ClientBoundLoginSuccess someUUID someUser
+                  yield (CBL (ClientBoundLoginSuccess (BL.toStrict.toByteString $ someUUID) (B.drop 3 username)))
+            Just _ -> return ()
             Nothing -> return ()
-    -}
     Just _ -> return ()
     Nothing -> return ()

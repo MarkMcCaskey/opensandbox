@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DefaultSignatures #-}
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.Protocol
@@ -10,16 +12,23 @@
 -------------------------------------------------------------------------------
 module OpenSandbox.Protocol
   ( module P
-  , ClientBoundPacket
-  , ServerBoundPacket
+  , ClientBoundPacket (..)
+  , ServerBoundPacket (..)
   ) where
+
+import Data.Serialize
+import GHC.Generics
 
 import OpenSandbox.Protocol.Login   as P
 import OpenSandbox.Protocol.Play    as P
 import OpenSandbox.Protocol.Status  as P
 
-data ClientBoundPacket =
-  ClientBoundLogin | ClientBoundPlay | ClientBoundStatus deriving (Show,Eq)
+data ClientBoundPacket = CBS ClientBoundStatus | CBL ClientBoundLogin | CBP ClientBoundPlay
+  deriving (Show,Eq,Generic)
 
-data ServerBoundPacket =
-  ServerBoundLogin | ServerBoundPlay | ServerBoundStatus deriving (Show,Eq)
+instance Serialize ClientBoundPacket
+
+data ServerBoundPacket = SBS ServerBoundStatus | SBL ServerBoundLogin | SBP ServerBoundPlay
+  deriving (Show,Eq,Generic)
+
+instance Serialize ServerBoundPacket
