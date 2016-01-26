@@ -30,7 +30,6 @@ library
                             OpenSandbox.Protocol.Login
                             OpenSandbox.Protocol.Play
                             OpenSandbox.Protocol.Status
-                            OpenSandbox.ServerProperties
                             OpenSandbox.Update
                             OpenSandbox.User
                             OpenSandbox.WhiteList
@@ -97,10 +96,7 @@ executable server
                             cereal-conduit,
                             conduit,
                             conduit-extra,
-                            exceptions,
-                            network,
                             opensandbox,
-                            streaming-commons,
                             text,
                             transformers,
                             uuid

@@ -11,7 +11,6 @@
 --
 -------------------------------------------------------------------------------
 
-import            Control.Monad.Catch
 import            Control.Monad.IO.Class
 import            Control.Monad.Trans.Class
 import            Control.Monad.Trans.State.Lazy
@@ -25,8 +24,6 @@ import qualified  Data.Serialize as S
 import            Data.Text.Encoding
 import            Data.UUID
 import            Data.UUID.V4
-import            Network.Socket hiding (send,recv)
-import            Network.Socket.ByteString
 import            OpenSandbox
 
 myVersion :: String
@@ -45,7 +42,7 @@ myPort :: Int
 myPort = 25567
 
 main :: IO ()
-main = withSocketsDo $ do
+main = do
     putStrLn "Welcome to the OpenSandbox Minecraft Server!"
     let config = defaultConfig
     let port = myPort
@@ -103,7 +100,8 @@ handler srv = do
           let players = srvPlayers srv
           let maxPlayers = srvMaxPlayers srv
           let motd = srvMotd srv
-          yield (CBS (Response $ BL.toStrict $ Aeson.encode $ buildStatus version players maxPlayers motd))
+          let status = buildStatus version players maxPlayers motd
+          yield $ CBS . Response . BL.toStrict . Aeson.encode $ status
           maybePing <- await
           case maybePing of
             Just (SBS (Ping payload)) -> yield (CBS (Pong payload))
