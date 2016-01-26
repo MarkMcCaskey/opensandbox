@@ -17,8 +17,6 @@ cabal-version:              >=1.10
 library
     hs-source-dirs:         src
     exposed-modules:        OpenSandbox
-                            OpenSandbox.Client
-                            OpenSandbox.Command
                             OpenSandbox.Config
                             OpenSandbox.Backup
                             OpenSandbox.BannedIP

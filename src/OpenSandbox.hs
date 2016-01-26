@@ -12,8 +12,6 @@ module OpenSandbox (module O) where
 import OpenSandbox.Backup             as O
 import OpenSandbox.BannedIP           as O
 import OpenSandbox.BannedPlayer       as O
-import OpenSandbox.Client             as O
-import OpenSandbox.Command            as O
 import OpenSandbox.Config             as O
 import OpenSandbox.Log                as O
 import OpenSandbox.NBT                as O
