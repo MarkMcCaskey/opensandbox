@@ -22,7 +22,6 @@ library
                             OpenSandbox.BannedIP
                             OpenSandbox.BannedPlayer
                             OpenSandbox.Log
-                            OpenSandbox.NBT
                             OpenSandbox.Op
                             OpenSandbox.Protocol
                             OpenSandbox.Protocol.Login
@@ -52,7 +51,6 @@ library
                             errors,
                             http-conduit,
                             iproute,
-                            nbt,
                             network,
                             parsec,
                             process,
