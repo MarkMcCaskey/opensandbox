@@ -14,7 +14,6 @@ import OpenSandbox.BannedIP           as O
 import OpenSandbox.BannedPlayer       as O
 import OpenSandbox.Config             as O
 import OpenSandbox.Log                as O
-import OpenSandbox.NBT                as O
 import OpenSandbox.Op                 as O
 import OpenSandbox.Protocol           as O
 import OpenSandbox.Server             as O
