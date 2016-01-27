@@ -1,6 +1,6 @@
 <h1 align="center">
   <a href="https://github.com/oldmanmike/opensandbox">
-    Open Sandbox
+    OpenSandbox
   </a>
 </h1>
 
@@ -15,7 +15,7 @@
   A modular, user-centric, concurrent Minecraft Server.
 </p>
 
-Open Sandbox is a WIP, free and open source, custom Minecraft server implemented in Haskell.
+OpenSandbox is a WIP, free and open source, custom Minecraft server implemented in Haskell.
 The goal of this server is not to perfectly clone the features of the Notchian server, but rather to improve on the original game through purely server-side features that maintain Notchian client compatibility.
 
 Planned features are:
