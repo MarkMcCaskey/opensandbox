@@ -56,7 +56,7 @@ main = hspec $ do
         rights [shouldBeOps,shouldBeWhiteList,shouldBeBannedIPs,shouldBeBannedPlayers] `shouldBe` []
       it "returns an error when reading a mangled usercache.json" $ do
         shouldBeError <- readUserCache userCacheMangledPath
-        shouldBeError `shouldBe` (Left "Error >> Error in $: Failed reading: satisfy")
+        shouldBeError `shouldBe` (Left "Error >> Failed reading: satisfy")
       it "returns a singleton list of users when reading a usercache.json with one entry" $ do
         shouldBeOneUser <- readUserCache userCacheSingletonPath
         (length $ head $ rights [shouldBeOneUser]) `shouldBe` (1 :: Int)

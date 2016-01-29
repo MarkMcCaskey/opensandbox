@@ -17,14 +17,11 @@ cabal-version:              >=1.10
 library
     hs-source-dirs:         src
     exposed-modules:        OpenSandbox
-                            OpenSandbox.Client
-                            OpenSandbox.Command
                             OpenSandbox.Config
                             OpenSandbox.Backup
                             OpenSandbox.BannedIP
                             OpenSandbox.BannedPlayer
                             OpenSandbox.Log
-                            OpenSandbox.NBT
                             OpenSandbox.Op
                             OpenSandbox.Protocol
                             OpenSandbox.Protocol.Login
@@ -54,7 +51,6 @@ library
                             errors,
                             http-conduit,
                             iproute,
-                            nbt,
                             network,
                             parsec,
                             process,

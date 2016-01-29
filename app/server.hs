@@ -84,28 +84,29 @@ packetSource app = transPipe lift $ appSource app
 packetSink :: AppData -> Sink B.ByteString (StateT Int IO) ()
 packetSink app = transPipe lift $ appSink app
 
-deserialize :: Conduit B.ByteString (StateT Int IO) ServerBoundPacket
-deserialize = conduitGet (S.get :: S.Get ServerBoundPacket)
+deserialize :: Conduit B.ByteString (StateT Int IO) ServerBoundStatus
+deserialize = conduitGet (S.get :: S.Get ServerBoundStatus)
 
-serialize :: Conduit ClientBoundPacket (StateT Int IO) B.ByteString
-serialize = conduitPut (S.put :: S.Putter ClientBoundPacket)
+serialize :: Conduit ClientBoundStatus (StateT Int IO) B.ByteString
+serialize = conduitPut (S.put :: S.Putter ClientBoundStatus)
 
-handler :: Server -> Conduit ServerBoundPacket (StateT Int IO) ClientBoundPacket
+handler :: Server -> Conduit ServerBoundStatus (StateT Int IO) ClientBoundStatus
 handler srv = do
   maybeHandshake <- await
   case maybeHandshake of
-    Just (SBS (Handshake _ _ _ 1)) ->
+    Just (Handshake _ _ _ 1) ->
       do  maybePingStart <- await
           let version = srvVersion srv
           let players = srvPlayers srv
           let maxPlayers = srvMaxPlayers srv
           let motd = srvMotd srv
           let status = buildStatus version players maxPlayers motd
-          yield $ CBS . Response . BL.toStrict . Aeson.encode $ status
+          yield $ Response . BL.toStrict . Aeson.encode $ status
           maybePing <- await
           case maybePing of
-            Just (SBS (Ping payload)) -> yield (CBS (Pong payload))
+            Just (Ping payload) -> yield (Pong payload)
             Nothing -> return ()
+    {-
     Just (SBS (Handshake _ _ _ 2)) ->
       do  maybeLoginStart <- await
           case maybeLoginStart of
@@ -116,5 +117,6 @@ handler srv = do
                   yield (CBL (ClientBoundLoginSuccess (BL.toStrict.toByteString $ someUUID) (B.drop 3 username)))
             Just _ -> return ()
             Nothing -> return ()
+    -}
     Just _ -> return ()
     Nothing -> return ()
