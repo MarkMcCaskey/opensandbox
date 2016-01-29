@@ -27,7 +27,10 @@ import            Data.UUID.V4
 import            OpenSandbox
 
 myVersion :: String
-myVersion = "16w03a"
+myVersion = "16w04a"
+
+myVersionID :: Int
+myVersionID = 97
 
 myBackupPath :: FilePath
 myBackupPath = "backup"
@@ -97,10 +100,11 @@ handler srv = do
     Just (Handshake _ _ _ 1) ->
       do  maybePingStart <- await
           let version = srvVersion srv
+          let versionID = myVersionID
           let players = srvPlayers srv
           let maxPlayers = srvMaxPlayers srv
           let motd = srvMotd srv
-          let status = buildStatus version players maxPlayers motd
+          let status = buildStatus version versionID players maxPlayers motd
           yield $ Response . BL.toStrict . Aeson.encode $ status
           maybePing <- await
           case maybePing of
