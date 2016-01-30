@@ -79,20 +79,14 @@ main = do
 
 runOpenSandbox :: Server -> AppData -> IO ()
 runOpenSandbox srv app = do
-    (next,protocolState) <- flip runStateT Handshake $ fmap fst $ packetSource app $$+ processStatus srv app
-    loop srv app (next,protocolState)
-
-loop :: Server -> AppData -> ((ResumableSource (StateT ProtocolState IO) B.ByteString),ProtocolState) -> IO ()
-loop srv packets (incoming,protocolState) = do
-    case protocolState of
-      Handshake -> loop srv packets
-        =<< (flip runStateT Handshake $ fmap fst $ incoming $$++ processStatus srv packets)
-      Status -> loop srv packets
-        =<< (flip runStateT Status $ fmap fst $ incoming $$++ processStatus srv packets)
-      Login -> loop srv packets
-        =<< (flip runStateT Login $ fmap fst $ incoming $$++ processLogin srv packets)
-      Play -> loop srv packets
-        =<< (flip runStateT Play $ fmap fst $ incoming $$++ processPlay srv packets)
+    protocolState <- flip execStateT Handshake $ packetSource app $$ processStatus srv app
+    print $ "Got this far"
+    if protocolState == Login
+      then do
+        print "Somebody's logging in!"
+        nextState <- flip execStateT Login $ packetSource app $$ processLogin srv app
+        print "Somebody logged in!"
+      else return ()
 
 processStatus :: Server -> AppData -> Sink B.ByteString (StateT ProtocolState IO) ()
 processStatus srv app = deserializeStatus =$= handleStatus srv =$= serializeStatus =$= packetSink app
