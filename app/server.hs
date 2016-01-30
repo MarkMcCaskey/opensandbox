@@ -76,9 +76,20 @@ main = do
 
 runOpenSandbox :: Server -> AppData -> IO ()
 runOpenSandbox srv app = do
-  (conn,something) <- flip runStateT Handshake $ packetSource app $$+ processStatus srv app
-  print $ "Protocol state is: " ++ show something
+    (next,protocolState) <- flip runStateT Handshake $ fmap fst $ packetSource app $$+ processStatus srv app
+    loop srv app (next,protocolState)
 
+loop :: Server -> AppData -> ((ResumableSource (StateT ProtocolState IO) B.ByteString),ProtocolState) -> IO ()
+loop srv packets (incoming,protocolState) = do
+    case protocolState of
+      Handshake -> loop srv packets
+        =<< (flip runStateT Handshake $ fmap fst $ incoming $$++ processStatus srv packets)
+      Status -> loop srv packets
+        =<< (flip runStateT Status $ fmap fst $ incoming $$++ processStatus srv packets)
+      Login -> loop srv packets
+        =<< (flip runStateT Login $ fmap fst $ incoming $$++ processLogin srv packets)
+      Play -> loop srv packets
+        =<< (flip runStateT Play $ fmap fst $ incoming $$++ processPlay srv packets)
 
 processStatus :: Server -> AppData -> Sink B.ByteString (StateT ProtocolState IO) ()
 processStatus srv app = deserializeStatus =$= handleStatus srv =$= serializeStatus =$= packetSink app
@@ -140,7 +151,17 @@ handleStatus srv = do
     Nothing -> return ()
 
 handleLogin :: Server -> Conduit ServerBoundLogin (StateT ProtocolState IO) ClientBoundLogin
-handleLogin srv = undefined
+handleLogin srv = do
+  maybeLoginStart <- await
+  case maybeLoginStart of
+    Just (ServerBoundLoginStart username) ->
+      do  let someUsername = decodeUtf8 $ B.drop 3 username
+          someUUID <- liftIO $ nextRandom
+          let someUser = User someUUID someUsername Nothing Nothing
+          yield $ ClientBoundLoginSuccess (BL.toStrict.toByteString $ someUUID) (B.drop 3 username)
+          lift $ put Play
+    Just _ -> return ()
+    Nothing -> return ()
 
 handlePlay :: Server -> Conduit ServerBoundPlay (StateT ProtocolState IO) ClientBoundPlay
 handlePlay srv = undefined
