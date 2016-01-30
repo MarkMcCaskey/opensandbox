@@ -104,9 +104,9 @@ instance Serialize ClientBoundStatus where
       _ -> fail "Unrecognized packet!"
 
 
-buildStatus :: String -> Int -> Int -> String -> StatusPayload
-buildStatus version currentPlayers maxPlayers motd =
-    StatusPayload (Version version 97)
+buildStatus :: String -> Int -> Int -> Int -> String -> StatusPayload
+buildStatus version versionID currentPlayers maxPlayers motd =
+    StatusPayload (Version version versionID)
                   (Players maxPlayers currentPlayers)
                   (Description motd)
 

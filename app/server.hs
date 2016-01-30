@@ -30,6 +30,9 @@ import            OpenSandbox
 myVersion :: String
 myVersion = "16w04a"
 
+myVersionID :: Int
+myVersionID = 97
+
 myBackupPath :: FilePath
 myBackupPath = "backup"
 
@@ -137,10 +140,11 @@ handleStatus srv = do
       do  maybePingStart <- await
           lift $ put Status
           let version = srvVersion srv
+          let versionID = myVersionID
           let players = srvPlayers srv
           let maxPlayers = srvMaxPlayers srv
           let motd = srvMotd srv
-          let status = buildStatus version players maxPlayers motd
+          let status = buildStatus version versionID players maxPlayers motd
           yield $ ClientBoundResponse . BL.toStrict . Aeson.encode $ status
           maybePing <- await
           case maybePing of
