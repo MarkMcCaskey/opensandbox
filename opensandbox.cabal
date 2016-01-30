@@ -92,6 +92,7 @@ executable server
                             cereal-conduit,
                             conduit,
                             conduit-extra,
+                            exceptions,
                             opensandbox,
                             text,
                             transformers,

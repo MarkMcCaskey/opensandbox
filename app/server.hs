@@ -11,6 +11,7 @@
 --
 -------------------------------------------------------------------------------
 
+import            Control.Monad.Catch
 import            Control.Monad.IO.Class
 import            Control.Monad.Trans.Class
 import            Control.Monad.Trans.State.Lazy
@@ -27,7 +28,7 @@ import            Data.UUID.V4
 import            OpenSandbox
 
 myVersion :: String
-myVersion = "16w03a"
+myVersion = "16w04a"
 
 myBackupPath :: FilePath
 myBackupPath = "backup"
@@ -70,28 +71,55 @@ main = do
                 , srvEnabled = False
                 , srvUp = False
                 }
-    runTCPServer (serverSettings 25567 "*")
-      $ \app -> flip evalStateT 0
-      $ packetSource app
-      $$ deserialize
-      =$= handler srv
-      =$= serialize
-      =$= packetSink app
+    runTCPServer (serverSettings myPort "*") $ runOpenSandbox srv
 
-packetSource :: AppData -> Source (StateT Int IO) B.ByteString
-packetSource app = transPipe lift $ appSource app
 
-packetSink :: AppData -> Sink B.ByteString (StateT Int IO) ()
-packetSink app = transPipe lift $ appSink app
+runOpenSandbox :: Server -> AppData -> IO ()
+runOpenSandbox srv app = do
+  (conn,_) <- packetSource app $$+ processStatus srv app
+  return ()
 
-deserialize :: Conduit B.ByteString (StateT Int IO) ServerBoundStatus
-deserialize = conduitGet (S.get :: S.Get ServerBoundStatus)
 
-serialize :: Conduit ClientBoundStatus (StateT Int IO) B.ByteString
-serialize = conduitPut (S.put :: S.Putter ClientBoundStatus)
+processStatus :: (MonadIO m, MonadThrow m) => Server -> AppData -> Sink B.ByteString m ()
+processStatus srv app = deserializeStatus =$= handleStatus srv =$= serializeStatus =$= packetSink app
 
-handler :: Server -> Conduit ServerBoundStatus (StateT Int IO) ClientBoundStatus
-handler srv = do
+processLogin :: (MonadIO m, MonadThrow m) => Server -> AppData -> Sink B.ByteString m ()
+processLogin srv app = deserializeLogin =$= handleLogin srv =$= serializeLogin =$= packetSink app
+
+processPlay :: (MonadIO m, MonadThrow m) => Server -> AppData -> Sink B.ByteString m ()
+processPlay srv app = deserializePlay =$= handlePlay srv =$= serializePlay =$= packetSink app
+
+
+packetSource :: (MonadIO m, MonadThrow m) => AppData -> Source m B.ByteString
+packetSource app = appSource app
+
+packetSink :: (MonadIO m, MonadThrow m) => AppData -> Sink B.ByteString m ()
+packetSink app = appSink app
+
+
+deserializeStatus :: (MonadIO m, MonadThrow m) => Conduit B.ByteString m ServerBoundStatus
+deserializeStatus = conduitGet (S.get :: S.Get ServerBoundStatus)
+
+serializeStatus :: (MonadIO m, MonadThrow m) => Conduit ClientBoundStatus m B.ByteString
+serializeStatus = conduitPut (S.put :: S.Putter ClientBoundStatus)
+
+
+deserializeLogin :: (MonadIO m, MonadThrow m) => Conduit B.ByteString m ServerBoundLogin
+deserializeLogin = conduitGet (S.get :: S.Get ServerBoundLogin)
+
+serializeLogin :: (MonadIO m, MonadThrow m) => Conduit ClientBoundLogin m B.ByteString
+serializeLogin = conduitPut (S.put :: S.Putter ClientBoundLogin)
+
+
+deserializePlay :: (MonadIO m, MonadThrow m) => Conduit B.ByteString m ServerBoundPlay
+deserializePlay = conduitGet (S.get :: S.Get ServerBoundPlay)
+
+serializePlay :: (MonadIO m, MonadThrow m) => Conduit ClientBoundPlay m B.ByteString
+serializePlay = conduitPut (S.put :: S.Putter ClientBoundPlay)
+
+
+handleStatus :: MonadIO m => Server -> Conduit ServerBoundStatus m ClientBoundStatus
+handleStatus srv = do
   maybeHandshake <- await
   case maybeHandshake of
     Just (Handshake _ _ _ 1) ->
@@ -120,3 +148,9 @@ handler srv = do
     -}
     Just _ -> return ()
     Nothing -> return ()
+
+handleLogin :: MonadIO m => Server -> Conduit ServerBoundLogin m ClientBoundLogin
+handleLogin srv = undefined
+
+handlePlay :: MonadIO m => Server -> Conduit ServerBoundPlay m ClientBoundPlay
+handlePlay srv = undefined
