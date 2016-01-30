@@ -37,21 +37,21 @@ import            Network.Socket.ByteString
 import            OpenSandbox.Server
 
 data ServerBoundStatus
-    = Handshake Word8 B.ByteString Word16 Word8
-    | PingStart
-    | Ping Word64
-    | Request
+    = ServerBoundHandshake Word8 B.ByteString Word16 Word8
+    | ServerBoundPingStart
+    | ServerBoundPing Word64
+    | ServerBoundRequest
     deriving (Show,Eq,Read)
 
 
 data ClientBoundStatus
-    = Response B.ByteString
-    | Pong Word64
+    = ClientBoundResponse B.ByteString
+    | ClientBoundPong Word64
     deriving (Show,Eq,Read)
 
 
 instance Serialize ServerBoundStatus where
-  put (Handshake v a p s) = do
+  put (ServerBoundHandshake v a p s) = do
     put (fromIntegral $ 6 + B.length a :: Word8)
     put (0 :: Word8)
     put v
@@ -59,10 +59,10 @@ instance Serialize ServerBoundStatus where
     putByteString a
     put p
     put s
-  put PingStart = do
+  put ServerBoundPingStart = do
     put (1 :: Word8)
     put (0 :: Word8)
-  put (Ping payload) = do
+  put (ServerBoundPing payload) = do
     put (fromIntegral $ 2 + 8 :: Word8)
     put (1 :: Word8)
     putWord64be payload
@@ -72,9 +72,9 @@ instance Serialize ServerBoundStatus where
     packetID <- getWord8
     case packetID of
       0 -> case len of
-            1 -> return PingStart
-            _ -> Handshake <$> getWord8 <*> (getWord8 >>= (getByteString . fromIntegral)) <*> getWord16be <*> getWord8
-      1 -> Ping <$> (get :: Get Word64)
+            1 -> return ServerBoundPingStart
+            _ -> ServerBoundHandshake <$> getWord8 <*> (getWord8 >>= (getByteString . fromIntegral)) <*> getWord16be <*> getWord8
+      1 -> ServerBoundPing <$> (get :: Get Word64)
       {-
       1 -> case len of
             10 -> Ping <$> (get :: Get Word64)
@@ -85,12 +85,12 @@ instance Serialize ServerBoundStatus where
 
 
 instance Serialize ClientBoundStatus where
-  put (Response payload) = do
+  put (ClientBoundResponse payload) = do
     put (fromIntegral $ 2 + B.length payload :: Word8)
     put (0 :: Word8)
     put (fromIntegral $ B.length payload :: Word8)
     putByteString payload
-  put (Pong payload) = do
+  put (ClientBoundPong payload) = do
     put (fromIntegral $ 1 + 8 :: Word8) -- (NOTE) This is probably a bug from Mojang
     put (1 :: Word8)
     put payload
@@ -99,8 +99,8 @@ instance Serialize ClientBoundStatus where
     _ <- getWord8
     packetID <- getWord8
     case packetID of
-      0 -> Response <$> (getWord8 >>= (getByteString . fromIntegral))
-      1 -> Pong <$> (get :: Get Word64)
+      0 -> ClientBoundResponse <$> (getWord8 >>= (getByteString . fromIntegral))
+      1 -> ClientBoundPong <$> (get :: Get Word64)
       _ -> fail "Unrecognized packet!"
 
 
@@ -111,7 +111,7 @@ buildStatus version currentPlayers maxPlayers motd =
                   (Description motd)
 
 buildResponse :: StatusPayload -> ClientBoundStatus
-buildResponse s = Response $ BL.toStrict $ Aeson.encode s
+buildResponse s = ClientBoundResponse $ BL.toStrict $ Aeson.encode s
 
 data StatusPayload = StatusPayload
   { version       :: Version

@@ -11,8 +11,7 @@
 -------------------------------------------------------------------------------
 module OpenSandbox.Protocol
   ( module P
-  , ClientBoundPacket (..)
-  , ServerBoundPacket (..)
+  , ProtocolState (..)
   ) where
 
 import Data.Serialize
@@ -21,22 +20,4 @@ import OpenSandbox.Protocol.Login   as P
 import OpenSandbox.Protocol.Play    as P
 import OpenSandbox.Protocol.Status  as P
 
-data ClientBoundPacket s where
-  CBS   :: ClientBoundPacket ClientBoundStatus
-  CBL   :: ClientBoundPacket ClientBoundLogin
-  CBP   :: ClientBoundPacket ClientBoundPlay
-
-data ServerBoundPacket s where
-  SBS   :: ServerBoundPacket ServerBoundStatus
-  SBL   :: ServerBoundPacket ServerBoundLogin
-  SBP   :: ServerBoundPacket ServerBoundPlay
-
---data ClientBoundPacket = CBS ClientBoundStatus | CBL ClientBoundLogin | CBP ClientBoundPlay
-  --deriving (Show,Eq,Generic)
-
---instance Serialize ClientBoundPacket
-
---data ServerBoundPacket = SBS ServerBoundStatus | SBL ServerBoundLogin | SBP ServerBoundPlay
-  --deriving (Show,Eq,Generic)
-
---instance Serialize ServerBoundPacket
+data ProtocolState = Handshake | Status | Login | Play deriving (Show,Eq)

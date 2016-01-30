@@ -76,81 +76,71 @@ main = do
 
 runOpenSandbox :: Server -> AppData -> IO ()
 runOpenSandbox srv app = do
-  (conn,_) <- packetSource app $$+ processStatus srv app
-  return ()
+  (conn,something) <- flip runStateT Handshake $ packetSource app $$+ processStatus srv app
+  print $ "Protocol state is: " ++ show something
 
 
-processStatus :: (MonadIO m, MonadThrow m) => Server -> AppData -> Sink B.ByteString m ()
+processStatus :: Server -> AppData -> Sink B.ByteString (StateT ProtocolState IO) ()
 processStatus srv app = deserializeStatus =$= handleStatus srv =$= serializeStatus =$= packetSink app
 
-processLogin :: (MonadIO m, MonadThrow m) => Server -> AppData -> Sink B.ByteString m ()
+processLogin :: Server -> AppData -> Sink B.ByteString (StateT ProtocolState IO) ()
 processLogin srv app = deserializeLogin =$= handleLogin srv =$= serializeLogin =$= packetSink app
 
-processPlay :: (MonadIO m, MonadThrow m) => Server -> AppData -> Sink B.ByteString m ()
+processPlay :: Server -> AppData -> Sink B.ByteString (StateT ProtocolState IO) ()
 processPlay srv app = deserializePlay =$= handlePlay srv =$= serializePlay =$= packetSink app
 
 
-packetSource :: (MonadIO m, MonadThrow m) => AppData -> Source m B.ByteString
-packetSource app = appSource app
+packetSource :: AppData -> Source (StateT ProtocolState IO) B.ByteString
+packetSource app = transPipe lift $ appSource app
 
-packetSink :: (MonadIO m, MonadThrow m) => AppData -> Sink B.ByteString m ()
-packetSink app = appSink app
+packetSink :: AppData -> Sink B.ByteString (StateT ProtocolState IO) ()
+packetSink app = transPipe lift $ appSink app
 
 
-deserializeStatus :: (MonadIO m, MonadThrow m) => Conduit B.ByteString m ServerBoundStatus
+deserializeStatus :: Conduit B.ByteString (StateT ProtocolState IO) ServerBoundStatus
 deserializeStatus = conduitGet (S.get :: S.Get ServerBoundStatus)
 
-serializeStatus :: (MonadIO m, MonadThrow m) => Conduit ClientBoundStatus m B.ByteString
+serializeStatus :: Conduit ClientBoundStatus (StateT ProtocolState IO) B.ByteString
 serializeStatus = conduitPut (S.put :: S.Putter ClientBoundStatus)
 
 
-deserializeLogin :: (MonadIO m, MonadThrow m) => Conduit B.ByteString m ServerBoundLogin
+deserializeLogin :: Conduit B.ByteString (StateT ProtocolState IO) ServerBoundLogin
 deserializeLogin = conduitGet (S.get :: S.Get ServerBoundLogin)
 
-serializeLogin :: (MonadIO m, MonadThrow m) => Conduit ClientBoundLogin m B.ByteString
+serializeLogin :: Conduit ClientBoundLogin (StateT ProtocolState IO) B.ByteString
 serializeLogin = conduitPut (S.put :: S.Putter ClientBoundLogin)
 
 
-deserializePlay :: (MonadIO m, MonadThrow m) => Conduit B.ByteString m ServerBoundPlay
+deserializePlay :: Conduit B.ByteString (StateT ProtocolState IO) ServerBoundPlay
 deserializePlay = conduitGet (S.get :: S.Get ServerBoundPlay)
 
-serializePlay :: (MonadIO m, MonadThrow m) => Conduit ClientBoundPlay m B.ByteString
+serializePlay :: Conduit ClientBoundPlay (StateT ProtocolState IO) B.ByteString
 serializePlay = conduitPut (S.put :: S.Putter ClientBoundPlay)
 
 
-handleStatus :: MonadIO m => Server -> Conduit ServerBoundStatus m ClientBoundStatus
+handleStatus :: Server -> Conduit ServerBoundStatus (StateT ProtocolState IO) ClientBoundStatus
 handleStatus srv = do
   maybeHandshake <- await
   case maybeHandshake of
-    Just (Handshake _ _ _ 1) ->
+    Just (ServerBoundHandshake _ _ _ 1) ->
       do  maybePingStart <- await
+          lift $ put Status
           let version = srvVersion srv
           let players = srvPlayers srv
           let maxPlayers = srvMaxPlayers srv
           let motd = srvMotd srv
           let status = buildStatus version players maxPlayers motd
-          yield $ Response . BL.toStrict . Aeson.encode $ status
+          yield $ ClientBoundResponse . BL.toStrict . Aeson.encode $ status
           maybePing <- await
           case maybePing of
-            Just (Ping payload) -> yield (Pong payload)
+            Just (ServerBoundPing payload) -> yield (ClientBoundPong payload)
             Nothing -> return ()
-    {-
-    Just (SBS (Handshake _ _ _ 2)) ->
-      do  maybeLoginStart <- await
-          case maybeLoginStart of
-            Just (SBL (ServerBoundLoginStart username)) ->
-              do  let someUsername = decodeUtf8 $ B.drop 3 username
-                  someUUID <- liftIO $ nextRandom
-                  let someUser = User someUUID someUsername Nothing Nothing
-                  yield (CBL (ClientBoundLoginSuccess (BL.toStrict.toByteString $ someUUID) (B.drop 3 username)))
-            Just _ -> return ()
-            Nothing -> return ()
-    -}
+    Just (ServerBoundHandshake _ _ _ 2) -> lift $ put Login >> return ()
     Just _ -> return ()
     Nothing -> return ()
 
-handleLogin :: MonadIO m => Server -> Conduit ServerBoundLogin m ClientBoundLogin
+handleLogin :: Server -> Conduit ServerBoundLogin (StateT ProtocolState IO) ClientBoundLogin
 handleLogin srv = undefined
 
-handlePlay :: MonadIO m => Server -> Conduit ServerBoundPlay m ClientBoundPlay
+handlePlay :: Server -> Conduit ServerBoundPlay (StateT ProtocolState IO) ClientBoundPlay
 handlePlay srv = undefined
