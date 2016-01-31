@@ -3,8 +3,6 @@ build: off
 before_build:
   - curl -o stack.zip -L --insecure http://www.stackage.org/stack/windows-i386
   - 7z x stack.zip stack.exe
-  - sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules
-  - git submodule update --init --recursive
 
 skip_tags: true
 
