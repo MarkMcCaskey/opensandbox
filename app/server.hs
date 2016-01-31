@@ -11,6 +11,7 @@
 --
 -------------------------------------------------------------------------------
 
+import            Control.Monad
 import            Control.Monad.Catch
 import            Control.Monad.IO.Class
 import            Control.Monad.Trans.Class
@@ -48,10 +49,11 @@ myPort = 25567
 
 main :: IO ()
 main = do
-    let config = defaultConfig
     let port = myPort
     logger <- newStdoutLoggerSet defaultBufSize
     writeTo logger Info "Welcome to the OpenSandbox Minecraft Server!"
+    let config = defaultConfig
+    writeTo logger Info "Reading server configs..."
     maybeEncryption <- configEncryption config logger
     maybeCompression <- configCompression config logger
     writeTo logger Info $ "Starting minecraft server version " ++ show myVersion
@@ -78,27 +80,35 @@ main = do
                 }
     runTCPServer (serverSettings myPort "*") $ runOpenSandbox srv logger
 
-
 runOpenSandbox :: Server -> LoggerSet -> AppData -> IO ()
 runOpenSandbox srv logger app = do
-    protocolState <- flip execStateT Handshake $ packetSource app $$ processStatus srv app
+    protocolState <- flip execStateT Handshake
+      $ packetSource app
+      $$ deserializeStatus
+      =$= handleStatus srv logger
+      =$= serializeStatus
+      =$= packetSink app
     writeTo logger Debug "Somebody's pinging!"
     if protocolState == Login
       then do
         writeTo logger Debug "Somebody's logging in!"
-        nextState <- flip execStateT Login $ packetSource app $$ processLogin srv app
-        writeTo logger Debug "Somebody logged in!"
+        nextState <- flip execStateT Login
+          $ packetSource app
+          $$ deserializeLogin
+          =$= handleLogin srv logger
+          =$= serializeLogin
+          =$= packetSink app
+        if nextState == Play
+          then do
+            writeTo logger Debug "Somebody succeeded to login"
+            void $ flip execStateT Play
+              $ packetSource app
+              $$ deserializePlay
+              =$= handlePlay srv logger
+              =$= serializePlay
+              =$= packetSink app
+          else writeTo logger Debug "Somebody failed login"
       else return ()
-
-processStatus :: Server -> AppData -> Sink B.ByteString (StateT ProtocolState IO) ()
-processStatus srv app = deserializeStatus =$= handleStatus srv =$= serializeStatus =$= packetSink app
-
-processLogin :: Server -> AppData -> Sink B.ByteString (StateT ProtocolState IO) ()
-processLogin srv app = deserializeLogin =$= handleLogin srv =$= serializeLogin =$= packetSink app
-
-processPlay :: Server -> AppData -> Sink B.ByteString (StateT ProtocolState IO) ()
-processPlay srv app = deserializePlay =$= handlePlay srv =$= serializePlay =$= packetSink app
-
 
 packetSource :: AppData -> Source (StateT ProtocolState IO) B.ByteString
 packetSource app = transPipe lift $ appSource app
@@ -106,13 +116,11 @@ packetSource app = transPipe lift $ appSource app
 packetSink :: AppData -> Sink B.ByteString (StateT ProtocolState IO) ()
 packetSink app = transPipe lift $ appSink app
 
-
 deserializeStatus :: Conduit B.ByteString (StateT ProtocolState IO) ServerBoundStatus
 deserializeStatus = conduitGet (S.get :: S.Get ServerBoundStatus)
 
 serializeStatus :: Conduit ClientBoundStatus (StateT ProtocolState IO) B.ByteString
 serializeStatus = conduitPut (S.put :: S.Putter ClientBoundStatus)
-
 
 deserializeLogin :: Conduit B.ByteString (StateT ProtocolState IO) ServerBoundLogin
 deserializeLogin = conduitGet (S.get :: S.Get ServerBoundLogin)
@@ -120,46 +128,58 @@ deserializeLogin = conduitGet (S.get :: S.Get ServerBoundLogin)
 serializeLogin :: Conduit ClientBoundLogin (StateT ProtocolState IO) B.ByteString
 serializeLogin = conduitPut (S.put :: S.Putter ClientBoundLogin)
 
-
 deserializePlay :: Conduit B.ByteString (StateT ProtocolState IO) ServerBoundPlay
 deserializePlay = conduitGet (S.get :: S.Get ServerBoundPlay)
 
 serializePlay :: Conduit ClientBoundPlay (StateT ProtocolState IO) B.ByteString
 serializePlay = conduitPut (S.put :: S.Putter ClientBoundPlay)
 
-
-handleStatus :: Server -> Conduit ServerBoundStatus (StateT ProtocolState IO) ClientBoundStatus
-handleStatus srv = do
+handleStatus :: Server -> LoggerSet -> Conduit ServerBoundStatus (StateT ProtocolState IO) ClientBoundStatus
+handleStatus srv logger = do
   maybeHandshake <- await
+  liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybeHandshake
   case maybeHandshake of
-    Just (ServerBoundHandshake _ _ _ 1) ->
-      do  maybePingStart <- await
-          lift $ put Status
-          let version = srvVersion srv
-          let versionID = myVersionID
-          let players = srvPlayers srv
-          let maxPlayers = srvMaxPlayers srv
-          let motd = srvMotd srv
-          let status = buildStatus version versionID players maxPlayers motd
-          yield $ ClientBoundResponse . BL.toStrict . Aeson.encode $ status
-          maybePing <- await
-          case maybePing of
-            Just (ServerBoundPing payload) -> yield (ClientBoundPong payload)
-            Nothing -> return ()
-    Just (ServerBoundHandshake _ _ _ 2) -> lift $ put Login >> return ()
+    Just (ServerBoundHandshake _ _ _ 1) -> do
+      maybePingStart <- await
+      liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybePingStart
+      lift $ put Status
+      let version = srvVersion srv
+      let versionID = myVersionID
+      let players = srvPlayers srv
+      let maxPlayers = srvMaxPlayers srv
+      let motd = srvMotd srv
+      let responsePacket = ClientBoundResponse . BL.toStrict . Aeson.encode
+            $ buildStatus version versionID players maxPlayers motd
+      liftIO $ writeTo logger Debug $ "Sending: " ++ show responsePacket
+      yield responsePacket
+      maybePing <- await
+      liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybePing
+      case maybePing of
+        Just (ServerBoundPing payload) -> do
+          let pong = ClientBoundPong payload
+          liftIO $ writeTo logger Debug $ "Sending: " ++ show pong
+          yield pong
+        Nothing -> return ()
+    Just (ServerBoundHandshake _ _ _ 2) -> do
+      liftIO $ writeTo logger Debug $ "Switching protocol state to LOGIN"
+      lift $ put Login
     Just _ -> return ()
     Nothing -> return ()
 
-handleLogin :: Server -> Conduit ServerBoundLogin (StateT ProtocolState IO) ClientBoundLogin
-handleLogin srv = do
+handleLogin :: Server -> LoggerSet -> Conduit ServerBoundLogin (StateT ProtocolState IO) ClientBoundLogin
+handleLogin srv logger = do
   maybeLoginStart <- await
+  liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybeLoginStart
   case maybeLoginStart of
     Just (ServerBoundLoginStart username) ->
       do  someUUID <- liftIO $ nextRandom
-          yield $ ClientBoundLoginSuccess (BL.toStrict.toByteString $ someUUID) (B.drop 3 username)
+          let loginSuccess = ClientBoundLoginSuccess (BL.toStrict.toByteString $ someUUID) username
+          liftIO $ writeTo logger Debug $ "Sending: " ++ show loginSuccess
+          yield loginSuccess
+          liftIO $ writeTo logger Debug $ "Switching protocol state to PLAY"
           lift $ put Play
     Just _ -> return ()
     Nothing -> return ()
 
-handlePlay :: Server -> Conduit ServerBoundPlay (StateT ProtocolState IO) ClientBoundPlay
-handlePlay srv = undefined
+handlePlay :: Server -> LoggerSet -> Conduit ServerBoundPlay (StateT ProtocolState IO) ClientBoundPlay
+handlePlay srv logger = liftIO $ writeTo logger Debug $ "Starting PLAY session"
