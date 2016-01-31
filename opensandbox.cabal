@@ -19,51 +19,34 @@ library
     exposed-modules:        OpenSandbox
                             OpenSandbox.Config
                             OpenSandbox.Backup
-                            OpenSandbox.BannedIP
-                            OpenSandbox.BannedPlayer
-                            OpenSandbox.Log
-                            OpenSandbox.Op
                             OpenSandbox.Protocol
                             OpenSandbox.Protocol.Login
                             OpenSandbox.Protocol.Play
                             OpenSandbox.Protocol.Status
                             OpenSandbox.Update
-                            OpenSandbox.User
-                            OpenSandbox.WhiteList
                             OpenSandbox.Server
                             OpenSandbox.Tmux
     build-depends:          base >= 4.7 && < 5,
                             aeson,
                             asn1-encoding,
                             asn1-types,
-                            async,
-                            attoparsec,
-                            binary,
                             bytestring,
                             cereal,
                             conduit,
-                            conduit-combinators,
                             conduit-extra,
-                            configurator,
                             containers,
                             cryptonite,
                             directory,
-                            errors,
                             http-conduit,
-                            iproute,
                             network,
-                            parsec,
+                            old-locale,
                             process,
                             QuickCheck,
-                            RSA,
-                            stm,
-                            stm-conduit,
                             tar,
                             text,
-                            time,
+                            thyme,
                             transformers,
                             uuid,
-                            uuid-aeson,
                             x509,
                             zlib
     default-language:       Haskell2010

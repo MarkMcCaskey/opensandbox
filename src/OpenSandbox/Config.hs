@@ -26,7 +26,6 @@ import            Data.ASN1.BinaryEncoding
 import            Data.ASN1.Encoding
 import            Data.ASN1.Types
 import qualified  Data.ByteString as B
-import qualified  Data.Configurator as C
 import            Data.X509
 
 

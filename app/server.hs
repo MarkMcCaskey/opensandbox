@@ -153,9 +153,7 @@ handleLogin srv = do
   maybeLoginStart <- await
   case maybeLoginStart of
     Just (ServerBoundLoginStart username) ->
-      do  let someUsername = decodeUtf8 $ B.drop 3 username
-          someUUID <- liftIO $ nextRandom
-          let someUser = User someUUID someUsername Nothing Nothing
+      do  someUUID <- liftIO $ nextRandom
           yield $ ClientBoundLoginSuccess (BL.toStrict.toByteString $ someUUID) (B.drop 3 username)
           lift $ put Play
     Just _ -> return ()

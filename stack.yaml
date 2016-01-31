@@ -1,5 +1,5 @@
 flags: {}
 packages:
 - '.'
-extra-deps: [uuid-aeson-0.1.0.0]
+extra-deps: []
 resolver: lts-5.0
