@@ -26,9 +26,7 @@ module OpenSandbox.Protocol
   ) where
 
 import qualified  Data.Aeson as Aeson
-import            Data.Bits
 import qualified  Data.ByteString as B
-import qualified  Data.ByteString.Char8 as BC
 import qualified  Data.ByteString.Lazy as BL
 import qualified  Data.Text as T
 import            Data.Serialize
@@ -36,9 +34,6 @@ import            Data.Serialize.Get
 import            Data.Serialize.Put
 import            Data.Word
 import            GHC.Generics
-import            Network.Socket hiding (send,recv)
-import            Network.Socket.ByteString
-import            OpenSandbox.Server
 
 data ProtocolState = Handshake | Status | Login | Play deriving (Show,Eq)
 
