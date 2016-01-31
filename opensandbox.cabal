@@ -19,6 +19,7 @@ library
     exposed-modules:        OpenSandbox
                             OpenSandbox.Config
                             OpenSandbox.Backup
+                            OpenSandbox.Logger
                             OpenSandbox.Protocol
                             OpenSandbox.Protocol.Login
                             OpenSandbox.Protocol.Play
@@ -37,6 +38,7 @@ library
                             containers,
                             cryptonite,
                             directory,
+                            fast-logger,
                             http-conduit,
                             network,
                             old-locale,
@@ -76,6 +78,7 @@ executable server
                             conduit,
                             conduit-extra,
                             exceptions,
+                            fast-logger,
                             opensandbox,
                             text,
                             transformers,

@@ -26,6 +26,7 @@ import            Data.Text.Encoding
 import            Data.UUID
 import            Data.UUID.V4
 import            OpenSandbox
+import            System.Log.FastLogger
 
 myVersion :: String
 myVersion = "16w04a"
@@ -47,16 +48,17 @@ myPort = 25567
 
 main :: IO ()
 main = do
-    putStrLn "Welcome to the OpenSandbox Minecraft Server!"
     let config = defaultConfig
-    let port = myPort
-    putStrLn $ "Starting minecraft server version " ++ show myVersion
-    putStrLn $ "Default game type: " ++ show (mcLevelType config)
+    logger <- newStdoutLoggerSet defaultBufSize
     maybeEncryption <- configEncryption config
     maybeCompression <- configCompression config
-    putStrLn $ "Starting Minecraft server on " ++ show port
-    putStrLn $ "Preparing level " ++ show (mcLevelName config)
-    putStrLn "Done!"
+    writeTo logger Info "Welcome to the OpenSandbox Minecraft Server!"
+    let port = myPort
+    writeTo logger Info $ "Starting minecraft server version " ++ show myVersion
+    writeTo logger Info $ "Default game type: " ++ show (mcLevelType config)
+    writeTo logger Info $ "Starting Minecraft server on " ++ show port
+    writeTo logger Info $ "Preparing level " ++ show (mcLevelName config)
+    writeTo logger Info $ "Done!"
     let currentPlayers = 0
     let srv = Server
                 { srvName = "Opensandbox"
