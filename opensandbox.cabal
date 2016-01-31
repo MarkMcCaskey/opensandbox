@@ -21,9 +21,6 @@ library
                             OpenSandbox.Backup
                             OpenSandbox.Logger
                             OpenSandbox.Protocol
-                            OpenSandbox.Protocol.Login
-                            OpenSandbox.Protocol.Play
-                            OpenSandbox.Protocol.Status
                             OpenSandbox.Update
                             OpenSandbox.Server
                             OpenSandbox.Tmux
