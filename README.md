@@ -13,7 +13,7 @@
     <img alt="Windows Build"
       src="https://ci.appveyor.com/api/projects/status/ox9dg4awdh09wih1">
   </a>
-  <a href="https://github.com/oldmanmike/opensandbox/LICENSE"
+  <a href="https://github.com/oldmanmike/opensandbox/blob/master/LICENSE"
     <img alt="License"
       src="https://img.shields.io/badge/license-GPL--3-brightgreen.svg?style=flat-square">
   </a>
