@@ -47,6 +47,8 @@ cabal build
 
 ## Usage
 
+Right now, the server is in a very early stage of development. You can login in the technical sense, but not much else.
+
 You currently can launch the server following a successful build via:
 ```bash
 stack exec server
@@ -57,7 +59,6 @@ or...
 ```bash
 cabal run
 ```
-As of right now, it's not even possible to log onto the server. This will change soon.
 
 ## Contributing
 
