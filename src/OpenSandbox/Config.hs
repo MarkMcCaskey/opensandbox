@@ -27,11 +27,11 @@ import            Data.ASN1.Encoding
 import            Data.ASN1.Types
 import qualified  Data.ByteString as B
 import            Data.X509
+import            OpenSandbox.Logger
 
 
 data Difficulty = Peaceful | Easy | Normal | Hard
   deriving (Show,Enum,Eq)
-
 
 data GameMode = Survival | Creative | Adventure | Spectator
   deriving (Show,Enum,Eq)
@@ -138,25 +138,25 @@ defaultConfig = Config
   , mcWhiteList                   = False }
 
 
-configEncryption :: Config -> IO (Maybe Encryption)
-configEncryption config =
+configEncryption :: Config -> LoggerSet -> IO (Maybe Encryption)
+configEncryption config logger =
   if mcOnlineMode config == True
     then do
-      putStrLn "Encryption: [ENABLED]"
-      putStrLn "Generating key pair"
+      writeTo logger Info "Encryption: [ENABLED]"
+      writeTo logger Info "Generating key pair"
       (pubKey,privKey) <- generate 128 65537
       let cert = encodeASN1' DER $ toASN1 (PubKeyRSA pubKey) []
       return (Just (Encryption cert pubKey privKey (B.pack [26,120,188,217])))
     else do
-      putStrLn "Encryption: [DISABLED]"
+      writeTo logger Info "Encryption: [DISABLED]"
       return Nothing
 
 
-configCompression :: Config -> IO (Maybe Compression)
-configCompression config =
+configCompression :: Config -> LoggerSet -> IO (Maybe Compression)
+configCompression config logger =
   if mcNetworkCompressionThreshold config /= Nothing
     then do
-      putStrLn "Compression: [ENABLED]"
+      writeTo logger Info "Compression: [ENABLED]"
       return (mcNetworkCompressionThreshold config)
     else do
-      putStrLn "Compression: [DISABLED]" >> return Nothing
+      writeTo logger Info "Compression: [DISABLED]" >> return Nothing

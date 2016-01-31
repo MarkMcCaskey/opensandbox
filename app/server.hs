@@ -49,11 +49,11 @@ myPort = 25567
 main :: IO ()
 main = do
     let config = defaultConfig
-    logger <- newStdoutLoggerSet defaultBufSize
-    maybeEncryption <- configEncryption config
-    maybeCompression <- configCompression config
-    writeTo logger Info "Welcome to the OpenSandbox Minecraft Server!"
     let port = myPort
+    logger <- newStdoutLoggerSet defaultBufSize
+    writeTo logger Info "Welcome to the OpenSandbox Minecraft Server!"
+    maybeEncryption <- configEncryption config logger
+    maybeCompression <- configCompression config logger
     writeTo logger Info $ "Starting minecraft server version " ++ show myVersion
     writeTo logger Info $ "Default game type: " ++ show (mcLevelType config)
     writeTo logger Info $ "Starting Minecraft server on " ++ show port
@@ -76,18 +76,18 @@ main = do
                 , srvEnabled = False
                 , srvUp = False
                 }
-    runTCPServer (serverSettings myPort "*") $ runOpenSandbox srv
+    runTCPServer (serverSettings myPort "*") $ runOpenSandbox srv logger
 
 
-runOpenSandbox :: Server -> AppData -> IO ()
-runOpenSandbox srv app = do
+runOpenSandbox :: Server -> LoggerSet -> AppData -> IO ()
+runOpenSandbox srv logger app = do
     protocolState <- flip execStateT Handshake $ packetSource app $$ processStatus srv app
-    print $ "Got this far"
+    writeTo logger Debug "Somebody's pinging!"
     if protocolState == Login
       then do
-        print "Somebody's logging in!"
+        writeTo logger Debug "Somebody's logging in!"
         nextState <- flip execStateT Login $ packetSource app $$ processLogin srv app
-        print "Somebody logged in!"
+        writeTo logger Debug "Somebody logged in!"
       else return ()
 
 processStatus :: Server -> AppData -> Sink B.ByteString (StateT ProtocolState IO) ()

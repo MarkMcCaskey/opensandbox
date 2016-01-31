@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module OpenSandbox.Logger
-  ( Lvl (..)
+  ( LoggerSet
+  , Lvl (..)
   , writeTo
   ) where
 
