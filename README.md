@@ -9,6 +9,14 @@
     <img alt="Tests"
       src="https://img.shields.io/travis/oldmanmike/opensandbox.svg?style=flat-square">
   </a>
+  <a href="https://ci.appveyor.com/project/oldmanmike/opensandbox">
+    <img alt="Windows Build"
+      src="https://ci.appveyor.com/api/projects/status/ox9dg4awdh09wih1">
+  </a>
+  <a href="https://github.com/oldmanmike/opensandbox/LICENSE"
+    <img alt="License"
+      src="https://img.shields.io/badge/license-GPL--3-brightgreen.svg?style=flat-square">
+  </a>
 </p>
 
 <p align="center">
