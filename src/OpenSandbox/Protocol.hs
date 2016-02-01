@@ -23,6 +23,7 @@ module OpenSandbox.Protocol
   , Description
   , buildStatus
   , buildResponse
+  , login
   ) where
 
 import qualified  Data.Aeson as Aeson
@@ -34,6 +35,7 @@ import            Data.Serialize.Get
 import            Data.Serialize.Put
 import            Data.Word
 import            GHC.Generics
+import            OpenSandbox.Config
 
 data ProtocolState = Handshake | Status | Login | Play deriving (Show,Eq)
 
@@ -60,6 +62,20 @@ type MC_UUID      = B.ByteString
 type MC_Optional  = Maybe B.ByteString
 type MC_Array     = B.ByteString
 type MC_ByteArray = B.ByteString
+
+type MaxPlayers = Int
+type Debug = Bool
+
+login :: Int -> GameMode -> Dimension -> Difficulty -> Int -> LevelType -> Debug -> B.ByteString
+login entityID gameMode dimension difficulty maxPlayers levelType debug =
+    encode $ ClientBoundLogin
+                (fromIntegral entityID)
+                (fromIntegral.fromEnum $ gameMode)
+                (fromIntegral.fromEnum $ dimension)
+                (fromIntegral.fromEnum $ difficulty)
+                (fromIntegral maxPlayers)
+                (encode.show $ levelType)
+                (fromIntegral.fromEnum $ debug)
 
 data ServerBoundStatus
   = ServerBoundHandshake Word8 B.ByteString Word16 Word8
