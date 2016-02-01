@@ -11,6 +11,7 @@
 -------------------------------------------------------------------------------
 module OpenSandbox.Config
   ( Config (..)
+  , Dimension (..)
   , Difficulty (..)
   , GameMode (..)
   , LevelType (..)
@@ -24,11 +25,21 @@ module OpenSandbox.Config
 import            Crypto.PubKey.RSA
 import            Data.ASN1.BinaryEncoding
 import            Data.ASN1.Encoding
-import            Data.ASN1.Types
+import            Data.ASN1.Types hiding (End)
 import qualified  Data.ByteString as B
 import            Data.X509
 import            OpenSandbox.Logger
 
+data Dimension = Overworld | Nether | End
+  deriving (Show,Eq)
+
+instance Enum Dimension where
+    fromEnum Overworld = 0
+    fromEnum Nether = -1
+    fromEnum End = 1
+    toEnum 0 = Overworld
+    toEnum (-1) = Nether
+    toEnum 1 = End
 
 data Difficulty = Peaceful | Easy | Normal | Hard
   deriving (Show,Enum,Eq)
@@ -37,9 +48,14 @@ data GameMode = Survival | Creative | Adventure | Spectator
   deriving (Show,Enum,Eq)
 
 
-data LevelType = Default | Flat | LargeBiomes | Amplified | Customized
-  deriving (Show,Eq)
+data LevelType = Default | Flat | LargeBiomes | Amplified
+  deriving (Eq)
 
+instance Show LevelType where
+    show Default = "default"
+    show Flat = "flat"
+    show LargeBiomes = "largeBiomes"
+    show Amplified = "amplified"
 
 data Compression = Everything | Int
   deriving (Show,Eq)

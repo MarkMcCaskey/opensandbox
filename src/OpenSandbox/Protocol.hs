@@ -339,7 +339,7 @@ instance Serialize ClientBoundPlay where
       + varIntLength keepAliveId :: Word8)
     put (0x1f :: Word8)
     putByteString keepAliveId
-  put (ClientBoundLogin entityId gameMode dimension difficulty mayPlayers levelType reducedDebugInfo) = do
+  put (ClientBoundLogin entityId gameMode dimension difficulty maxPlayers levelType reducedDebugInfo) = do
     put (fromIntegral
       $ idLength
       + intLength
@@ -354,7 +354,8 @@ instance Serialize ClientBoundPlay where
     put gameMode
     put dimension
     put difficulty
-    put mayPlayers
+    put maxPlayers
+    put (stringLength levelType)
     putByteString levelType
     put reducedDebugInfo
   put (ClientBoundChat message position) = do
