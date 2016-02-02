@@ -31,7 +31,7 @@ Planned features are:
 
 ## Installation
 
-As of right now, you can only build Open Sandbox from source.
+As of right now, you can only build OpenSandbox from source.
 The following is with `stack`
 ```bash
 git clone http://github.com/oldmanmike/opensandbox.git
@@ -66,4 +66,6 @@ cabal run
 
 ## Contributing
 
-Pull requests and bug reports are welcome even at this early date. Everything is subject to change right now, so many flaws are present and known right now. However, Haskellers interested in the project should feel free to find a role for themselves. I'm not a Haskell expert, so I don't expect a contributor to be either.
+Pull requests and bug reports are welcome even at this early date. Everything is subject to change right now, so many flaws are present and known right now. However, Haskellers interested in the project should feel free to find a role for themselves. I'm not a Haskell expert, so I don't expect a contributor to be either. If you relatively inexperienced with haskell and still want to contribute, let me know and I'll show you the ropes around the more straight-forward parts of the codebase.
+
+I can be reached at my listed email address. I also frequently hang out on IRC at #haskell, #haskell-beginners, #haskell-game, and #mcdevs.
