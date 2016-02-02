@@ -17,14 +17,16 @@ cabal-version:              >=1.10
 library
     hs-source-dirs:         src
     exposed-modules:        OpenSandbox
-                            OpenSandbox.Config
                             OpenSandbox.Backup
                             OpenSandbox.Block
+                            OpenSandbox.Config
+                            OpenSandbox.Item
                             OpenSandbox.Logger
                             OpenSandbox.Protocol
                             OpenSandbox.Update
                             OpenSandbox.Server
                             OpenSandbox.Tmux
+                            OpenSandbox.Types
     build-depends:          base >= 4.7 && < 5,
                             aeson,
                             asn1-encoding,

@@ -9,44 +9,23 @@
 -- Portability  : portable
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Block
-    ( Block (..) 
-    , BoundingBox (..)
-    , Material (..)
-    , Variation (..)
-    , Drop (..)
-    ) where
+module OpenSandbox.Block ( Block (..) ) where
 
-import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.Text as T
 
-data BoundingBox = BoundAsBlock | BoundAsEmpty deriving (Show,Eq)
-
-data Material = Rock | Dirt | Wood | Plant | Wool deriving (Show,Eq)
-
-data Variation = Variation
-    { variantMetadata       :: Int
-    , variantDisplayName    :: T.Text
-    } deriving (Show,Eq)
-
-data Drop = Drop
-    { dropID        :: Int
-    , dropMinCount  :: Maybe Int
-    , dropMaxCount  :: Maybe Int
-    , dropMetadata  :: Int
-    } deriving (Show,Eq)
+import OpenSandbox.Types
 
 data Block = Block
-    { blockID       :: Int
-    , displayName   :: T.Text
-    , name          :: BC.ByteString
-    , hardness      :: Maybe Rational
-    , stackSize     :: Int
-    , diggable      :: Bool
-    , boundingBox   :: BoundingBox
-    , material      :: Maybe Material
-    , variations    :: Maybe Variation
-    , harvestTools  :: [(Int,Bool)]
-    , drops         :: [Int]
-    } deriving (Show,Eq) 
+    { blockID             :: Int
+    , blockDisplayName    :: T.Text
+    , blockName           :: BC.ByteString
+    , blockHardness       :: Maybe Rational
+    , blockStackSize      :: Int
+    , blockDiggable       :: Bool
+    , blockBoundingBox    :: BoundingBox
+    , blockMaterial       :: Maybe Material
+    , blockVariations     :: Maybe [Variation]
+    , blockHarvestTools   :: [(Int,Bool)]
+    , blockDrops          :: [Int]
+    } deriving (Show,Eq)
