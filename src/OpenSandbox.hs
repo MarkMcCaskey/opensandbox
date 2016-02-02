@@ -19,3 +19,4 @@ import OpenSandbox.Server             as O
 import OpenSandbox.Tmux               as O
 import OpenSandbox.Types              as O
 import OpenSandbox.Update             as O
+import OpenSandbox.Version            as O

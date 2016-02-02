@@ -27,6 +27,7 @@ library
                             OpenSandbox.Server
                             OpenSandbox.Tmux
                             OpenSandbox.Types
+                            OpenSandbox.Version
     build-depends:          base >= 4.7 && < 5,
                             aeson,
                             asn1-encoding,

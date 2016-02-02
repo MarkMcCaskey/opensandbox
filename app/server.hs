@@ -30,12 +30,6 @@ import            Data.UUID.V4
 import            OpenSandbox
 import            System.Log.FastLogger
 
-myVersion :: String
-myVersion = "16w04a"
-
-myVersionID :: Int
-myVersionID = 97
-
 myBackupPath :: FilePath
 myBackupPath = "backup"
 
@@ -57,7 +51,7 @@ main = do
     writeTo logger Info "Reading server configs..."
     maybeEncryption <- configEncryption config logger
     maybeCompression <- configCompression config logger
-    writeTo logger Info $ "Starting minecraft server version " ++ show myVersion
+    writeTo logger Info $ "Starting minecraft server version " ++ show snapshotVersion
     writeTo logger Info $ "Default game type: " ++ show (mcLevelType config)
     writeTo logger Info $ "Starting Minecraft server on " ++ show port
     writeTo logger Info $ "Preparing level " ++ show (mcLevelName config)
@@ -70,7 +64,7 @@ main = do
                 , srvBackupPath = myBackupPath
                 , srvLogPath = myLogPath
                 , srvWorld = "world"
-                , srvVersion = myVersion
+                , srvVersion = snapshotVersion
                 , srvPlayers = currentPlayers
                 , srvMaxPlayers = (mcMaxPlayers config)
                 , srvMotd = (mcMotd config)
@@ -145,7 +139,7 @@ handleStatus srv logger = do
       liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybePingStart
       lift $ put Status
       let version = srvVersion srv
-      let versionID = myVersionID
+      let versionID = protocolVersion
       let players = srvPlayers srv
       let maxPlayers = srvMaxPlayers srv
       let motd = srvMotd srv
