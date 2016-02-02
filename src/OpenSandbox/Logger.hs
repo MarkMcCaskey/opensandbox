@@ -1,4 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
+-------------------------------------------------------------------------------
+-- |
+-- Module       : OpenSandbox.Logger
+-- Copyright    : (c) 2016 Michael Carpenter
+-- License      : GPL3
+-- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
+-- Stability    : experimental
+-- Portability  : portable
+--
+-------------------------------------------------------------------------------
 module OpenSandbox.Logger
   ( LoggerSet
   , Lvl (..)

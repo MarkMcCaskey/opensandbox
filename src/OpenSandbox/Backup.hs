@@ -2,11 +2,11 @@
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.Backup
--- Copyright    : (c) 2015 Michael Carpenter
+-- Copyright    : (c) 2016 Michael Carpenter
 -- License      : GPL3
 -- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
 -- Stability    : experimental
--- Portability  : portable
+-- Portability  : non-portable (requires Tmux)
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.Backup

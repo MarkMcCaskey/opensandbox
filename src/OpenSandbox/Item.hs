@@ -1,4 +1,3 @@
-module OpenSandbox.Item ( Item (..) ) where
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.Item
@@ -9,6 +8,9 @@ module OpenSandbox.Item ( Item (..) ) where
 -- Portability  : portable
 --
 -------------------------------------------------------------------------------
+module OpenSandbox.Item
+  ( Item (..)
+  ) where
 
 import qualified  Data.ByteString as BC
 import qualified  Data.Text as T

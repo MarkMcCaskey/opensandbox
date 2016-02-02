@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 -------------------------------------------------------------------------------
 -- |
--- Module       : OpenSandbox.Command
--- Copyright    : (c) 2015 Michael Carpenter
+-- Module       : OpenSandbox.Config
+-- Copyright    : (c) 2016 Michael Carpenter
 -- License      : GPL3
 -- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
 -- Stability    : experimental

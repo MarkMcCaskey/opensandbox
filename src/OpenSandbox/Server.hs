@@ -1,11 +1,11 @@
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.Server
--- Copyright    : (c) 2015 Michael Carpenter
+-- Copyright    : (c) 2016 Michael Carpenter
 -- License      : GPL3
 -- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
 -- Stability    : experimental
--- Portability  : non-portable (requires Tmux)
+-- Portability  : portable
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.Server

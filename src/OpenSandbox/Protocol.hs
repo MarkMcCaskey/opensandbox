@@ -2,7 +2,7 @@
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.Protocol
--- Copyright    : (c) 2015 Michael Carpenter
+-- Copyright    : (c) 2016 Michael Carpenter
 -- License      : GPL3
 -- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
 -- Stability    : experimental

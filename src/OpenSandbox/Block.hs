@@ -9,7 +9,9 @@
 -- Portability  : portable
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Block ( Block (..) ) where
+module OpenSandbox.Block
+  ( Block (..)
+  ) where
 
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.Text as T
