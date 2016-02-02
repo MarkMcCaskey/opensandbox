@@ -19,6 +19,7 @@ library
     exposed-modules:        OpenSandbox
                             OpenSandbox.Config
                             OpenSandbox.Backup
+                            OpenSandbox.Block
                             OpenSandbox.Logger
                             OpenSandbox.Protocol
                             OpenSandbox.Update
