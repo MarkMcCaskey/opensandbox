@@ -24,10 +24,12 @@ module OpenSandbox.Protocol
   , buildStatus
   , buildResponse
   , login
+  , difficulty
   ) where
 
 import qualified  Data.Aeson as Aeson
 import qualified  Data.ByteString as B
+import qualified  Data.ByteString.Char8 as BC
 import qualified  Data.ByteString.Lazy as BL
 import qualified  Data.Text as T
 import            Data.Serialize
@@ -66,16 +68,19 @@ type MC_ByteArray = B.ByteString
 type MaxPlayers = Int
 type Debug = Bool
 
-login :: Int -> GameMode -> Dimension -> Difficulty -> Int -> LevelType -> Debug -> B.ByteString
+login :: Int -> GameMode -> Dimension -> Difficulty -> Int -> LevelType -> Debug -> ClientBoundPlay
 login entityID gameMode dimension difficulty maxPlayers levelType debug =
-    encode $ ClientBoundLogin
-                (fromIntegral entityID)
-                (fromIntegral.fromEnum $ gameMode)
-                (fromIntegral.fromEnum $ dimension)
-                (fromIntegral.fromEnum $ difficulty)
-                (fromIntegral maxPlayers)
-                (encode.show $ levelType)
-                (fromIntegral.fromEnum $ debug)
+  ClientBoundLogin
+    (fromIntegral entityID)
+    (fromIntegral.fromEnum $ gameMode)
+    (fromIntegral.fromEnum $ dimension)
+    (fromIntegral.fromEnum $ difficulty)
+    (fromIntegral maxPlayers)
+    (BC.pack $ show levelType)
+    (fromIntegral.fromEnum $ debug)
+
+difficulty :: Difficulty -> ClientBoundPlay
+difficulty d = ClientBoundDifficulty (fromIntegral.fromEnum $ d)
 
 data ServerBoundStatus
   = ServerBoundHandshake Word8 B.ByteString Word16 Word8
@@ -103,7 +108,7 @@ data ServerBoundLogin
 
 data ClientBoundPlay
   = ClientBoundKeepAlive MC_VarInt
-  | ClientBoundLogin MC_Int MC_UByte MC_Byte MC_UByte MC_UByte MC_String MC_Bool
+  | ClientBoundLogin MC_Int MC_UByte MC_Byte MC_UByte MC_UByte B.ByteString MC_Bool
   | ClientBoundChat MC_String MC_Byte
   | ClientBoundUpdateTime MC_Long MC_Long
   | ClientBoundEntityEquipment MC_VarInt MC_VarInt MC_Slot
@@ -304,7 +309,7 @@ instance Serialize ClientBoundLogin where
     put (fromIntegral $ B.length privKey :: Word8)
     putByteString privKey
   put (ClientBoundLoginSuccess uuid username) = do
-    put (fromIntegral $ 4 + B.length uuid + B.length username :: Word8)
+    put (fromIntegral $ 3 + B.length uuid + B.length username :: Word8)
     put (2 :: Word8)
     put (fromIntegral $ B.length uuid :: Word8)
     putByteString uuid
@@ -363,9 +368,9 @@ instance Serialize ClientBoundPlay where
       + byteLength
       + ubyteLength
       + ubyteLength
-      + stringLength levelType
+      + 1 + stringLength levelType
       + boolLength :: Word8)
-    put (0x24 :: Word8)
+    put (0x23 :: Word8)
     putWord32be entityId
     put gameMode
     put dimension

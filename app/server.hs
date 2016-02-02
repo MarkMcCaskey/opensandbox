@@ -18,6 +18,7 @@ import            Control.Monad.Trans.Class
 import            Control.Monad.Trans.State.Lazy
 import qualified  Data.Aeson as Aeson
 import qualified  Data.ByteString as B
+import qualified  Data.ByteString.Char8 as BC
 import qualified  Data.ByteString.Lazy as BL
 import            Data.Conduit
 import            Data.Conduit.Cereal
@@ -173,7 +174,7 @@ handleLogin srv logger = do
   case maybeLoginStart of
     Just (ServerBoundLoginStart username) ->
       do  someUUID <- liftIO $ nextRandom
-          let loginSuccess = ClientBoundLoginSuccess (BL.toStrict.toByteString $ someUUID) username
+          let loginSuccess = ClientBoundLoginSuccess (BC.pack $ show someUUID) username
           liftIO $ writeTo logger Debug $ "Sending: " ++ show loginSuccess
           yield loginSuccess
           liftIO $ writeTo logger Debug $ "Switching protocol state to PLAY"
@@ -182,4 +183,7 @@ handleLogin srv logger = do
     Nothing -> return ()
 
 handlePlay :: Server -> LoggerSet -> Conduit ServerBoundPlay (StateT ProtocolState IO) ClientBoundPlay
-handlePlay srv logger = liftIO $ writeTo logger Debug $ "Starting PLAY session"
+handlePlay srv logger = do
+  liftIO $ writeTo logger Debug $ "Starting PLAY session"
+  yield $ login 2566 Survival Overworld Normal 20 Default True
+  yield $ difficulty Normal
