@@ -25,6 +25,9 @@ module OpenSandbox.Protocol
   , buildResponse
   , login
   , difficulty
+  , updateTime
+  , abilities
+  , heldItemSlot
   ) where
 
 import qualified  Data.Aeson as Aeson
@@ -82,6 +85,19 @@ login entityID gameMode dimension difficulty maxPlayers levelType debug =
 difficulty :: Difficulty -> ClientBoundPlay
 difficulty d = ClientBoundDifficulty (fromIntegral.fromEnum $ d)
 
+updateTime :: Int -> Int -> ClientBoundPlay
+updateTime age time = ClientBoundUpdateTime (fromIntegral age) (fromIntegral time)
+
+abilities :: Int -> Float -> Float -> ClientBoundPlay
+abilities flags flyingSpeed walkingSpeed =
+  ClientBoundAbilities
+    (fromIntegral flags)
+    (fromIntegral.fromEnum $ flyingSpeed)
+    (fromIntegral.fromEnum $ walkingSpeed)
+
+heldItemSlot :: Int -> ClientBoundPlay
+heldItemSlot slot = ClientBoundHeldItemSlot $ fromIntegral slot
+
 data ServerBoundStatus
   = ServerBoundHandshake Word8 B.ByteString Word16 Word8
   | ServerBoundPingStart
@@ -110,7 +126,7 @@ data ClientBoundPlay
   = ClientBoundKeepAlive MC_VarInt
   | ClientBoundLogin MC_Int MC_UByte MC_Byte MC_UByte MC_UByte B.ByteString MC_Bool
   | ClientBoundChat MC_String MC_Byte
-  | ClientBoundUpdateTime MC_Long MC_Long
+  | ClientBoundUpdateTime MC_Int MC_Int -- MC_Long MC_Long
   | ClientBoundEntityEquipment MC_VarInt MC_VarInt MC_Slot
   | ClientBoundSpawnPosition MC_Position
   | ClientBoundUpdateHealth MC_Float MC_VarInt MC_Float
@@ -392,8 +408,8 @@ instance Serialize ClientBoundPlay where
       $ idLength
       + (2 * longLength) :: Word8)
     put (0x43 :: Word8)
-    putWord64be age
-    putWord64be time
+    putWord32be age
+    putWord32be time
   put (ClientBoundEntityEquipment entityId slot item) = do
     put (fromIntegral
       $ idLength

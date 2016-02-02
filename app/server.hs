@@ -186,4 +186,11 @@ handlePlay :: Server -> LoggerSet -> Conduit ServerBoundPlay (StateT ProtocolSta
 handlePlay srv logger = do
   liftIO $ writeTo logger Debug $ "Starting PLAY session"
   yield $ login 2566 Survival Overworld Normal 20 Default True
+  --yield $ channel
   yield $ difficulty Normal
+  yield $ updateTime 0 0
+  yield $ abilities 0 0 0
+  yield $ heldItemSlot 0
+  --yield $ explosion
+  --yield $ statistics
+  --yield $ playerInfo
