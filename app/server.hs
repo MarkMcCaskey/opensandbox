@@ -29,6 +29,7 @@ import            Data.Text.Encoding
 import            Data.UUID
 import            Data.UUID.V4
 import            OpenSandbox
+import            System.Directory
 
 myBackupPath :: FilePath
 myBackupPath = "backup"
@@ -45,8 +46,10 @@ myPort = 25567
 main :: IO ()
 main = do
     args <- getOpts opensandboxOpts
-    let port = myPort
-    logger <- newLogger defaultBufSize ("./" ++ myLogPath ++ "/" ++ "test.txt") (fromJust args)
+    let port  = myPort
+    createDirectoryIfMissing True (mySrvPath ++ "/" ++ myLogPath)
+    let logFilePath =  mySrvPath ++ "/" ++ myLogPath ++ "/" ++ "latest.log"
+    logger <- newLogger defaultBufSize logFilePath (fromJust args)
     writeTo logger Info "----------------- Log Start -----------------"
     writeTo logger Info "Welcome to the OpenSandbox Minecraft Server!"
     let config = defaultConfig

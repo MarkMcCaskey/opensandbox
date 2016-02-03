@@ -80,6 +80,7 @@ executable server
                             cereal-conduit,
                             conduit,
                             conduit-extra,
+                            directory,
                             exceptions,
                             opensandbox,
                             text,
