@@ -18,6 +18,7 @@ cabal.sandbox.config
 
 # OpenSandbox Runtime directories
 cache/
+logs/
 
 # Private Minecraft server files used for testing
 *.properties

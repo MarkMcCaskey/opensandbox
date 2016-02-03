@@ -110,7 +110,7 @@ defaultConfig = Config
   , mcWhiteList                   = False }
 
 
-configEncryption :: Config -> LoggerSet -> IO (Maybe Encryption)
+configEncryption :: Config -> Logger -> IO (Maybe Encryption)
 configEncryption config logger =
   if mcOnlineMode config == True
     then do
@@ -124,7 +124,7 @@ configEncryption config logger =
       return Nothing
 
 
-configCompression :: Config -> LoggerSet -> IO (Maybe Compression)
+configCompression :: Config -> Logger -> IO (Maybe Compression)
 configCompression config logger =
   if mcNetworkCompressionThreshold config /= Nothing
     then do

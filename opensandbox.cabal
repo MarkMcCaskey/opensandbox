@@ -19,6 +19,7 @@ library
     exposed-modules:        OpenSandbox
                             OpenSandbox.Backup
                             OpenSandbox.Block
+                            OpenSandbox.CommandLine
                             OpenSandbox.Config
                             OpenSandbox.Item
                             OpenSandbox.Logger
@@ -42,8 +43,10 @@ library
                             fast-logger,
                             http-conduit,
                             old-locale,
+                            optparse-applicative,
                             process,
                             QuickCheck,
+                            stm,
                             tar,
                             text,
                             thyme,
@@ -78,7 +81,6 @@ executable server
                             conduit,
                             conduit-extra,
                             exceptions,
-                            fast-logger,
                             opensandbox,
                             text,
                             transformers,

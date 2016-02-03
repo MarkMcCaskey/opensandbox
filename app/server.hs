@@ -23,18 +23,18 @@ import qualified  Data.ByteString.Lazy as BL
 import            Data.Conduit
 import            Data.Conduit.Cereal
 import            Data.Conduit.Network
+import            Data.Maybe
 import qualified  Data.Serialize as S
 import            Data.Text.Encoding
 import            Data.UUID
 import            Data.UUID.V4
 import            OpenSandbox
-import            System.Log.FastLogger
 
 myBackupPath :: FilePath
 myBackupPath = "backup"
 
 myLogPath :: FilePath
-myLogPath = "log"
+myLogPath = "logs"
 
 mySrvPath :: FilePath
 mySrvPath = "."
@@ -44,8 +44,10 @@ myPort = 25567
 
 main :: IO ()
 main = do
+    args <- getOpts opensandboxOpts
     let port = myPort
-    logger <- newStdoutLoggerSet defaultBufSize
+    logger <- newLogger defaultBufSize ("./" ++ myLogPath ++ "/" ++ "test.txt") (fromJust args)
+    writeTo logger Info "----------------- Log Start -----------------"
     writeTo logger Info "Welcome to the OpenSandbox Minecraft Server!"
     let config = defaultConfig
     writeTo logger Info "Reading server configs..."
@@ -75,7 +77,7 @@ main = do
                 }
     runTCPServer (serverSettings myPort "*") $ runOpenSandbox srv logger
 
-runOpenSandbox :: Server -> LoggerSet -> AppData -> IO ()
+runOpenSandbox :: Server -> Logger -> AppData -> IO ()
 runOpenSandbox srv logger app = do
     protocolState <- flip execStateT Handshake
       $ packetSource app
@@ -129,7 +131,7 @@ deserializePlay = conduitGet (S.get :: S.Get ServerBoundPlay)
 serializePlay :: Conduit ClientBoundPlay (StateT ProtocolState IO) B.ByteString
 serializePlay = conduitPut (S.put :: S.Putter ClientBoundPlay)
 
-handleStatus :: Server -> LoggerSet -> Conduit ServerBoundStatus (StateT ProtocolState IO) ClientBoundStatus
+handleStatus :: Server -> Logger -> Conduit ServerBoundStatus (StateT ProtocolState IO) ClientBoundStatus
 handleStatus srv logger = do
   maybeHandshake <- await
   liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybeHandshake
@@ -161,7 +163,7 @@ handleStatus srv logger = do
     Just _ -> return ()
     Nothing -> return ()
 
-handleLogin :: Server -> LoggerSet -> Conduit ServerBoundLogin (StateT ProtocolState IO) ClientBoundLogin
+handleLogin :: Server -> Logger -> Conduit ServerBoundLogin (StateT ProtocolState IO) ClientBoundLogin
 handleLogin srv logger = do
   maybeLoginStart <- await
   liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybeLoginStart
@@ -176,7 +178,7 @@ handleLogin srv logger = do
     Just _ -> return ()
     Nothing -> return ()
 
-handlePlay :: Server -> LoggerSet -> Conduit ServerBoundPlay (StateT ProtocolState IO) ClientBoundPlay
+handlePlay :: Server -> Logger -> Conduit ServerBoundPlay (StateT ProtocolState IO) ClientBoundPlay
 handlePlay srv logger = do
   liftIO $ writeTo logger Debug $ "Starting PLAY session"
   yield $ login 2566 Survival Overworld Normal 20 Default True

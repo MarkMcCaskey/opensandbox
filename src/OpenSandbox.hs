@@ -11,6 +11,7 @@
 module OpenSandbox (module O) where
 import OpenSandbox.Backup             as O
 import OpenSandbox.Block              as O
+import OpenSandbox.CommandLine        as O
 import OpenSandbox.Config             as O
 import OpenSandbox.Item               as O
 import OpenSandbox.Logger             as O
