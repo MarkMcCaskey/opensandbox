@@ -15,14 +15,18 @@ module OpenSandbox.Version
   , protocolVersion
   ) where
 
+
 openSandboxVersion :: String
 openSandboxVersion = "0.0.1.0"
+
 
 majorVersion :: String
 majorVersion = "1.9"
 
+
 snapshotVersion :: String
 snapshotVersion = "16w04a"
+
 
 protocolVersion :: Int
 protocolVersion = 97

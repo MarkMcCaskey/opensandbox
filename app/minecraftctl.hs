@@ -349,6 +349,7 @@ commands slst = subparser
         <> progDesc "with a TARGET server, run the following COMMAND"
         <> header "with - Run server commands via a given server")))
 
+
 opts slst = info (helper <*> commands slst)
     ( fullDesc
    <> progDesc "Controls Minecraft Servers"

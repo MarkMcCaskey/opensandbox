@@ -31,17 +31,22 @@ import            Data.UUID.V4
 import            OpenSandbox
 import            System.Directory
 
+
 myBackupPath :: FilePath
 myBackupPath = "backup"
+
 
 myLogPath :: FilePath
 myLogPath = "logs"
 
+
 mySrvPath :: FilePath
 mySrvPath = "."
 
+
 myPort :: Int
 myPort = 25567
+
 
 main :: IO ()
 main = do
@@ -80,6 +85,7 @@ main = do
                 }
     runTCPServer (serverSettings myPort "*") $ runOpenSandbox srv logger
 
+
 runOpenSandbox :: Server -> Logger -> AppData -> IO ()
 runOpenSandbox srv logger app = do
     protocolState <- flip execStateT Handshake
@@ -110,29 +116,38 @@ runOpenSandbox srv logger app = do
           else writeTo logger Debug "Somebody failed login"
       else return ()
 
+
 packetSource :: AppData -> Source (StateT ProtocolState IO) B.ByteString
 packetSource app = transPipe lift $ appSource app
+
 
 packetSink :: AppData -> Sink B.ByteString (StateT ProtocolState IO) ()
 packetSink app = transPipe lift $ appSink app
 
+
 deserializeStatus :: Conduit B.ByteString (StateT ProtocolState IO) ServerBoundStatus
 deserializeStatus = conduitGet (S.get :: S.Get ServerBoundStatus)
+
 
 serializeStatus :: Conduit ClientBoundStatus (StateT ProtocolState IO) B.ByteString
 serializeStatus = conduitPut (S.put :: S.Putter ClientBoundStatus)
 
+
 deserializeLogin :: Conduit B.ByteString (StateT ProtocolState IO) ServerBoundLogin
 deserializeLogin = conduitGet (S.get :: S.Get ServerBoundLogin)
+
 
 serializeLogin :: Conduit ClientBoundLogin (StateT ProtocolState IO) B.ByteString
 serializeLogin = conduitPut (S.put :: S.Putter ClientBoundLogin)
 
+
 deserializePlay :: Conduit B.ByteString (StateT ProtocolState IO) ServerBoundPlay
 deserializePlay = conduitGet (S.get :: S.Get ServerBoundPlay)
 
+
 serializePlay :: Conduit ClientBoundPlay (StateT ProtocolState IO) B.ByteString
 serializePlay = conduitPut (S.put :: S.Putter ClientBoundPlay)
+
 
 handleStatus :: Server -> Logger -> Conduit ServerBoundStatus (StateT ProtocolState IO) ClientBoundStatus
 handleStatus srv logger = do
@@ -166,6 +181,7 @@ handleStatus srv logger = do
     Just _ -> return ()
     Nothing -> return ()
 
+
 handleLogin :: Server -> Logger -> Conduit ServerBoundLogin (StateT ProtocolState IO) ClientBoundLogin
 handleLogin srv logger = do
   maybeLoginStart <- await
@@ -180,6 +196,7 @@ handleLogin srv logger = do
           lift $ put Play
     Just _ -> return ()
     Nothing -> return ()
+
 
 handlePlay :: Server -> Logger -> Conduit ServerBoundPlay (StateT ProtocolState IO) ClientBoundPlay
 handlePlay srv logger = do

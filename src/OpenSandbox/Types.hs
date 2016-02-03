@@ -26,7 +26,9 @@ import            Crypto.PubKey.RSA
 import qualified  Data.ByteString as B
 import qualified  Data.Text as T
 
+
 data BoundingBox = BoundAsBlock | BoundAsEmpty deriving (Show,Eq)
+
 
 data Material
   = Rock
@@ -39,10 +41,12 @@ data Material
   | Wool
   deriving (Show,Eq)
 
+
 data Variation = Variation
     { variantMetadata       :: Int
     , variantDisplayName    :: T.Text
     } deriving (Show,Eq)
+
 
 data Drop = Drop
     { dropID        :: Int
@@ -51,8 +55,10 @@ data Drop = Drop
     , dropMetadata  :: Int
     } deriving (Show,Eq)
 
+
 data Dimension = Overworld | Nether | End
   deriving (Show,Eq)
+
 
 instance Enum Dimension where
     fromEnum Overworld = 0
@@ -62,14 +68,18 @@ instance Enum Dimension where
     toEnum (-1) = Nether
     toEnum 1 = End
 
+
 data Difficulty = Peaceful | Easy | Normal | Hard
   deriving (Show,Enum,Eq)
+
 
 data GameMode = Survival | Creative | Adventure | Spectator
   deriving (Show,Enum,Eq)
 
+
 data LevelType = Default | Flat | LargeBiomes | Amplified
   deriving (Eq)
+
 
 instance Show LevelType where
     show Default = "default"
@@ -77,8 +87,10 @@ instance Show LevelType where
     show LargeBiomes = "largeBiomes"
     show Amplified = "amplified"
 
+
 data Compression = Everything | Int
   deriving (Show,Eq)
+
 
 data Encryption = Encryption
   { getCert         :: B.ByteString

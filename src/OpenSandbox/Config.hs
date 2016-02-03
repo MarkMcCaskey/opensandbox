@@ -25,6 +25,7 @@ import            Data.X509
 import            OpenSandbox.Logger
 import            OpenSandbox.Types
 
+
 data Config = Config
   { mcAllowFlight                 :: !Bool
   , mcAllowNether                 :: !Bool

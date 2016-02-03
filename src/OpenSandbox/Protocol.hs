@@ -43,7 +43,9 @@ import            Data.Word
 import            GHC.Generics
 import            OpenSandbox.Types
 
+
 data ProtocolState = Handshake | Status | Login | Play deriving (Show,Eq)
+
 
 type MC_Bool      = Word8
 type MC_Byte      = Word8
@@ -69,8 +71,10 @@ type MC_Optional  = Maybe B.ByteString
 type MC_Array     = B.ByteString
 type MC_ByteArray = B.ByteString
 
+
 type MaxPlayers = Int
 type Debug = Bool
+
 
 login :: Int -> GameMode -> Dimension -> Difficulty -> Int -> LevelType -> Debug -> ClientBoundPlay
 login entityID gameMode dimension difficulty maxPlayers levelType debug =
@@ -83,11 +87,14 @@ login entityID gameMode dimension difficulty maxPlayers levelType debug =
     (BC.pack $ show levelType)
     (fromIntegral.fromEnum $ debug)
 
+
 difficulty :: Difficulty -> ClientBoundPlay
 difficulty d = ClientBoundDifficulty (fromIntegral.fromEnum $ d)
 
+
 updateTime :: Int -> Int -> ClientBoundPlay
 updateTime age time = ClientBoundUpdateTime (fromIntegral age) (fromIntegral time)
+
 
 abilities :: Int -> Float -> Float -> ClientBoundPlay
 abilities flags flyingSpeed walkingSpeed =
@@ -96,11 +103,14 @@ abilities flags flyingSpeed walkingSpeed =
     (fromIntegral.fromEnum $ flyingSpeed)
     (fromIntegral.fromEnum $ walkingSpeed)
 
+
 heldItemSlot :: Int -> ClientBoundPlay
 heldItemSlot slot = ClientBoundHeldItemSlot $ fromIntegral slot
 
+
 customPayload :: String -> String -> ClientBoundPlay
 customPayload channel dat = ClientBoundCustomPayload (BC.pack channel) (BC.pack dat)
+
 
 data ServerBoundStatus
   = ServerBoundHandshake Word8 B.ByteString Word16 Word8
@@ -109,10 +119,12 @@ data ServerBoundStatus
   | ServerBoundRequest
   deriving (Show,Eq)
 
+
 data ClientBoundStatus
   = ClientBoundResponse B.ByteString
   | ClientBoundPong Word64
   deriving (Show,Eq)
+
 
 data ClientBoundLogin
   = ClientBoundDisconnect B.ByteString
@@ -121,10 +133,12 @@ data ClientBoundLogin
   | ClientBoundSetCompression Word16
   deriving (Show,Eq)
 
+
 data ServerBoundLogin
   = ServerBoundLoginStart B.ByteString
   | ServerBoundEncryptionResponse B.ByteString B.ByteString
   deriving (Show,Eq)
+
 
 data ClientBoundPlay
   = ClientBoundKeepAlive MC_VarInt
@@ -204,6 +218,7 @@ data ClientBoundPlay
   | ClientBoundUnloadChunk MC_Int MC_Int
   deriving (Show,Eq)
 
+
 data ServerBoundPlay
   = ServerBoundKeepAlive MC_VarInt
   | ServerBoundChat MC_String
@@ -234,37 +249,46 @@ data ServerBoundPlay
   -- | ServerBoundUseItem MC_Hand MC_VarInt
   deriving (Show,Eq)
 
+
 data StatusPayload = StatusPayload
   { version       :: Version
   , players       :: Players
   , description   :: Description
   } deriving (Generic,Show,Eq,Read)
 
+
 instance Aeson.ToJSON StatusPayload
 instance Aeson.FromJSON StatusPayload
+
 
 data Version = Version
   { name      :: String
   , protocol  :: Int
   } deriving (Generic,Eq,Show,Read)
 
+
 instance Aeson.ToJSON Version
 instance Aeson.FromJSON Version
+
 
 data Players = Players
   { max     :: Int
   , online  :: Int
   } deriving (Generic,Eq,Show,Read)
 
+
 instance Aeson.ToJSON Players
 instance Aeson.FromJSON Players
+
 
 data Description = Description
   { text    :: String
   } deriving (Generic,Eq,Show,Read)
 
+
 instance Aeson.ToJSON Description
 instance Aeson.FromJSON Description
+
 
 instance Serialize ServerBoundStatus where
   put (ServerBoundHandshake v a p s) = do
@@ -293,6 +317,7 @@ instance Serialize ServerBoundStatus where
       1 -> ServerBoundPing <$> (get :: Get Word64)
       _ -> fail "Unrecognized packet!"
 
+
 instance Serialize ClientBoundStatus where
   put (ClientBoundResponse payload) = do
     put (fromIntegral $ 2 + B.length payload :: Word8)
@@ -311,6 +336,7 @@ instance Serialize ClientBoundStatus where
       0 -> ClientBoundResponse <$> (getWord8 >>= (getByteString . fromIntegral))
       1 -> ClientBoundPong <$> (get :: Get Word64)
       _ -> fail "Unrecognized packet!"
+
 
 instance Serialize ClientBoundLogin where
   put (ClientBoundDisconnect reason) = do
@@ -351,6 +377,7 @@ instance Serialize ClientBoundLogin where
             <*> (getWord8 >>= (getByteString . fromIntegral))
       3 -> ClientBoundSetCompression <$> getWord16be
 
+
 instance Serialize ServerBoundLogin where
   put (ServerBoundLoginStart payload) = do
     put (fromIntegral $ 3 + B.length payload :: Word8)
@@ -372,6 +399,7 @@ instance Serialize ServerBoundLogin where
       0 -> ServerBoundLoginStart <$> (getWord8 >>= (getByteString . fromIntegral))
       1 -> ServerBoundEncryptionResponse <$> (getWord8 >>= (getByteString . fromIntegral))
                                           <*> (getWord8 >>= (getByteString . fromIntegral))
+
 
 instance Serialize ClientBoundPlay where
   put (ClientBoundKeepAlive keepAliveId) = do
@@ -1289,74 +1317,97 @@ instance Serialize ServerBoundPlay where
       -}
       _    -> undefined
 
+
 buildStatus :: String -> Int -> Int -> Int -> String -> StatusPayload
 buildStatus version versionID currentPlayers maxPlayers motd =
     StatusPayload (Version version versionID)
                   (Players maxPlayers currentPlayers)
                   (Description motd)
 
+
 buildResponse :: StatusPayload -> ClientBoundStatus
 buildResponse s = ClientBoundResponse $ BL.toStrict $ Aeson.encode s
+
 
 idLength :: Word8
 idLength = 1
 
+
 boolLength :: Word8
 boolLength = 1
+
 
 byteLength :: Word8
 byteLength = 1
 
+
 ubyteLength :: Word8
 ubyteLength = 1
+
 
 shortLength :: Word8
 shortLength = 2
 
+
 ushortLength :: Word8
 ushortLength = 2
+
 
 intLength :: Word8
 intLength = 4
 
+
 longLength :: Word8
 longLength = 8
+
 
 floatLength :: Word8
 floatLength = 4
 
+
 doubleLength :: Word8
 doubleLength = 8
+
 
 stringLength :: MC_String -> Word8
 stringLength s = fromIntegral $ B.length s
 
+
 chatLength :: MC_Chat -> Word8
 chatLength c = fromIntegral $ B.length c
+
 
 varIntLength :: MC_VarInt -> Word8
 varIntLength v = fromIntegral $ B.length v
 
+
 varLongLength :: MC_VarLong -> Word8
 varLongLength v = fromIntegral $ B.length v
+
 
 chunkLength :: MC_Chunk -> Word8
 chunkLength c = fromIntegral $ B.length c
 
+
 metadataLength :: MC_Metadata -> Word8
 metadataLength m = fromIntegral $ B.length m
+
 
 slotLength :: MC_Slot -> Word8
 slotLength s = fromIntegral $ B.length s
 
+
 nbttagLength :: MC_NBTTag -> Word8
 nbttagLength n = fromIntegral $ B.length n
+
 
 positionLength :: Word8
 positionLength = 8
 
+
 angleLength :: Word8
 angleLength = 1
+
 
 uuidLength :: Word8
 uuidLength = 16

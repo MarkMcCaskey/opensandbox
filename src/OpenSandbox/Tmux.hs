@@ -36,6 +36,7 @@ import Test.QuickCheck
 
 newtype TmuxID = TmuxID (TmuxSessionID,TmuxWindowID) deriving (Show,Read,Eq,Ord)
 
+
 instance Arbitrary TmuxID where
   arbitrary = do
     let s = arbitrary :: Gen String
@@ -43,6 +44,8 @@ instance Arbitrary TmuxID where
     liftM (TmuxID) $ liftM2 (,) s w
 
 type TmuxSessionID = String
+
+
 type TmuxWindowID = String
 
 

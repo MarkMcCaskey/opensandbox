@@ -24,6 +24,7 @@ import Data.Thyme.LocalTime
 import System.Locale
 import System.Log.FastLogger
 
+
 data Lvl
   = Debug
   | Info
@@ -35,18 +36,23 @@ data Lvl
   | Emerg
   deriving (Show,Eq,Enum,Ord)
 
+
 instance ToLogStr Lvl where
   toLogStr = toLogStr . show
 
+
 data Logger = Logger
   { loggerSet   :: LoggerSet
-  , loggerLvl   :: (TVar Lvl)}
+  , loggerLvl   :: (TVar Lvl)
+  }
+
 
 newLogger :: BufSize -> FilePath -> Lvl -> IO Logger
 newLogger buf path lvl = do
   newLoggerSet <- newFileLoggerSet buf path
   newLvl <- newTVarIO lvl
   return $ Logger newLoggerSet newLvl
+
 
 writeTo :: Logger -> Lvl -> String -> IO ()
 writeTo logger lvl s = do

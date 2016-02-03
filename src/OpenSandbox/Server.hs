@@ -16,7 +16,9 @@ module OpenSandbox.Server
 import qualified  Data.Map as Map
 import            OpenSandbox.Types
 
+
 type Servers = Map.Map String Server
+
 
 data Server = Server
   { srvName         :: String
