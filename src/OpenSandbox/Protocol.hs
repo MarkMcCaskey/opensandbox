@@ -28,6 +28,7 @@ module OpenSandbox.Protocol
   , updateTime
   , abilities
   , heldItemSlot
+  , customPayload
   ) where
 
 import qualified  Data.Aeson as Aeson
@@ -97,6 +98,9 @@ abilities flags flyingSpeed walkingSpeed =
 
 heldItemSlot :: Int -> ClientBoundPlay
 heldItemSlot slot = ClientBoundHeldItemSlot $ fromIntegral slot
+
+customPayload :: String -> String -> ClientBoundPlay
+customPayload channel dat = ClientBoundCustomPayload (BC.pack channel) (BC.pack dat)
 
 data ServerBoundStatus
   = ServerBoundHandshake Word8 B.ByteString Word16 Word8
@@ -185,7 +189,7 @@ data ClientBoundPlay
   -- | ClientBoundScoreBoardScore MC_String MC_Byte MC_String MC_Array
   | ClientBoundScoreBoardDisplayObjective MC_Byte MC_String
   -- | ClientBoundScoreBoardTeam MC_String MC_Byte MC_Array MC_Array MC_Array MC_Array MC_Array MC_Array MC_Array MC_Array
-  -- | ClientBoundCustomPayload MC_String MC_ByteString
+  | ClientBoundCustomPayload MC_String MC_String
   | ClientBoundKickDisconnect MC_String
   | ClientBoundDifficulty MC_UByte
   -- | ClientBoundCombatEvent MC_VarInt MC_Array MC_Array MC_Array MC_Array
@@ -406,7 +410,7 @@ instance Serialize ClientBoundPlay where
   put (ClientBoundUpdateTime age time) = do
     put (fromIntegral
       $ idLength
-      + (2 * longLength) :: Word8)
+      + (2 * intLength) :: Word8)
     put (0x43 :: Word8)
     putWord32be age
     putWord32be time
@@ -872,7 +876,16 @@ instance Serialize ClientBoundPlay where
     put position
     putByteString name
   -- put ClientBoundScoreBoardTeam = undefined
-  -- put ClientBoundCustomPayload = undefined
+  put (ClientBoundCustomPayload channel dat)= do
+    put (fromIntegral
+      $ idLength
+      + 1 + stringLength channel
+      + 1 + stringLength dat :: Word8)
+    put (0x18 :: Word8)
+    put (stringLength channel)
+    putByteString channel
+    put (stringLength dat)
+    putByteString dat
   put (ClientBoundKickDisconnect reason) = do
     put (fromIntegral
       $ idLength
