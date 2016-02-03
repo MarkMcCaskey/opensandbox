@@ -60,10 +60,10 @@ writeTo logger lvl s = do
   if (fromEnum minSeverity) <= (fromEnum lvl)
     then do
       time <- getZonedTime
-      let timestampField = toLogStr $ "["++ formatTime defaultTimeLocale "%T" time ++ "]"
-      let lvlField = toLogStr $ "[" ++ show lvl ++ "]"
-      let msg = toLogStr s
+      let timestampField = "["++ formatTime defaultTimeLocale "%T" time ++ "]"
+      let lvlField = "[" ++ show lvl ++ "]"
+      let msg = s
       let logEntry = timestampField <> " " <> lvlField <> " " <> msg
-      pushLogStrLn (loggerSet logger) logEntry
+      putStrLn logEntry >> pushLogStrLn (loggerSet logger) (toLogStr logEntry)
     else
       return ()
