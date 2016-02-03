@@ -119,15 +119,13 @@ handleStatus config logger = do
       maybePingStart <- await
       liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybePingStart
       lift $ put Status
-      let version = srvMCVersion config
+      let version = snapshotVersion
       let versionID = protocolVersion
       let players = srvPlayerCount config
       let maxPlayers = srvMaxPlayers config
       let motd = srvMotd config
-      let responsePacket = ClientBoundResponse . BL.toStrict . Aeson.encode
-            $ buildStatus version versionID players maxPlayers motd
-      liftIO $ writeTo logger Debug $ "Sending: " ++ show responsePacket
-      yield responsePacket
+      liftIO $ writeTo logger Debug $ "Sending: " ++ show (statusResponse version versionID players maxPlayers motd)
+      yield $ statusResponse version versionID players maxPlayers motd
       maybePing <- await
       liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybePing
       case maybePing of

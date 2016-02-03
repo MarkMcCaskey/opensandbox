@@ -21,8 +21,7 @@ module OpenSandbox.Protocol
   , Version
   , Players
   , Description
-  , buildStatus
-  , buildResponse
+  , statusResponse
   , login
   , difficulty
   , updateTime
@@ -74,6 +73,14 @@ type MC_ByteArray = B.ByteString
 
 type MaxPlayers = Int
 type Debug = Bool
+
+
+statusResponse :: String -> Int -> Int -> Int -> String -> ClientBoundStatus
+statusResponse version versionID currentPlayers maxPlayers motd =
+    ClientBoundResponse $ BL.toStrict $ Aeson.encode $
+      StatusPayload (Version version versionID)
+                    (Players maxPlayers currentPlayers)
+                    (Description motd)
 
 
 login :: Int -> GameMode -> Dimension -> Difficulty -> Int -> LevelType -> Debug -> ClientBoundPlay
@@ -1316,17 +1323,6 @@ instance Serialize ServerBoundPlay where
       -- 0x1a -> return ServerBoundUseItem
       -}
       _    -> undefined
-
-
-buildStatus :: String -> Int -> Int -> Int -> String -> StatusPayload
-buildStatus version versionID currentPlayers maxPlayers motd =
-    StatusPayload (Version version versionID)
-                  (Players maxPlayers currentPlayers)
-                  (Description motd)
-
-
-buildResponse :: StatusPayload -> ClientBoundStatus
-buildResponse s = ClientBoundResponse $ BL.toStrict $ Aeson.encode s
 
 
 idLength :: Word8
