@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 -------------------------------------------------------------------------------
 -- |
 -- File         : server.hs
@@ -32,66 +31,28 @@ import            OpenSandbox
 import            System.Directory
 
 
-myBackupPath :: FilePath
-myBackupPath = "backup"
-
-
-myLogPath :: FilePath
-myLogPath = "logs"
-
-
-mySrvPath :: FilePath
-mySrvPath = "."
-
-
-myPort :: Int
-myPort = 25567
-
-
 main :: IO ()
 main = do
     args <- getOpts opensandboxOpts
-    let port  = myPort
-    createDirectoryIfMissing True (mySrvPath ++ "/" ++ myLogPath)
-    let logFilePath =  mySrvPath ++ "/" ++ myLogPath ++ "/" ++ "latest.log"
+    let config = debugConfig
+    -- Start Logger
+    createDirectoryIfMissing True (srvPath config ++ "/" ++ srvLogPath config)
+    let logFilePath =  srvPath config ++ "/" ++ srvLogPath config ++ "/" ++ "latest.log"
     logger <- newLogger defaultBufSize logFilePath (fromJust args)
     writeTo logger Info "----------------- Log Start -----------------"
     writeTo logger Info "Welcome to the OpenSandbox Minecraft Server!"
-    let config = defaultConfig
-    writeTo logger Info "Reading server configs..."
-    maybeEncryption <- configEncryption config logger
-    maybeCompression <- configCompression config logger
-    writeTo logger Info $ "Starting minecraft server version " ++ show snapshotVersion
-    writeTo logger Info $ "Default game type: " ++ show (mcLevelType config)
-    writeTo logger Info $ "Starting Minecraft server on " ++ show port
-    writeTo logger Info $ "Preparing level " ++ show (mcLevelName config)
+    writeTo logger Info $ "Starting minecraft server version " ++ show (srvMCVersion config)
+    writeTo logger Info $ "Starting Minecraft server on " ++ show (srvPort config)
     writeTo logger Info $ "Done!"
-    let currentPlayers = 0
-    let srv = Server
-                { srvName = "Opensandbox"
-                , srvPort = myPort
-                , srvPath = mySrvPath
-                , srvBackupPath = myBackupPath
-                , srvLogPath = myLogPath
-                , srvWorld = "world"
-                , srvVersion = snapshotVersion
-                , srvPlayers = currentPlayers
-                , srvMaxPlayers = (mcMaxPlayers config)
-                , srvMotd = (mcMotd config)
-                , srvEncryption = maybeEncryption
-                , srvCompression = maybeCompression
-                , srvEnabled = False
-                , srvUp = False
-                }
-    runTCPServer (serverSettings myPort "*") $ runOpenSandbox srv logger
+    runTCPServer (serverSettings (srvPort config) "*") $ runOpenSandbox config logger
 
 
-runOpenSandbox :: Server -> Logger -> AppData -> IO ()
-runOpenSandbox srv logger app = do
+runOpenSandbox :: Config -> Logger -> AppData -> IO ()
+runOpenSandbox config logger app = do
     protocolState <- flip execStateT Handshake
       $ packetSource app
       $$ deserializeStatus
-      =$= handleStatus srv logger
+      =$= handleStatus config logger
       =$= serializeStatus
       =$= packetSink app
     writeTo logger Debug "Somebody's pinging!"
@@ -101,7 +62,7 @@ runOpenSandbox srv logger app = do
         nextState <- flip execStateT Login
           $ packetSource app
           $$ deserializeLogin
-          =$= handleLogin srv logger
+          =$= handleLogin config logger
           =$= serializeLogin
           =$= packetSink app
         if nextState == Play
@@ -110,7 +71,7 @@ runOpenSandbox srv logger app = do
             void $ flip execStateT Play
               $ packetSource app
               $$ deserializePlay
-              =$= handlePlay srv logger
+              =$= handlePlay config logger
               =$= serializePlay
               =$= packetSink app
           else writeTo logger Debug "Somebody failed login"
@@ -149,8 +110,8 @@ serializePlay :: Conduit ClientBoundPlay (StateT ProtocolState IO) B.ByteString
 serializePlay = conduitPut (S.put :: S.Putter ClientBoundPlay)
 
 
-handleStatus :: Server -> Logger -> Conduit ServerBoundStatus (StateT ProtocolState IO) ClientBoundStatus
-handleStatus srv logger = do
+handleStatus :: Config -> Logger -> Conduit ServerBoundStatus (StateT ProtocolState IO) ClientBoundStatus
+handleStatus config logger = do
   maybeHandshake <- await
   liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybeHandshake
   case maybeHandshake of
@@ -158,11 +119,11 @@ handleStatus srv logger = do
       maybePingStart <- await
       liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybePingStart
       lift $ put Status
-      let version = srvVersion srv
+      let version = srvMCVersion config
       let versionID = protocolVersion
-      let players = srvPlayers srv
-      let maxPlayers = srvMaxPlayers srv
-      let motd = srvMotd srv
+      let players = srvPlayerCount config
+      let maxPlayers = srvMaxPlayers config
+      let motd = srvMotd config
       let responsePacket = ClientBoundResponse . BL.toStrict . Aeson.encode
             $ buildStatus version versionID players maxPlayers motd
       liftIO $ writeTo logger Debug $ "Sending: " ++ show responsePacket
@@ -182,8 +143,8 @@ handleStatus srv logger = do
     Nothing -> return ()
 
 
-handleLogin :: Server -> Logger -> Conduit ServerBoundLogin (StateT ProtocolState IO) ClientBoundLogin
-handleLogin srv logger = do
+handleLogin :: Config -> Logger -> Conduit ServerBoundLogin (StateT ProtocolState IO) ClientBoundLogin
+handleLogin config logger = do
   maybeLoginStart <- await
   liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybeLoginStart
   case maybeLoginStart of
@@ -198,8 +159,8 @@ handleLogin srv logger = do
     Nothing -> return ()
 
 
-handlePlay :: Server -> Logger -> Conduit ServerBoundPlay (StateT ProtocolState IO) ClientBoundPlay
-handlePlay srv logger = do
+handlePlay :: Config -> Logger -> Conduit ServerBoundPlay (StateT ProtocolState IO) ClientBoundPlay
+handlePlay config logger = do
   liftIO $ writeTo logger Debug $ "Starting PLAY session"
   yield $ login 2566 Survival Overworld Normal 20 Default True
   yield $ customPayload "MC| Brand" "vanilla"

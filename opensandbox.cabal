@@ -17,16 +17,12 @@ cabal-version:              >=1.10
 library
     hs-source-dirs:         src
     exposed-modules:        OpenSandbox
-                            OpenSandbox.Backup
                             OpenSandbox.Block
                             OpenSandbox.CommandLine
                             OpenSandbox.Config
                             OpenSandbox.Item
                             OpenSandbox.Logger
                             OpenSandbox.Protocol
-                            OpenSandbox.Update
-                            OpenSandbox.Server
-                            OpenSandbox.Tmux
                             OpenSandbox.Types
                             OpenSandbox.Version
     build-depends:          base >= 4.7 && < 5,
@@ -41,32 +37,14 @@ library
                             cryptonite,
                             directory,
                             fast-logger,
-                            http-conduit,
                             old-locale,
                             optparse-applicative,
-                            process,
-                            QuickCheck,
                             stm,
-                            tar,
                             text,
                             thyme,
                             transformers,
                             uuid,
-                            x509,
-                            zlib
-    default-language:       Haskell2010
-
-executable minecraftctl
-    hs-source-dirs:         app
-    main-is:                minecraftctl.hs
-    ghc-options:            -threaded -rtsopts -with-rtsopts=-N
-    build-depends:          base,
-                            containers,
-                            directory,
-                            opensandbox,
-                            optparse-applicative,
-                            process,
-                            uuid
+                            x509
     default-language:       Haskell2010
 
 executable server
@@ -93,13 +71,8 @@ test-suite opensandbox-test
     hs-source-dirs:         test
     main-is:                Spec.hs
     build-depends:          base,
-                            bytestring,
-                            cereal,
-                            containers,
-                            directory,
                             hspec,
-                            opensandbox,
-                            QuickCheck
+                            opensandbox
     ghc-options:            -threaded -rtsopts -with-rtsopts=-N
     default-language:       Haskell2010
 
