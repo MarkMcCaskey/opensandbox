@@ -14,9 +14,17 @@ module OpenSandbox.Types
   , Material (..)
   , Variation (..)
   , Drop (..)
+  , Dimension (..)
+  , Difficulty (..)
+  , GameMode (..)
+  , LevelType (..)
+  , Compression (..)
+  , Encryption (..)
   ) where
 
-import qualified Data.Text as T
+import            Crypto.PubKey.RSA
+import qualified  Data.ByteString as B
+import qualified  Data.Text as T
 
 data BoundingBox = BoundAsBlock | BoundAsEmpty deriving (Show,Eq)
 
@@ -42,3 +50,39 @@ data Drop = Drop
     , dropMaxCount  :: Maybe Int
     , dropMetadata  :: Int
     } deriving (Show,Eq)
+
+data Dimension = Overworld | Nether | End
+  deriving (Show,Eq)
+
+instance Enum Dimension where
+    fromEnum Overworld = 0
+    fromEnum Nether = -1
+    fromEnum End = 1
+    toEnum 0 = Overworld
+    toEnum (-1) = Nether
+    toEnum 1 = End
+
+data Difficulty = Peaceful | Easy | Normal | Hard
+  deriving (Show,Enum,Eq)
+
+data GameMode = Survival | Creative | Adventure | Spectator
+  deriving (Show,Enum,Eq)
+
+data LevelType = Default | Flat | LargeBiomes | Amplified
+  deriving (Eq)
+
+instance Show LevelType where
+    show Default = "default"
+    show Flat = "flat"
+    show LargeBiomes = "largeBiomes"
+    show Amplified = "amplified"
+
+data Compression = Everything | Int
+  deriving (Show,Eq)
+
+data Encryption = Encryption
+  { getCert         :: B.ByteString
+  , getPubKey       :: PublicKey
+  , getPrivKey      :: PrivateKey
+  , getVerifyToken  :: B.ByteString
+  } deriving (Show,Eq)

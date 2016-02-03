@@ -41,7 +41,7 @@ import            Data.Serialize.Get
 import            Data.Serialize.Put
 import            Data.Word
 import            GHC.Generics
-import            OpenSandbox.Config
+import            OpenSandbox.Types
 
 data ProtocolState = Handshake | Status | Login | Play deriving (Show,Eq)
 

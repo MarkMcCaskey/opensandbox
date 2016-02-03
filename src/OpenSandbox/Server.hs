@@ -14,7 +14,7 @@ module OpenSandbox.Server
   ) where
 
 import qualified  Data.Map as Map
-import            OpenSandbox.Config
+import            OpenSandbox.Types
 
 type Servers = Map.Map String Server
 
