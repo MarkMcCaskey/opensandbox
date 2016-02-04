@@ -20,6 +20,7 @@ library
                             OpenSandbox.Block
                             OpenSandbox.CommandLine
                             OpenSandbox.Config
+                            OpenSandbox.Entity
                             OpenSandbox.Item
                             OpenSandbox.Logger
                             OpenSandbox.Protocol
