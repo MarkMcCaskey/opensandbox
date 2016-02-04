@@ -25,8 +25,8 @@ majorVersion = "1.9"
 
 
 snapshotVersion :: String
-snapshotVersion = "16w04a"
+snapshotVersion = "16w05a"
 
 
 protocolVersion :: Int
-protocolVersion = 97
+protocolVersion = 98
