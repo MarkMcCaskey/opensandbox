@@ -83,7 +83,7 @@ statusResponse version versionID currentPlayers maxPlayers motd =
                     (Description motd)
 
 
-login :: Int -> GameMode -> Dimension -> Difficulty -> Int -> LevelType -> Debug -> ClientBoundPlay
+login :: Int -> GameMode -> Dimension -> Difficulty -> Int -> WorldType -> Debug -> ClientBoundPlay
 login entityID gameMode dimension difficulty maxPlayers levelType debug =
   ClientBoundLogin
     (fromIntegral entityID)

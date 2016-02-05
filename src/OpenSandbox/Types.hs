@@ -17,7 +17,7 @@ module OpenSandbox.Types
   , Dimension (..)
   , Difficulty (..)
   , GameMode (..)
-  , LevelType (..)
+  , WorldType (..)
   , Compression (..)
   , Encryption (..)
   ) where
@@ -77,11 +77,11 @@ data GameMode = Survival | Creative | Adventure | Spectator
   deriving (Show,Enum,Eq)
 
 
-data LevelType = Default | Flat | LargeBiomes | Amplified
+data WorldType = Default | Flat | LargeBiomes | Amplified
   deriving (Eq)
 
 
-instance Show LevelType where
+instance Show WorldType where
     show Default = "default"
     show Flat = "flat"
     show LargeBiomes = "largeBiomes"

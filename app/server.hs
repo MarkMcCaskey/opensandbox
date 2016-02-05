@@ -160,9 +160,16 @@ handleLogin config logger = do
 handlePlay :: Config -> Logger -> Conduit ServerBoundPlay (StateT ProtocolState IO) ClientBoundPlay
 handlePlay config logger = do
   liftIO $ writeTo logger Debug $ "Starting PLAY session"
-  yield $ login 2566 Survival Overworld Normal 20 Default True
+  yield $ login
+    2566
+    (srvGameMode config)
+    (srvDimension config)
+    (srvDifficulty config)
+    (srvMaxPlayers config)
+    (srvWorldType config)
+    True
   yield $ customPayload "MC| Brand" "vanilla"
-  yield $ difficulty Normal
+  yield $ difficulty (srvDifficulty config)
   yield $ updateTime 1000 25
   yield $ abilities 0 0 0
   yield $ heldItemSlot 0

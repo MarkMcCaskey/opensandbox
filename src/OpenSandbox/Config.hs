@@ -36,6 +36,10 @@ data Config = Config
   , srvMCVersion        :: String
   , srvPlayerCount      :: Int
   , srvMaxPlayers       :: Int
+  , srvGameMode         :: GameMode
+  , srvDimension        :: Dimension
+  , srvDifficulty       :: Difficulty
+  , srvWorldType        :: WorldType
   , srvMotd             :: String
   , srvEncryption       :: Maybe Encryption
   , srvCompression      :: Maybe Compression
@@ -54,6 +58,10 @@ debugConfig = Config
   , srvMCVersion = snapshotVersion
   , srvPlayerCount = 0
   , srvMaxPlayers = 20
+  , srvGameMode = Survival
+  , srvDimension = Overworld
+  , srvDifficulty = Normal
+  , srvWorldType = Default
   , srvMotd = "A OpenSandbox Server"
   , srvEncryption = Nothing
   , srvCompression = Nothing
