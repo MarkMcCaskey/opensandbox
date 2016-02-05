@@ -26,6 +26,7 @@ library
                             OpenSandbox.Protocol
                             OpenSandbox.Types
                             OpenSandbox.Version
+                            OpenSandbox.Window
     build-depends:          base >= 4.7 && < 5,
                             aeson,
                             asn1-encoding,

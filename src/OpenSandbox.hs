@@ -18,3 +18,4 @@ import OpenSandbox.Logger             as O
 import OpenSandbox.Protocol           as O
 import OpenSandbox.Types              as O
 import OpenSandbox.Version            as O
+import OpenSandbox.Window             as O
