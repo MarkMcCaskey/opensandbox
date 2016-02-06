@@ -16,6 +16,7 @@ import OpenSandbox.Effect             as O
 import OpenSandbox.Entity             as O
 import OpenSandbox.Item               as O
 import OpenSandbox.Logger             as O
+import OpenSandbox.Network            as O
 import OpenSandbox.Protocol           as O
 import OpenSandbox.Types              as O
 import OpenSandbox.Version            as O

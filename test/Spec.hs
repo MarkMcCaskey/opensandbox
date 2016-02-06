@@ -47,6 +47,7 @@ instance Arbitrary ClientBoundLogin where
       3 -> do a <- arbitrary
               return $ ClientBoundSetCompression a
 
+
 instance Arbitrary ServerBoundLogin where
   arbitrary = do
     packetID <- choose (0,1) :: Gen Int
@@ -56,6 +57,7 @@ instance Arbitrary ServerBoundLogin where
       1 -> do a <- fmap B.pack arbitrary
               b <- fmap B.pack arbitrary
               return $ ServerBoundEncryptionResponse a b
+
 
 main :: IO ()
 main = do
