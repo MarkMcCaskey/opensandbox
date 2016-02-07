@@ -161,11 +161,12 @@ handlePlay config logger = do
     (srvMaxPlayers config)
     (srvWorldType config)
     True
-  yield $ customPayload "MC| Brand" "vanilla"
+  yield $ customPayload "MC|Brand" "opensandbox"
+  yield $ customPayload "REGISTER" "MC|Brand"
   yield $ difficulty (srvDifficulty config)
   yield $ updateTime 1000 25
   yield $ abilities 0 0 0
   yield $ heldItemSlot 0
-  --yield $ explosion
-  --yield $ statistics
+  --yield $ entity status
+  yield $ statistics []
   --yield $ playerInfo

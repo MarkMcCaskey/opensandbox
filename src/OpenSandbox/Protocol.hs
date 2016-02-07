@@ -28,6 +28,7 @@ module OpenSandbox.Protocol
   , abilities
   , heldItemSlot
   , customPayload
+  , statistics
   ) where
 
 import qualified  Data.Aeson as Aeson
@@ -119,6 +120,11 @@ customPayload :: String -> String -> ClientBoundPlay
 customPayload channel dat = ClientBoundCustomPayload (BC.pack channel) (BC.pack dat)
 
 
+statistics :: [(T.Text,Int)] -> ClientBoundPlay
+statistics [] = ClientBoundStatistics (0 :: Word8) B.empty
+statistics statArray = undefined
+
+
 data ServerBoundStatus
   = ServerBoundHandshake Word8 B.ByteString Word16 Word8
   | ServerBoundPingStart
@@ -201,7 +207,7 @@ data ClientBoundPlay
   -- | ClientBoundMap MC_VarInt MC_Byte MC_Bool MC_Array MC_Byte MC_Array MC_Array MC_Array MC_Array
   | ClientBoundTileEntityData MC_Position MC_UByte MC_Optional
   | ClientBoundOpenSignEntity MC_Position
-  -- | ClientBoundStatistics MC_Array
+  | ClientBoundStatistics Word8 B.ByteString
   -- | ClientBoundPlayerInfo MC_VarInt MC_Array
   | ClientBoundAbilities MC_Byte MC_Float MC_Float
   -- | ClientBoundTabComplete MC_Array
@@ -890,7 +896,16 @@ instance Serialize ClientBoundPlay where
       + positionLength :: Word8)
     put (0x2a :: Word8)
     putWord64be location
-  -- put ClientBoundStatistics = undefined
+  put (ClientBoundStatistics count statistics) = do
+    put (fromIntegral
+      $ idLength
+      + 1
+      + stringLength statistics :: Word8)
+    put (0x07 :: Word8)
+    put count
+    if (stringLength statistics /= 0)
+      then putByteString statistics
+      else return ()
   -- put ClientBoundPlayerInfo = undefined
   put (ClientBoundAbilities flags flyingSpeed walkingSpeed) = do
     put (fromIntegral
