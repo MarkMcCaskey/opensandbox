@@ -368,7 +368,10 @@ instance Serialize ClientBoundLogin where
     putByteString uuid
     put (fromIntegral $ B.length username :: Word8)
     putByteString username
-
+  put (ClientBoundSetCompression compressionFlag) = do
+    put (fromIntegral $ 4 :: Word8)
+    put (3 :: Word8)
+    putWord16be compressionFlag
   get = do
     len <- getWord8
     packetID <- getWord8

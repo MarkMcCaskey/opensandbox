@@ -1,10 +1,10 @@
 import            Control.Monad
 import qualified  Data.ByteString as B
+import            Data.Either
 import            Data.Serialize
 import            Data.Word
 import            OpenSandbox
 import            Test.QuickCheck
-import            Test.Hspec
 
 instance Arbitrary ServerBoundStatus where
   arbitrary = do
@@ -59,14 +59,29 @@ instance Arbitrary ServerBoundLogin where
               return $ ServerBoundEncryptionResponse a b
 
 
+prop_ClientBoundStatusEq :: [ClientBoundStatus] -> Bool
+prop_ClientBoundStatusEq lst =
+  lst == (rights (map decode $ map encode lst :: [Either String ClientBoundStatus]))
+
+
+prop_ServerBoundStatusEq :: [ServerBoundStatus] -> Bool
+prop_ServerBoundStatusEq lst =
+  lst == (rights (map decode $ map encode lst :: [Either String ServerBoundStatus]))
+
+
+prop_ClientBoundLoginEq :: [ClientBoundLogin] -> Bool
+prop_ClientBoundLoginEq lst =
+  lst == (rights (map decode $ map encode lst :: [Either String ClientBoundLogin]))
+
+
+prop_ServerBoundLoginEq :: [ServerBoundLogin] -> Bool
+prop_ServerBoundLoginEq lst =
+  lst == (rights (map decode $ map encode lst :: [Either String ServerBoundLogin]))
+
+
 main :: IO ()
 main = do
-  print "----------------------------------------------------------------------"
-  sample (arbitrary :: Gen ClientBoundStatus)
-  print "----------------------------------------------------------------------"
-  sample (arbitrary :: Gen ServerBoundStatus)
-  print "----------------------------------------------------------------------"
-  sample (arbitrary :: Gen ClientBoundLogin)
-  print "----------------------------------------------------------------------"
-  sample (arbitrary :: Gen ServerBoundLogin)
-  print "----------------------------------------------------------------------"
+  quickCheck prop_ClientBoundStatusEq
+  quickCheck prop_ServerBoundStatusEq
+  quickCheck prop_ClientBoundLoginEq
+  quickCheck prop_ServerBoundLoginEq
