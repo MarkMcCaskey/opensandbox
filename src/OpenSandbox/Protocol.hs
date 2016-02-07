@@ -123,7 +123,6 @@ data ServerBoundStatus
   = ServerBoundHandshake Word8 B.ByteString Word16 Word8
   | ServerBoundPingStart
   | ServerBoundPing Word64
-  | ServerBoundRequest
   deriving (Show,Eq)
 
 

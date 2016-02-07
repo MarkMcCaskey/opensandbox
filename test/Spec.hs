@@ -8,7 +8,7 @@ import            Test.QuickCheck
 
 instance Arbitrary ServerBoundStatus where
   arbitrary = do
-    packetID <- elements [0..3] :: Gen Int
+    packetID <- elements [0..2] :: Gen Int
     case packetID of
       0 -> do v <- arbitrary :: Gen Word8
               a <- fmap B.pack arbitrary :: Gen B.ByteString
@@ -18,7 +18,6 @@ instance Arbitrary ServerBoundStatus where
       1 -> return ServerBoundPingStart
       2 -> do payload <- arbitrary
               return $ ServerBoundPing payload
-      3 -> return ServerBoundRequest
 
 
 instance Arbitrary ClientBoundStatus where
