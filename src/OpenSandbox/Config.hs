@@ -13,18 +13,21 @@ module OpenSandbox.Config
   ( Config (..)
   , debugConfig
   , configEncryption
+  , loadConfig
   ) where
 
+import            Control.Monad
 import            Crypto.PubKey.RSA
+import            Data.Aeson
 import            Data.ASN1.BinaryEncoding
 import            Data.ASN1.Encoding
 import            Data.ASN1.Types hiding (End)
 import qualified  Data.ByteString as B
 import            Data.X509
+import            Data.Yaml
 import            OpenSandbox.Logger
 import            OpenSandbox.Types
 import            OpenSandbox.Version
-
 
 data Config = Config
   { srvPort             :: Int
@@ -34,18 +37,32 @@ data Config = Config
   , srvLogPath          :: FilePath
   , srvWorldPath        :: FilePath
   , srvMCVersion        :: String
-  , srvPlayerCount      :: Int
   , srvMaxPlayers       :: Int
   , srvGameMode         :: GameMode
-  , srvDimension        :: Dimension
   , srvDifficulty       :: Difficulty
   , srvWorldType        :: WorldType
   , srvMotd             :: String
-  , srvEncryption       :: Maybe Encryption
-  , srvCompression      :: Maybe Compression
   , srvEnabled          :: Bool
-  , srvUp               :: Bool
   } deriving (Show,Eq)
+
+
+instance FromJSON Config where
+  parseJSON (Object v) =
+    Config  <$> v .: "port"
+            <*> v .: "rootPath"
+            <*> v .: "configPath"
+            <*> v .: "backupPath"
+            <*> v .: "logPath"
+            <*> v .: "worldPath"
+            <*> v .: "mcVersion"
+            <*> v .: "maxPlayers"
+            <*> v .: "gameMode"
+            <*> v .: "difficulty"
+            <*> v .: "worldType"
+            <*> v .: "motd"
+            <*> v .: "enabled"
+  parseJSON _ = mzero
+
 
 debugConfig :: Config
 debugConfig = Config
@@ -56,18 +73,20 @@ debugConfig = Config
   , srvLogPath = "logs"
   , srvWorldPath = "world"
   , srvMCVersion = snapshotVersion
-  , srvPlayerCount = 0
+  --, srvPlayerCount = 0
   , srvMaxPlayers = 20
   , srvGameMode = Survival
-  , srvDimension = Overworld
+  --, srvDimension = Overworld
   , srvDifficulty = Normal
   , srvWorldType = Default
   , srvMotd = "A OpenSandbox Server"
-  , srvEncryption = Nothing
-  , srvCompression = Nothing
+  --, srvEncryption = Nothing
+  --, srvCompression = Nothing
   , srvEnabled = False
-  , srvUp = True
   }
+
+loadConfig :: FilePath -> IO (Maybe Config)
+loadConfig path = decodeFile path
 
 configEncryption :: IO (Maybe Encryption)
 configEncryption = do

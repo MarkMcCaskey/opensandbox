@@ -14,11 +14,12 @@ import            Data.Maybe
 import            OpenSandbox
 import            System.Directory
 
-
 main :: IO ()
 main = do
     args <- getOpts opensandboxOpts
-    let config = debugConfig
+    createDirectoryIfMissing True "config"
+    maybeConfig <- loadConfig "./config/opensandboxd.yaml"
+    let config = fromJust maybeConfig
     -- Start Logger
     createDirectoryIfMissing True (srvPath config ++ "/" ++ srvLogPath config)
     let logFilePath =  srvPath config ++ "/" ++ srvLogPath config ++ "/" ++ "latest.log"

@@ -27,6 +27,7 @@ library
                             OpenSandbox.Network
                             OpenSandbox.Protocol
                             OpenSandbox.Types
+                            OpenSandbox.User
                             OpenSandbox.Version
                             OpenSandbox.Window
     build-depends:          aeson,
@@ -45,12 +46,14 @@ library
                             fast-logger,
                             old-locale,
                             optparse-applicative,
+                            repa,
                             stm,
                             text,
                             thyme,
                             transformers,
                             uuid,
-                            x509
+                            x509,
+                            yaml
     default-language:       Haskell2010
 
 executable server

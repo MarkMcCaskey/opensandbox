@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.Types
@@ -23,8 +24,10 @@ module OpenSandbox.Types
   ) where
 
 import            Crypto.PubKey.RSA
+import            Data.Aeson
 import qualified  Data.ByteString as B
 import qualified  Data.Text as T
+import            GHC.Generics
 
 
 data BoundingBox = BoundAsBlock | BoundAsEmpty deriving (Show,Eq)
@@ -70,16 +73,26 @@ instance Enum Dimension where
 
 
 data Difficulty = Peaceful | Easy | Normal | Hard
-  deriving (Show,Enum,Eq)
+  deriving (Show,Enum,Eq,Generic)
+
+
+instance FromJSON Difficulty
+instance ToJSON Difficulty
 
 
 data GameMode = Survival | Creative | Adventure | Spectator
-  deriving (Show,Enum,Eq)
+  deriving (Show,Enum,Eq,Generic)
+
+
+instance FromJSON GameMode
+instance ToJSON GameMode
 
 
 data WorldType = Default | Flat | LargeBiomes | Amplified
-  deriving (Eq)
+  deriving (Eq,Generic)
 
+instance FromJSON WorldType
+instance ToJSON WorldType
 
 instance Show WorldType where
     show Default = "default"

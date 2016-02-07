@@ -35,6 +35,7 @@ import            System.Directory
 import            OpenSandbox.Config
 import            OpenSandbox.Logger
 import            OpenSandbox.Protocol
+import            OpenSandbox.Types
 import            OpenSandbox.Version
 
 runOpenSandboxServer :: Config -> Logger -> IO ()
@@ -112,7 +113,7 @@ handleStatus config logger = do
       lift $ put Status
       let version = snapshotVersion
       let versionID = protocolVersion
-      let players = srvPlayerCount config
+      let players = 0
       let maxPlayers = srvMaxPlayers config
       let motd = srvMotd config
       let statusPacket = statusResponse version versionID players maxPlayers motd
@@ -155,7 +156,7 @@ handlePlay config logger = do
   yield $ login
     2566
     (srvGameMode config)
-    (srvDimension config)
+    Overworld
     (srvDifficulty config)
     (srvMaxPlayers config)
     (srvWorldType config)

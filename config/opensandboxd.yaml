@@ -1,0 +1,13 @@
+port: 25567
+rootPath: "."
+configPath: "configs"
+backupPath: "backups"
+logPath: "logs"
+worldPath: "world"
+mcVersion: "16w05b"
+maxPlayers: 20
+gameMode: "Survival"
+difficulty: "Normal"
+worldType: "Flat"
+motd: "A OpenSandbox Server"
+enabled: true
