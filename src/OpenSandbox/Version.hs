@@ -17,7 +17,7 @@ module OpenSandbox.Version
 
 
 openSandboxVersion :: String
-openSandboxVersion = "0.0.1.0"
+openSandboxVersion = "0.0.1.1"
 
 
 majorVersion :: String
@@ -25,8 +25,8 @@ majorVersion = "1.9"
 
 
 snapshotVersion :: String
-snapshotVersion = "16w05a"
+snapshotVersion = "16w05b"
 
 
 protocolVersion :: Int
-protocolVersion = 98
+protocolVersion = 99
