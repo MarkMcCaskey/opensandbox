@@ -14,23 +14,16 @@ module OpenSandbox.Network
   ) where
 
 import            Control.Monad
-import            Control.Monad.Catch
 import            Control.Monad.IO.Class
 import            Control.Monad.Trans.Class
 import            Control.Monad.Trans.State.Lazy
-import qualified  Data.Aeson as Aeson
 import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Char8 as BC
-import qualified  Data.ByteString.Lazy as BL
 import            Data.Conduit
 import            Data.Conduit.Cereal
 import            Data.Conduit.Network
-import            Data.Maybe
 import qualified  Data.Serialize as S
-import            Data.Text.Encoding
-import            Data.UUID
 import            Data.UUID.V4
-import            System.Directory
 
 import            OpenSandbox.Config
 import            OpenSandbox.Logger
@@ -54,7 +47,7 @@ runOpenSandboxServer config logger =
           nextState <- flip execStateT Login
             $ packetSource app
             $$ deserializeLogin
-            =$= handleLogin config logger
+            =$= handleLogin logger
             =$= serializeLogin
             =$= packetSink app
           if nextState == Play
@@ -126,6 +119,9 @@ handleStatus config logger = do
           let pongPacket = ClientBoundPong payload
           liftIO $ writeTo logger Debug $ "Sending: " ++ show pongPacket
           yield pongPacket
+        Just _ -> do
+          liftIO $ writeTo logger Err $ "Expecting ServerBoundPing, recieved " ++ show maybePing
+          return ()
         Nothing -> return ()
     Just (ServerBoundHandshake _ _ _ 2) -> do
       liftIO $ writeTo logger Debug $ "Switching protocol state to LOGIN"
@@ -134,10 +130,8 @@ handleStatus config logger = do
     Nothing -> return ()
 
 
-handleLogin :: Config
-            -> Logger
-            -> Conduit ServerBoundLogin (StateT ProtocolState IO) ClientBoundLogin
-handleLogin config logger = do
+handleLogin :: Logger -> Conduit ServerBoundLogin (StateT ProtocolState IO) ClientBoundLogin
+handleLogin logger = do
   maybeLoginStart <- await
   liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybeLoginStart
   case maybeLoginStart of
@@ -152,9 +146,7 @@ handleLogin config logger = do
     Nothing -> return ()
 
 
-handlePlay :: Config
-           -> Logger
-           -> Conduit ServerBoundPlay (StateT ProtocolState IO) ClientBoundPlay
+handlePlay :: Config -> Logger -> Conduit ServerBoundPlay (StateT ProtocolState IO) ClientBoundPlay
 handlePlay config logger = do
   liftIO $ writeTo logger Debug $ "Starting PLAY session"
   yield $ login
