@@ -32,21 +32,11 @@ Planned features are:
 ## Installation
 
 As of right now, you can only build OpenSandbox from source.
-The following is with `stack`
+The following is with the `stack` build tool:
 ```bash
-git clone http://github.com/oldmanmike/opensandbox.git
+git clone https://github.com/oldmanmike/opensandbox.git
 cd opensandbox
 stack build
-```
-
-or with `cabal`...
-
-```bash
-git clone http://github.com/oldmanmike/opensandbox.git
-cd opensandbox
-cabal sandbox init
-cabal install
-cabal build
 ```
 
 ## Usage
@@ -58,11 +48,7 @@ You currently can launch the server following a successful build via:
 stack exec server
 ```
 
-or...
-
-```bash
-cabal run
-```
+Basic configuration is available through the `config/opensandboxd.yaml`.
 
 ## Contributing
 
