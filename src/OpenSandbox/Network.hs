@@ -134,13 +134,15 @@ handleStatus config logger = do
     Nothing -> return ()
 
 
-handleLogin :: Config -> Logger -> Conduit ServerBoundLogin (StateT ProtocolState IO) ClientBoundLogin
+handleLogin :: Config
+            -> Logger
+            -> Conduit ServerBoundLogin (StateT ProtocolState IO) ClientBoundLogin
 handleLogin config logger = do
   maybeLoginStart <- await
   liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybeLoginStart
   case maybeLoginStart of
     Just (ServerBoundLoginStart username) ->
-      do  someUUID <- liftIO $ nextRandom
+      do  someUUID <- liftIO nextRandom
           let loginSuccess = ClientBoundLoginSuccess (BC.pack $ show someUUID) username
           liftIO $ writeTo logger Debug $ "Sending: " ++ show loginSuccess
           yield loginSuccess
@@ -150,7 +152,9 @@ handleLogin config logger = do
     Nothing -> return ()
 
 
-handlePlay :: Config -> Logger -> Conduit ServerBoundPlay (StateT ProtocolState IO) ClientBoundPlay
+handlePlay :: Config
+           -> Logger
+           -> Conduit ServerBoundPlay (StateT ProtocolState IO) ClientBoundPlay
 handlePlay config logger = do
   liftIO $ writeTo logger Debug $ "Starting PLAY session"
   yield $ login
