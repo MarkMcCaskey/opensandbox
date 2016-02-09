@@ -104,14 +104,16 @@ handleStatus config logger = do
       maybePingStart <- await
       liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybePingStart
       lift $ put Status
-      let version = snapshotVersion
-      let versionID = protocolVersion
-      let players = 0
-      let maxPlayers = srvMaxPlayers config
-      let motd = srvMotd config
-      let statusPacket = statusResponse version versionID players maxPlayers motd
+
+      let statusPacket = statusResponse
+                          snapshotVersion
+                          protocolVersion
+                          0
+                          (srvMaxPlayers config)
+                          (srvMotd config)
       liftIO $ writeTo logger Debug $ "Sending: " ++ show statusPacket
       yield statusPacket
+
       maybePing <- await
       liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybePing
       case maybePing of
@@ -119,14 +121,13 @@ handleStatus config logger = do
           let pongPacket = ClientBoundPong payload
           liftIO $ writeTo logger Debug $ "Sending: " ++ show pongPacket
           yield pongPacket
-        Just _ -> do
-          liftIO $ writeTo logger Err $ "Expecting ServerBoundPing, recieved " ++ show maybePing
-          return ()
+        Just _ -> liftIO $ writeTo logger Err $ "Expecting ServerBoundPing, recieved " ++ show maybePing
         Nothing -> return ()
+
     Just (ServerBoundHandshake _ _ _ 2) -> do
       liftIO $ writeTo logger Debug $ "Switching protocol state to LOGIN"
       lift $ put Login
-    Just _ -> return ()
+    Just _ -> liftIO $ writeTo logger Err $ "Expecting ServerBoundHandshake, recieved " ++ show maybeHandshake
     Nothing -> return ()
 
 
@@ -142,27 +143,57 @@ handleLogin logger = do
           yield loginSuccess
           liftIO $ writeTo logger Debug $ "Switching protocol state to PLAY"
           lift $ put Play
-    Just _ -> return ()
+    Just _ -> liftIO $ writeTo logger Err $ "Expecting ServerBoundLoginStart, recieved " ++ show maybeLoginStart
     Nothing -> return ()
 
 
 handlePlay :: Config -> Logger -> Conduit ServerBoundPlay (StateT ProtocolState IO) ClientBoundPlay
 handlePlay config logger = do
   liftIO $ writeTo logger Debug $ "Starting PLAY session"
-  yield $ login
-    2566
-    (srvGameMode config)
-    Overworld
-    (srvDifficulty config)
-    (srvMaxPlayers config)
-    (srvWorldType config)
-    True
-  yield $ customPayload "MC|Brand" "opensandbox"
-  yield $ customPayload "REGISTER" "MC|Brand"
-  yield $ difficulty (srvDifficulty config)
-  yield $ updateTime 1000 25
-  yield $ abilities 0 0 0
-  yield $ heldItemSlot 0
-  --yield $ entity status
-  yield $ statistics []
-  --yield $ playerInfo
+
+  let loginPacket = login
+                      2566
+                      (srvGameMode config)
+                      Overworld
+                      (srvDifficulty config)
+                      (srvMaxPlayers config)
+                      (srvWorldType config)
+                      True
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show loginPacket
+  yield loginPacket
+
+  let customPayloadPacket1 = customPayload "MC|Brand" "opensandbox"
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show customPayloadPacket1
+  yield customPayloadPacket1
+
+  let customPayloadPacket2 = customPayload "REGISTER" "MC|Brand"
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show customPayloadPacket2
+  yield customPayloadPacket2
+
+  let difficultyPacket = difficulty (srvDifficulty config)
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show difficultyPacket
+  yield difficultyPacket
+
+  let updateTimePacket = updateTime 1000 25
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show updateTimePacket
+  yield updateTimePacket
+
+  let abilitiesPacket = abilities 0 0 0
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show abilitiesPacket
+  yield abilitiesPacket
+
+  let heldItemSlotPacket = heldItemSlot 0
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show heldItemSlotPacket
+  yield heldItemSlotPacket
+
+  --let entityStatusPacket = entityStatus
+  --liftIO $ writeTo logger Debug $ "Sending: " ++ show entityStatusPacket
+  --yield entityStatusPacket
+
+  let statisticsPacket = statistics []
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show statisticsPacket
+  yield statisticsPacket
+
+  --let playerInfoPacket = playerInfo
+  --liftIO $ writeTo logger Debug $ "Sending: " ++ show playerInfoPacket
+  --yield playerInfoPacket
