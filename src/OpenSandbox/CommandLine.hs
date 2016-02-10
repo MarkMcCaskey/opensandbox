@@ -16,13 +16,10 @@ module OpenSandbox.CommandLine
   ) where
 
 import          Options.Applicative
-
 import          OpenSandbox.Logger (Lvl (..))
-import          OpenSandbox.Types
 
 
 type Debug = Lvl
-
 
 type Verbose = Bool
 

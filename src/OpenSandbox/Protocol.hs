@@ -10,32 +10,24 @@
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.Protocol
-  ( ProtocolState (..)
-  , ClientBoundStatus (..)
+  ( ClientBoundStatus (..)
   , ServerBoundStatus (..)
   , ClientBoundLogin (..)
   , ServerBoundLogin (..)
-  --, ClientBoundPlay (..)
-  --, ServerBoundPlay (..)
   ) where
 
 import            Prelude hiding (max)
 import qualified  Data.Aeson as Aeson
 import            Data.Bytes.VarInt
 import qualified  Data.ByteString as B
---import qualified  Data.ByteString.Char8 as BC
 import qualified  Data.ByteString.Lazy as BL
 import            Data.Int
 import qualified  Data.Text as T
---import            Data.Text.Encoding
 import            Data.Serialize
 import            Data.Word
 import            GHC.Generics
 import            Numeric.Natural
 import            OpenSandbox.Types
-
-
-data ProtocolState = Handshake | Status | Login | Play deriving (Show,Eq)
 
 
 data ClientBoundStatus
@@ -1437,5 +1429,3 @@ data Description = Description
 
 instance Aeson.ToJSON Description
 instance Aeson.FromJSON Description
-
-

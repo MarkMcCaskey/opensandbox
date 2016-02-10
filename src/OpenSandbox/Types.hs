@@ -11,7 +11,8 @@
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.Types
-  ( BoundingBox (..)
+  ( ProtocolState (..)
+  , BoundingBox (..)
   , Material (..)
   , Variation (..)
   , Drop (..)
@@ -28,6 +29,9 @@ import            Data.Aeson
 import qualified  Data.ByteString as B
 import qualified  Data.Text as T
 import            GHC.Generics
+
+
+data ProtocolState = Handshake | Status | Login | Play deriving (Show,Eq)
 
 
 data BoundingBox = BoundAsBlock | BoundAsEmpty deriving (Show,Eq)
@@ -70,6 +74,7 @@ instance Enum Dimension where
     toEnum 0 = Overworld
     toEnum (-1) = Nether
     toEnum 1 = End
+    toEnum _ = undefined
 
 
 data Difficulty = Peaceful | Easy | Normal | Hard

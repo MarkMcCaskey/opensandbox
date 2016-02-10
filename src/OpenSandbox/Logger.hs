@@ -49,9 +49,9 @@ data Logger = Logger
 
 newLogger :: BufSize -> FilePath -> Lvl -> IO Logger
 newLogger buf path lvl = do
-  newLoggerSet <- newFileLoggerSet buf path
+  l <- newFileLoggerSet buf path
   newLvl <- newTVarIO lvl
-  return $ Logger newLoggerSet newLvl
+  return $ Logger l newLvl
 
 
 writeTo :: Logger -> Lvl -> String -> IO ()
