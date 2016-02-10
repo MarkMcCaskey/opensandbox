@@ -17,10 +17,6 @@ module OpenSandbox.Protocol
   , ServerBoundLogin (..)
   --, ClientBoundPlay (..)
   --, ServerBoundPlay (..)
-  , StatusPayload
-  , Version
-  , Players
-  , Description
   ) where
 
 import            Prelude hiding (max)
@@ -52,9 +48,9 @@ instance Serialize ClientBoundStatus where
   put (ClientBoundResponse mcversion versionID currentPlayers maxPlayers motd) = do
     let jsonPayload =
           BL.toStrict . Aeson.encode $
-            StatusPayload (Version (T.unpack mcversion) versionID)
+            StatusPayload (Version mcversion versionID)
                           (Players maxPlayers currentPlayers)
-                          (Description (T.unpack motd))
+                          (Description motd)
     put (fromIntegral $ 2 + B.length jsonPayload :: Word8)
     put (0x00 :: Word8)
     put (fromIntegral $ B.length jsonPayload :: Word8)
@@ -64,22 +60,23 @@ instance Serialize ClientBoundStatus where
     put (0x01 :: Word8)
     put payload
 
+
   get = do
     _ <- getWord8
     packetID <- getWord8
     case packetID of
-      0 -> do   jsonBinary <- (getWord8 >>= (getByteString . fromIntegral))
-                let possibleJson = Aeson.eitherDecodeStrict jsonBinary
-                case possibleJson of
-                  Left err -> fail err
-                  Right json -> return $ ClientBoundResponse
-                                      (T.pack . name . version $ json)
-                                      (protocol . version $ json)
-                                      (max . players $ json)
-                                      (online . players $ json)
-                                      (T.pack . text . description $ json)
+      0x00 -> do  jsonBinary <- (getWord8 >>= (getByteString . fromIntegral))
+                  let possibleJson = Aeson.eitherDecodeStrict jsonBinary
+                  case possibleJson of
+                    Left err -> fail err
+                    Right json -> return $ ClientBoundResponse
+                                        (name . version $ json)
+                                        (protocol . version $ json)
+                                        (online . players $ json)
+                                        (max . players $ json)
+                                        (text . description $ json)
 
-      1 -> ClientBoundPong <$> (get :: Get Int64)
+      0x01 -> ClientBoundPong <$> (get :: Get Int64)
       _ -> fail "Unrecognized packet!"
 
 
@@ -1414,7 +1411,7 @@ instance Aeson.FromJSON StatusPayload
 
 
 data Version = Version
-  { name      :: String
+  { name      :: T.Text
   , protocol  :: Int
   } deriving (Generic,Eq,Show,Read)
 
@@ -1434,7 +1431,7 @@ instance Aeson.FromJSON Players
 
 
 data Description = Description
-  { text    :: String
+  { text    :: T.Text
   } deriving (Generic,Eq,Show,Read)
 
 

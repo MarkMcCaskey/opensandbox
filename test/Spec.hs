@@ -1,7 +1,9 @@
+{-# LANGUAGE OverloadedStrings #-}
 import            Control.Monad
 import qualified  Data.ByteString as B
 import            Data.Either
 import            Data.Serialize
+import qualified  Data.Text as T
 import            Data.Word
 import            OpenSandbox
 import            Test.QuickCheck
@@ -22,12 +24,21 @@ instance Arbitrary ServerBoundStatus where
 
 instance Arbitrary ClientBoundStatus where
   arbitrary = do
-    packetID <- choose (0,1) :: Gen Int
+    packetID <- choose (0,1) :: Gen Word8
     case packetID of
-      0 -> do response <- fmap B.pack arbitrary
-              return $ ClientBoundResponse response
-      1 -> do pong <- arbitrary
-              return $ ClientBoundPong pong
+      0x00  -> do mcversion <- fmap T.pack arbitrary
+                  versionID <- arbitrary
+                  currentPlayers <- arbitrary
+                  maxPlayers <- arbitrary
+                  motd <- fmap T.pack arbitrary
+                  return $ ClientBoundResponse
+                        mcversion
+                        versionID
+                        currentPlayers
+                        maxPlayers
+                        motd
+      0x01  -> do pong <- arbitrary
+                  return $ ClientBoundPong pong
 
 
 instance Arbitrary ClientBoundLogin where
