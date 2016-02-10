@@ -53,12 +53,14 @@ runOpenSandboxServer config logger =
           if nextState == Play
             then do
               writeTo logger Debug "Somebody succeeded to login"
+              {-
               void $ flip execStateT Play
                 $ packetSource app
                 $$ deserializePlay
                 =$= handlePlay config logger
                 =$= serializePlay
                 =$= packetSink app
+                -}
             else writeTo logger Debug "Somebody failed login"
         else return ()
 
@@ -86,14 +88,14 @@ deserializeLogin = conduitGet (S.get :: S.Get ServerBoundLogin)
 serializeLogin :: Conduit ClientBoundLogin (StateT ProtocolState IO) B.ByteString
 serializeLogin = conduitPut (S.put :: S.Putter ClientBoundLogin)
 
-
+{-
 deserializePlay :: Conduit B.ByteString (StateT ProtocolState IO) ServerBoundPlay
 deserializePlay = conduitGet (S.get :: S.Get ServerBoundPlay)
 
 
 serializePlay :: Conduit ClientBoundPlay (StateT ProtocolState IO) B.ByteString
 serializePlay = conduitPut (S.put :: S.Putter ClientBoundPlay)
-
+-}
 
 handleStatus :: Config -> Logger -> Conduit ServerBoundStatus (StateT ProtocolState IO) ClientBoundStatus
 handleStatus config logger = do
@@ -105,7 +107,7 @@ handleStatus config logger = do
       liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybePingStart
       lift $ put Status
 
-      let statusPacket = statusResponse
+      let statusPacket = ClientBoundResponse
                           snapshotVersion
                           protocolVersion
                           0
@@ -146,11 +148,10 @@ handleLogin logger = do
     Just _ -> liftIO $ writeTo logger Err $ "Expecting ServerBoundLoginStart, recieved " ++ show maybeLoginStart
     Nothing -> return ()
 
-
+{-
 handlePlay :: Config -> Logger -> Conduit ServerBoundPlay (StateT ProtocolState IO) ClientBoundPlay
 handlePlay config logger = do
   liftIO $ writeTo logger Debug $ "Starting PLAY session"
-
   let loginPacket = login
                       2566
                       (srvGameMode config)
@@ -194,6 +195,19 @@ handlePlay config logger = do
   liftIO $ writeTo logger Debug $ "Sending: " ++ show statisticsPacket
   yield statisticsPacket
 
-  --let playerInfoPacket = playerInfo
-  --liftIO $ writeTo logger Debug $ "Sending: " ++ show playerInfoPacket
-  --yield playerInfoPacket
+  let playerListItemPacket = playerListItem
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show playerListItemPacket
+  yield playerListItemPacket
+
+  let chunkDataPacket1 = chunkData
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket1
+  yield chunkDataPacket1
+
+  let chunkDataPacket2 = chunkData
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket2
+  yield chunkDataPacket2
+
+  let chunkDataPacket3 = chunkData
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket3
+  yield chunkDataPacket3
+  -}

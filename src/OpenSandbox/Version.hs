@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.Version
@@ -15,16 +16,17 @@ module OpenSandbox.Version
   , protocolVersion
   ) where
 
+import qualified Data.Text as T
 
-openSandboxVersion :: String
+openSandboxVersion :: T.Text
 openSandboxVersion = "0.0.1.1"
 
 
-majorVersion :: String
+majorVersion :: T.Text
 majorVersion = "1.9"
 
 
-snapshotVersion :: String
+snapshotVersion :: T.Text
 snapshotVersion = "16w05b"
 
 

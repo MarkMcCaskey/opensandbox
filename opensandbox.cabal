@@ -35,6 +35,7 @@ library
                             asn1-encoding,
                             asn1-types,
                             base,
+                            bytes,
                             bytestring,
                             cereal,
                             cereal-conduit,

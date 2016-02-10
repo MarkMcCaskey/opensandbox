@@ -23,9 +23,9 @@ import            Data.ASN1.BinaryEncoding
 import            Data.ASN1.Encoding
 import            Data.ASN1.Types hiding (End)
 import qualified  Data.ByteString as B
+import qualified  Data.Text as T
 import            Data.X509
 import            Data.Yaml
-import            OpenSandbox.Logger
 import            OpenSandbox.Types
 import            OpenSandbox.Version
 
@@ -36,12 +36,12 @@ data Config = Config
   , srvBackupPath       :: FilePath
   , srvLogPath          :: FilePath
   , srvWorldPath        :: FilePath
-  , srvMCVersion        :: String
+  , srvMCVersion        :: T.Text
   , srvMaxPlayers       :: Int
   , srvGameMode         :: GameMode
   , srvDifficulty       :: Difficulty
   , srvWorldType        :: WorldType
-  , srvMotd             :: String
+  , srvMotd             :: T.Text
   , srvEnabled          :: Bool
   } deriving (Show,Eq)
 
