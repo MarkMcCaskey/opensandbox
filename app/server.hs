@@ -16,14 +16,14 @@ import            System.Directory
 
 main :: IO ()
 main = do
-    args <- getOpts opensandboxOpts
+    --args <- getOpts opensandboxOpts
     createDirectoryIfMissing True "config"
     maybeConfig <- loadConfig "./config/opensandboxd.yaml"
     let config = fromJust maybeConfig
     -- Start Logger
     createDirectoryIfMissing True (srvPath config ++ "/" ++ srvLogPath config)
     let logFilePath =  srvPath config ++ "/" ++ srvLogPath config ++ "/" ++ "latest.log"
-    logger <- newLogger defaultBufSize logFilePath (fromJust args)
+    logger <- newLogger defaultBufSize logFilePath Debug
     writeTo logger Info "----------------- Log Start -----------------"
     writeTo logger Info "Welcome to the OpenSandbox Minecraft Server!"
     writeTo logger Info $ "Starting minecraft server version " ++ show (srvMCVersion config)
