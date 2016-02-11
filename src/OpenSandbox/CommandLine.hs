@@ -11,52 +11,38 @@
 module OpenSandbox.CommandLine
   ( OpenSandboxOption (..)
   , getOpts
-  , opensandboxOpts
-  , debugFlag
-  , verboseFlag
-  , versionFlag
+  , openSandboxOpts
+  , openSandboxOptions
   ) where
 
-import          Options.Applicative
+import Options.Applicative
 
 
-data OpenSandboxOption
-  = DebugFlag Bool
-  | VerboseFlag Bool
-  | VersionFlag Bool
-  deriving (Show,Eq)
+data OpenSandboxOption = OpenSandboxOption
+  { getDebugFlag    :: Bool
+  , getVersionFlag  :: Bool
+  } deriving (Show,Eq)
 
 
-getOpts :: ParserInfo a -> IO a
-getOpts = execParser
+getOpts :: IO OpenSandboxOption
+getOpts = execParser openSandboxOpts
 
 
-opensandboxOpts :: ParserInfo [OpenSandboxOption]
-opensandboxOpts =
-  info (some (debugFlag <|> verboseFlag <|> versionFlag))
+openSandboxOpts :: ParserInfo OpenSandboxOption
+openSandboxOpts =
+  info (helper <*> openSandboxOptions)
     ( fullDesc
    <> progDesc "The OpenSandbox server"
    <> header "opensandbox - an opensandbox server" )
 
 
-debugFlag :: Parser OpenSandboxOption
-debugFlag = DebugFlag
+openSandboxOptions :: Parser OpenSandboxOption
+openSandboxOptions = OpenSandboxOption
   <$> switch
-  ( long "debug"
-  <> short 'd'
-  <> help "Enable debugging" )
-
-
-verboseFlag :: Parser OpenSandboxOption
-verboseFlag = VerboseFlag
-  <$> switch
-  ( long "verbose"
-  <> short 'v'
-  <> help "Enable verbose mode")
-
-
-versionFlag :: Parser OpenSandboxOption
-versionFlag = VersionFlag
-  <$> switch
-  ( long "version"
-  <> help "Print OpenSandbox version and exit.")
+    ( long "debug"
+    <> short 'd'
+    <> help "Enable debugging" )
+  <*> switch
+    ( long "version"
+    <> short 'v'
+    <> help "Print OpenSandbox version and exit.")
