@@ -37,7 +37,7 @@ main = do
         else Info
     writeTo logger Info "----------------- Log Start -----------------"
     writeTo logger Info "Welcome to the OpenSandbox Minecraft Server!"
-    writeTo logger Info $ "Starting minecraft server version " ++ show (srvMCVersion config)
+    writeTo logger Info $ "Starting minecraft server version " ++ show snapshotVersion
     writeTo logger Info $ "Starting Minecraft server on " ++ show (srvPort config)
     writeTo logger Info $ "Done!"
     runOpenSandboxServer config logger
