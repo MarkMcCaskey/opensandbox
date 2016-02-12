@@ -4,7 +4,7 @@ configPath: "configs"
 backupPath: "backups"
 logPath: "logs"
 worldPath: "world"
-mcVersion: "16w05b"
+mcVersion: "16w06a"
 maxPlayers: 20
 gameMode: "Survival"
 difficulty: "Normal"

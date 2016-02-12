@@ -27,8 +27,8 @@ majorVersion = "1.9"
 
 
 snapshotVersion :: T.Text
-snapshotVersion = "16w05b"
+snapshotVersion = "16w06a"
 
 
 protocolVersion :: Int
-protocolVersion = 99
+protocolVersion = 100
