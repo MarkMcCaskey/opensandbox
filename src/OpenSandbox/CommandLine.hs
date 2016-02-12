@@ -19,8 +19,12 @@ import Options.Applicative
 
 
 data OpenSandboxOption = OpenSandboxOption
-  { getDebugFlag    :: Bool
-  , getVersionFlag  :: Bool
+  { getCustomConfigFile :: Maybe FilePath
+  , getCustomLogFile    :: Maybe FilePath
+  , getDebugFlag        :: Bool
+  , getVersionFlag      :: Bool
+  , getVerboseFlag      :: Bool
+  , getDaemonFlag       :: Bool
   } deriving (Show,Eq)
 
 
@@ -38,11 +42,25 @@ openSandboxOpts =
 
 openSandboxOptions :: Parser OpenSandboxOption
 openSandboxOptions = OpenSandboxOption
-  <$> switch
+  <$> (optional $ strOption
+    ( long "configFile"
+    <> metavar "FILE"
+    <> help "Select an alternative config file (DEFAULT: ./config/opensandboxd.yaml)"))
+  <*> (optional $ strOption
+    ( long "logFile"
+    <> metavar "FILE"
+    <> help "Select an alternative log file (DEFAULT: ./logs/latest.log)"))
+  <*> switch
     ( long "debug"
-    <> short 'd'
-    <> help "Enable debugging" )
+    <> help "Enables Debug logging." )
   <*> switch
     ( long "version"
-    <> short 'v'
     <> help "Print OpenSandbox version and exit.")
+  <*> switch
+    ( long "verbose"
+    <> short 'v'
+    <> help "Enable Verbose logging.")
+  <*> switch
+    ( long "daemon"
+    <> short 'd'
+    <> help "Run as daemon in the background.")
