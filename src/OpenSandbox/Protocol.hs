@@ -18,9 +18,9 @@ module OpenSandbox.Protocol
 
 import            Prelude hiding (max)
 import qualified  Data.Aeson as Aeson
+import            Data.Bits
 import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Lazy as BL
-import            Data.Bytes.VarInt
 import            Data.Int
 import qualified  Data.Text as T
 import            Data.Serialize
@@ -29,6 +29,27 @@ import            GHC.Generics
 import            Numeric.Natural
 import            OpenSandbox.Types
 
+
+-- Adapted from the protocol-buffers library, but only for Serialize and Ints
+
+putVarInt :: Int -> Put
+putVarInt i | i < 0x80 = putWord8 (fromIntegral i)
+            | otherwise = putWord8 (fromIntegral (i .&. 0x7F) .|. 0x80) >> putVarInt (i `shiftR` 7)
+{-# INLINE putVarInt #-}
+
+getVarInt :: Get Int
+getVarInt = do
+    w <- getWord8
+    if testBit w 7 then go 7 (fromIntegral (w .&. 0x7F))
+      else return (fromIntegral w)
+  where
+    go n val = do
+      w' <- getWord8
+      if testBit w' 7 then go (n+7) (val .|. ((fromIntegral (w' .&. 0x7F)) `shiftL` n))
+        else return (val .|. ((fromIntegral w') `shiftL` n))
+{-# INLINE getVarInt #-}
+
+-------------------------------------------------------------------------------
 
 data ClientBoundStatus
   = ClientBoundResponse T.Text Int Int Int T.Text
@@ -43,21 +64,21 @@ instance Serialize ClientBoundStatus where
             StatusPayload (Version mcversion versionID)
                           (Players maxPlayers currentPlayers)
                           (Description motd)
-    put (fromIntegral $ 2 + B.length jsonPayload :: Word8)
+    putVarInt (2 + B.length jsonPayload :: Int)
     put (0x00 :: Word8)
-    put (fromIntegral $ B.length jsonPayload :: Word8)
+    putVarInt $ B.length jsonPayload
     putByteString jsonPayload
   put (ClientBoundPong payload) = do
-    put (fromIntegral $ (1 + 8 :: Int) :: Word8)
+    putVarInt (1 + 8 :: Int)
     put (0x01 :: Word8)
     put payload
 
 
   get = do
-    _ <- getWord8
+    _ <- getVarInt :: Get Int
     packetID <- getWord8
     case packetID of
-      0x00 -> do  jsonBinary <- (getWord8 >>= (getByteString . fromIntegral))
+      0x00 -> do  jsonBinary <- (getVarInt >>= getByteString)
                   let possibleJson = Aeson.eitherDecodeStrict jsonBinary
                   case possibleJson of
                     Left err -> fail err
@@ -81,10 +102,10 @@ data ServerBoundStatus
 
 instance Serialize ServerBoundStatus where
   put (ServerBoundHandshake v a p s) = do
-    put (fromIntegral $ 6 + B.length a :: Word8)
+    putVarInt (6 + B.length a :: Int)
     put (0 :: Word8)
     put v
-    put (fromIntegral $ B.length a :: Word8)
+    putVarInt $ B.length a
     putByteString a
     put p
     put s
@@ -92,17 +113,17 @@ instance Serialize ServerBoundStatus where
     put (1 :: Word8)
     put (0 :: Word8)
   put (ServerBoundPing payload) = do
-    put (fromIntegral $ (2 + 8 :: Int) :: Word8)
+    putVarInt (2 + 8 :: Int)
     put (1 :: Word8)
     put payload
 
   get = do
-    len <- getWord8
+    len <- getVarInt :: Get Int
     packetID <- getWord8
     case packetID of
       0 -> case len of
             1 -> return ServerBoundPingStart
-            _ -> ServerBoundHandshake <$> getWord8 <*> (getWord8 >>= (getByteString . fromIntegral)) <*> getWord16be <*> getWord8
+            _ -> ServerBoundHandshake <$> getWord8 <*> (getVarInt >>= getByteString) <*> getWord16be <*> getWord8
       1 -> ServerBoundPing <$> (get :: Get Int64)
       _ -> fail "Unrecognized packet!"
 
@@ -117,44 +138,44 @@ data ClientBoundLogin
 
 instance Serialize ClientBoundLogin where
   put (ClientBoundDisconnect reason) = do
-    put (fromIntegral $ 3 + B.length reason :: Word8)
+    putVarInt $ 3 + B.length reason
     put (0 :: Word8)
-    put (fromIntegral $ B.length reason :: Word8)
+    putVarInt $ B.length reason
     putByteString reason
   put (ClientBoundEncryptionRequest srvID pubKey privKey) = do
-    put (fromIntegral $ 5 + B.length srvID + B.length pubKey + B.length privKey :: Word8)
+    putVarInt $ 5 + B.length srvID + B.length pubKey + B.length privKey
     put (1 :: Word8)
-    put (1 :: Word8)
-    put (0 :: Word8)
-    put (fromIntegral $ B.length pubKey :: Word8)
-    put (1 :: Word8)
+    putVarInt $ B.length srvID
+    putByteString srvID
+    putVarInt $ B.length pubKey
     putByteString pubKey
-    put (fromIntegral $ B.length privKey :: Word8)
+    putVarInt $ B.length privKey
     putByteString privKey
   put (ClientBoundLoginSuccess uuid username) = do
-    put (fromIntegral $ 3 + B.length uuid + B.length username :: Word8)
+    putVarInt $ 3 + B.length uuid + B.length username
     put (2 :: Word8)
-    put (fromIntegral $ B.length uuid :: Word8)
+    putVarInt $ B.length uuid
     putByteString uuid
-    put (fromIntegral $ B.length username :: Word8)
+    putVarInt $ B.length username
     putByteString username
   put (ClientBoundSetCompression compressionFlag) = do
-    put (fromIntegral $ (4 :: Int) :: Word8)
+    putVarInt $ 4
     put (3 :: Word8)
     putWord16be compressionFlag
+
   get = do
-    _ <- getWord8
+    _ <- getVarInt :: Get Int
     packetID <- getWord8
     case packetID of
       0 -> ClientBoundDisconnect
-            <$> (getWord8 >>= (getByteString . fromIntegral))
+            <$> (getVarInt >>= getByteString)
       1 -> ClientBoundEncryptionRequest
-            <$> (getWord8 >>= (getByteString . fromIntegral))
-            <*> (fmap (B.drop 1) (getWord8 >>= (getByteString . fromIntegral)))
-            <*> (getWord8 >>= (getByteString . fromIntegral))
+            <$> (getVarInt >>= getByteString)
+            <*> (getVarInt >>= getByteString)
+            <*> (getVarInt >>= getByteString)
       2 -> ClientBoundLoginSuccess
-            <$> (getWord8 >>= (getByteString . fromIntegral))
-            <*> (getWord8 >>= (getByteString . fromIntegral))
+            <$> (getVarInt >>= getByteString)
+            <*> (getVarInt >>= getByteString)
       3 -> ClientBoundSetCompression <$> getWord16be
       _ -> fail "Unknown packet ID"
 
@@ -190,7 +211,7 @@ instance Serialize ServerBoundLogin where
 
 
 data ClientBoundPlay
-  = ClientBoundKeepAlive (VarInt Int)
+  = ClientBoundKeepAlive Int
   | ClientBoundLogin Int32 GameMode Dimension Difficulty Natural T.Text Bool
   -- | ClientBoundChat MC_String MC_Byte
   -- | ClientBoundUpdateTime MC_Int MC_Int -- MC_Long MC_Long
@@ -269,7 +290,7 @@ data ClientBoundPlay
 
 
 data ServerBoundPlay
-  = ServerBoundKeepAlive (VarInt Int)
+  = ServerBoundKeepAlive Int
   -- | ServerBoundChat MC_String
   -- | ServerBoundUseEntity MC_VarInt MC_VarInt MC_Array MC_Array MC_Array MC_Array
   -- | ServerBoundFlying MC_Bool
