@@ -118,7 +118,7 @@ instance Serialize ServerBoundStatus where
     put payload
 
   get = do
-    len <- getVarInt :: Get Int
+    len <- getVarInt
     packetID <- getWord8
     case packetID of
       0 -> case len of
@@ -164,7 +164,7 @@ instance Serialize ClientBoundLogin where
     putWord16be compressionFlag
 
   get = do
-    _ <- getVarInt :: Get Int
+    _ <- getVarInt
     packetID <- getWord8
     case packetID of
       0 -> ClientBoundDisconnect
@@ -188,25 +188,25 @@ data ServerBoundLogin
 
 instance Serialize ServerBoundLogin where
   put (ServerBoundLoginStart payload) = do
-    put (fromIntegral $ 3 + B.length payload :: Word8)
+    putVarInt $ 3 + B.length payload
     put (0 :: Word8)
-    put (fromIntegral $ B.length payload :: Word8)
+    putVarInt $ B.length payload
     putByteString payload
   put (ServerBoundEncryptionResponse cert token) = do
-    put (fromIntegral $ 2 + B.length cert + B.length token :: Word8)
+    putVarInt $ 2 + B.length cert + B.length token
     put (1 :: Word8)
-    put (fromIntegral $ B.length cert :: Word8)
+    putVarInt $ B.length cert
     putByteString cert
-    put (fromIntegral $ B.length token :: Word8)
+    putVarInt $ B.length token
     putByteString token
 
   get = do
-    _ <- getWord8
+    _ <- getVarInt
     packetID <- getWord8
     case packetID of
-      0 -> ServerBoundLoginStart <$> (getWord8 >>= (getByteString . fromIntegral))
-      1 -> ServerBoundEncryptionResponse <$> (getWord8 >>= (getByteString . fromIntegral))
-                                          <*> (getWord8 >>= (getByteString . fromIntegral))
+      0 -> ServerBoundLoginStart <$> (getVarInt >>= getByteString)
+      1 -> ServerBoundEncryptionResponse <$> (getVarInt >>= getByteString)
+                                          <*> (getVarInt >>= getByteString)
       _ -> fail "Unknown of packet ID"
 
 
