@@ -108,9 +108,9 @@ handleStatus config logger = do
 
       let statusPacket = ClientBoundResponse
                           snapshotVersion
-                          protocolVersion
+                          (toEnum protocolVersion)
                           0
-                          (srvMaxPlayers config)
+                          (toEnum . srvMaxPlayers $ config)
                           (srvMotd config)
       liftIO $ writeTo logger Debug $ "Sending: " ++ show statusPacket
       yield statusPacket

@@ -26,7 +26,6 @@ import qualified  Data.Text as T
 import            Data.Serialize
 import            Data.Word
 import            GHC.Generics
-import            Numeric.Natural
 import            OpenSandbox.Types
 
 
@@ -51,8 +50,9 @@ getVarInt = do
 
 -------------------------------------------------------------------------------
 
+
 data ClientBoundStatus
-  = ClientBoundResponse T.Text Int Int Int T.Text
+  = ClientBoundResponse T.Text Word8 Word8 Word8 T.Text
   | ClientBoundPong Int64
   deriving (Show,Eq)
 
@@ -72,7 +72,6 @@ instance Serialize ClientBoundStatus where
     putVarInt (1 + 8 :: Int)
     put (0x01 :: Word8)
     put payload
-
 
   get = do
     _ <- getVarInt :: Get Int
@@ -94,21 +93,20 @@ instance Serialize ClientBoundStatus where
 
 
 data ServerBoundStatus
-  = ServerBoundHandshake Word8 B.ByteString Word16 Word8
+  = ServerBoundHandshake Word B.ByteString Word16 Word
   | ServerBoundPingStart
   | ServerBoundPing Int64
   deriving (Show,Eq)
 
-
 instance Serialize ServerBoundStatus where
-  put (ServerBoundHandshake v a p s) = do
-    putVarInt (6 + B.length a :: Int)
+  put (ServerBoundHandshake protoVersion srvAddress srvPort nextState) = do
+    putVarInt (6 + B.length srvAddress :: Int)
     put (0 :: Word8)
-    put v
-    putVarInt $ B.length a
-    putByteString a
-    put p
-    put s
+    putVarInt . fromEnum $ protoVersion
+    putVarInt $ B.length srvAddress
+    putByteString srvAddress
+    putWord16be srvPort
+    putVarInt . fromEnum $ nextState
   put ServerBoundPingStart = do
     put (1 :: Word8)
     put (0 :: Word8)
@@ -122,8 +120,12 @@ instance Serialize ServerBoundStatus where
     packetID <- getWord8
     case packetID of
       0 -> case len of
-            1 -> return ServerBoundPingStart
-            _ -> ServerBoundHandshake <$> getWord8 <*> (getVarInt >>= getByteString) <*> getWord16be <*> getWord8
+            1 ->  return ServerBoundPingStart
+            _ ->  ServerBoundHandshake
+                  <$> (fmap toEnum getVarInt)
+                  <*> (getVarInt >>= getByteString)
+                  <*> getWord16be
+                  <*> (fmap toEnum getVarInt)
       1 -> ServerBoundPing <$> (get :: Get Int64)
       _ -> fail "Unrecognized packet!"
 
@@ -212,7 +214,7 @@ instance Serialize ServerBoundLogin where
 
 data ClientBoundPlay
   = ClientBoundKeepAlive Int
-  | ClientBoundLogin Int32 GameMode Dimension Difficulty Natural T.Text Bool
+  | ClientBoundLogin Int32 GameMode Dimension Difficulty Word T.Text Bool
   -- | ClientBoundChat MC_String MC_Byte
   -- | ClientBoundUpdateTime MC_Int MC_Int -- MC_Long MC_Long
   -- | ClientBoundEntityEquipment MC_VarInt MC_VarInt MC_Slot
@@ -1426,7 +1428,7 @@ instance Aeson.FromJSON StatusPayload
 
 data Version = Version
   { name      :: T.Text
-  , protocol  :: Int
+  , protocol  :: Word8
   } deriving (Generic,Eq,Show,Read)
 
 
@@ -1435,8 +1437,8 @@ instance Aeson.FromJSON Version
 
 
 data Players = Players
-  { max     :: Int
-  , online  :: Int
+  { max     :: Word8
+  , online  :: Word8
   } deriving (Generic,Eq,Show,Read)
 
 

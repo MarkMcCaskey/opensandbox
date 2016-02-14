@@ -4,19 +4,28 @@ import qualified  Data.ByteString as B
 import            Data.Either
 import            Data.Serialize
 import qualified  Data.Text as T
+import            Data.Text.Encoding
 import            Data.Word
 import            OpenSandbox
 import            Test.QuickCheck
+
+
+instance Arbitrary T.Text where
+  arbitrary = fmap T.pack arbitrary
+
+instance Arbitrary B.ByteString where
+  arbitrary = fmap B.pack arbitrary
 
 instance Arbitrary ServerBoundStatus where
   arbitrary = do
     packetID <- elements [0..2] :: Gen Int
     case packetID of
-      0 -> do v <- arbitrary :: Gen Word8
-              a <- fmap B.pack arbitrary :: Gen B.ByteString
-              p <- arbitrary
-              s <- arbitrary
-              return $ ServerBoundHandshake v a p s
+      0 -> do
+        v <- arbitrary
+        a <- arbitrary
+        p <- arbitrary
+        s <- arbitrary
+        return $ ServerBoundHandshake v a p s
       1 -> return ServerBoundPingStart
       2 -> do payload <- arbitrary
               return $ ServerBoundPing payload
