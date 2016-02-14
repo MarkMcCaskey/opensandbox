@@ -24,6 +24,7 @@ import            Data.ASN1.Encoding
 import            Data.ASN1.Types hiding (End)
 import qualified  Data.ByteString as B
 import qualified  Data.Text as T
+import            Data.Word
 import            Data.X509
 import            Data.Yaml
 import            OpenSandbox.Types
@@ -37,7 +38,7 @@ data Config = Config
   , srvLogPath          :: FilePath
   , srvWorldPath        :: FilePath
   , srvMCVersion        :: T.Text
-  , srvMaxPlayers       :: Int
+  , srvMaxPlayers       :: Word8
   , srvGameMode         :: GameMode
   , srvDifficulty       :: Difficulty
   , srvWorldType        :: WorldType

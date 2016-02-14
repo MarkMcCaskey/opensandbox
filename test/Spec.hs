@@ -97,6 +97,16 @@ prop_ServerBoundLoginEq :: [ServerBoundLogin] -> Bool
 prop_ServerBoundLoginEq lst =
   lst == (rights (map decode $ map encode lst :: [Either String ServerBoundLogin]))
 
+{-
+prop_ClientBoundPlayEq :: [ClientBoundPlay] -> Bool
+prop_ClientBoundPlayEq lst =
+  lst == (rights (map decode $ map encode lst :: [Either String ClientBoundPlay]))
+
+
+prop_ServerBoundPlayEq :: [ServerBoundPlay] -> Bool
+prop_ServerBoundPlayEq lst =
+  lst == (rights (map decode $ map encode lst :: [Either String ServerBoundPlay]))
+-}
 
 main :: IO ()
 main = do
@@ -104,3 +114,5 @@ main = do
   quickCheck prop_ServerBoundStatusEq
   quickCheck prop_ClientBoundLoginEq
   quickCheck prop_ServerBoundLoginEq
+  --quickCheck prop_ClientBoundPlayEq
+  --quickCheck prop_ServerBoundPlayEq

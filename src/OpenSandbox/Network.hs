@@ -13,6 +13,7 @@ module OpenSandbox.Network
   ( runOpenSandboxServer
   ) where
 
+import            Control.Monad
 import            Control.Monad.IO.Class
 import            Control.Monad.Trans.Class
 import            Control.Monad.Trans.State.Lazy
@@ -52,14 +53,12 @@ runOpenSandboxServer config logger =
           if nextState == Play
             then do
               writeTo logger Debug "Somebody succeeded to login"
-              {-
               void $ flip execStateT Play
                 $ packetSource app
                 $$ deserializePlay
                 =$= handlePlay config logger
                 =$= serializePlay
                 =$= packetSink app
-                -}
             else writeTo logger Debug "Somebody failed login"
         else return ()
 
@@ -87,14 +86,14 @@ deserializeLogin = conduitGet (S.get :: S.Get ServerBoundLogin)
 serializeLogin :: Conduit ClientBoundLogin (StateT ProtocolState IO) B.ByteString
 serializeLogin = conduitPut (S.put :: S.Putter ClientBoundLogin)
 
-{-
+
 deserializePlay :: Conduit B.ByteString (StateT ProtocolState IO) ServerBoundPlay
 deserializePlay = conduitGet (S.get :: S.Get ServerBoundPlay)
 
 
 serializePlay :: Conduit ClientBoundPlay (StateT ProtocolState IO) B.ByteString
 serializePlay = conduitPut (S.put :: S.Putter ClientBoundPlay)
--}
+
 
 handleStatus :: Config -> Logger -> Conduit ServerBoundStatus (StateT ProtocolState IO) ClientBoundStatus
 handleStatus config logger = do
@@ -110,7 +109,7 @@ handleStatus config logger = do
                           snapshotVersion
                           (toEnum protocolVersion)
                           0
-                          (toEnum . srvMaxPlayers $ config)
+                          (srvMaxPlayers $ config)
                           (srvMotd config)
       liftIO $ writeTo logger Debug $ "Sending: " ++ show statusPacket
       yield statusPacket
@@ -147,11 +146,11 @@ handleLogin logger = do
     Just _ -> liftIO $ writeTo logger Err $ "Expecting ServerBoundLoginStart, recieved " ++ show maybeLoginStart
     Nothing -> return ()
 
-{-
+
 handlePlay :: Config -> Logger -> Conduit ServerBoundPlay (StateT ProtocolState IO) ClientBoundPlay
 handlePlay config logger = do
   liftIO $ writeTo logger Debug $ "Starting PLAY session"
-  let loginPacket = login
+  let loginPacket = ClientBoundLogin
                       2566
                       (srvGameMode config)
                       Overworld
@@ -162,27 +161,27 @@ handlePlay config logger = do
   liftIO $ writeTo logger Debug $ "Sending: " ++ show loginPacket
   yield loginPacket
 
-  let customPayloadPacket1 = customPayload "MC|Brand" "opensandbox"
+  let customPayloadPacket1 = ClientBoundCustomPayload "MC|Brand" "opensandbox"
   liftIO $ writeTo logger Debug $ "Sending: " ++ show customPayloadPacket1
   yield customPayloadPacket1
 
-  let customPayloadPacket2 = customPayload "REGISTER" "MC|Brand"
+  let customPayloadPacket2 = ClientBoundCustomPayload "REGISTER" "MC|Brand"
   liftIO $ writeTo logger Debug $ "Sending: " ++ show customPayloadPacket2
   yield customPayloadPacket2
 
-  let difficultyPacket = difficulty (srvDifficulty config)
+  let difficultyPacket = ClientBoundDifficulty (srvDifficulty config)
   liftIO $ writeTo logger Debug $ "Sending: " ++ show difficultyPacket
   yield difficultyPacket
 
-  let updateTimePacket = updateTime 1000 25
+  let updateTimePacket = ClientBoundUpdateTime 1000 25
   liftIO $ writeTo logger Debug $ "Sending: " ++ show updateTimePacket
   yield updateTimePacket
 
-  let abilitiesPacket = abilities 0 0 0
+  let abilitiesPacket = ClientBoundPlayerAbilities False 0 0
   liftIO $ writeTo logger Debug $ "Sending: " ++ show abilitiesPacket
   yield abilitiesPacket
 
-  let heldItemSlotPacket = heldItemSlot 0
+  let heldItemSlotPacket = ClientBoundHeldItemSlot False
   liftIO $ writeTo logger Debug $ "Sending: " ++ show heldItemSlotPacket
   yield heldItemSlotPacket
 
@@ -190,10 +189,10 @@ handlePlay config logger = do
   --liftIO $ writeTo logger Debug $ "Sending: " ++ show entityStatusPacket
   --yield entityStatusPacket
 
-  let statisticsPacket = statistics []
-  liftIO $ writeTo logger Debug $ "Sending: " ++ show statisticsPacket
-  yield statisticsPacket
-
+  --let statisticsPacket = statistics []
+  --liftIO $ writeTo logger Debug $ "Sending: " ++ show statisticsPacket
+  --yield statisticsPacket
+{-
   let playerListItemPacket = playerListItem
   liftIO $ writeTo logger Debug $ "Sending: " ++ show playerListItemPacket
   yield playerListItemPacket
