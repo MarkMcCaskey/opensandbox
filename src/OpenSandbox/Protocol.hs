@@ -17,6 +17,8 @@ module OpenSandbox.Protocol
   , ClientBoundPlay (..)
   , ServerBoundPlay (..)
   , putByteStringField
+  , putVarInt
+  , getVarInt
   ) where
 
 import            Prelude hiding (max)
@@ -26,33 +28,15 @@ import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Char8 as BC
 import qualified  Data.ByteString.Lazy as BL
 import            Data.Int
+import            Data.Maybe
 import qualified  Data.Text as T
+import            Data.Text.Encoding
 import            Data.Serialize
+import            Data.UUID
+import qualified  Data.Vector as V
 import            Data.Word
 import            GHC.Generics
 import            OpenSandbox.Types
-
-
--- Adapted from the protocol-buffers library, but only for Serialize and Ints
-
-putVarInt :: Int -> Put
-putVarInt i | i < 0x80 = putWord8 (fromIntegral i)
-            | otherwise = putWord8 (fromIntegral (i .&. 0x7F) .|. 0x80) >> putVarInt (i `shiftR` 7)
-{-# INLINE putVarInt #-}
-
-getVarInt :: Get Int
-getVarInt = do
-    w <- getWord8
-    if testBit w 7 then go 7 (fromIntegral (w .&. 0x7F))
-      else return (fromIntegral w)
-  where
-    go n val = do
-      w' <- getWord8
-      if testBit w' 7 then go (n+7) (val .|. ((fromIntegral (w' .&. 0x7F)) `shiftL` n))
-        else return (val .|. ((fromIntegral w') `shiftL` n))
-{-# INLINE getVarInt #-}
-
--------------------------------------------------------------------------------
 
 
 data ClientBoundStatus
@@ -101,6 +85,7 @@ data ServerBoundStatus
   | ServerBoundPingStart
   | ServerBoundPing Int64
   deriving (Show,Eq)
+
 
 instance Serialize ServerBoundStatus where
   put (ServerBoundHandshake protoVersion srvAddress srvPort nextState) = do
@@ -210,28 +195,168 @@ instance Serialize ServerBoundLogin where
     _ <- getVarInt
     packetID <- getWord8
     case packetID of
-      0 -> ServerBoundLoginStart <$> (getVarInt >>= getByteString)
-      1 -> ServerBoundEncryptionResponse <$> (getVarInt >>= getByteString)
-                                          <*> (getVarInt >>= getByteString)
+      0 ->  ServerBoundLoginStart
+              <$> (getVarInt >>= getByteString)
+      1 ->  ServerBoundEncryptionResponse
+              <$> (getVarInt >>= getByteString)
+              <*> (getVarInt >>= getByteString)
       _ -> fail "Unknown of packet ID"
+
+{-
+data ChunkSection = ChunkSection
+  { bitsPerBlock  :: !Word8
+  , palette       :: !(Maybe (V.Vector Int))
+  , dataArray     :: !B.ByteString
+  , blockLight    :: !B.ByteString
+  , skyLight      :: !(Maybe B.ByteString)
+  } deriving (Show,Eq)
+
+
+instance Serialize ChunkSection
+-}
+
+data Stat = Stat T.Text Int deriving (Show,Eq)
+
+
+instance Serialize Stat where
+  put (Stat statName statVal) = do
+    putByteStringField . encodeUtf8 $ statName
+    putVarInt statVal
+
+  get = Stat <$> fmap decodeUtf8 (getVarInt >>= getByteString) <*> getVarInt
+
+instance (Serialize a) => Serialize (V.Vector a) where
+  put v = do
+    putVarInt . V.length $ v
+    (mapM_ put v)
+
+  get = undefined
+
+data Player = Player
+  { playerUUID        :: UUID
+  , playerListAction  :: PlayerListAction
+  } deriving (Show,Eq)
+
+
+instance Serialize Player where
+  put (Player u pla) = do
+    putByteString . BL.toStrict . toByteString $ u
+    put pla
+
+  get = undefined
+
+
+data PlayerListAction
+  = PlayerListAdd T.Text (V.Vector PlayerProperty) GameMode Int Bool (Maybe T.Text)
+  | PlayerListUpdateGameMode GameMode
+  | PlayerListUpdateLatency Int
+  | PlayerListUpdateDisplayName Bool (Maybe T.Text)
+  | PlayerListRemovePlayer
+  deriving (Show,Eq)
+
+
+instance Serialize PlayerListAction where
+  put (PlayerListAdd name properties gameMode ping hasDisplayName displayName) = do
+    putByteStringField . encodeUtf8 $ name
+    put properties
+    putVarInt . fromEnum $ gameMode
+    putVarInt ping
+    put hasDisplayName
+    if displayName /= Nothing
+      then do
+        let displayPayload = encodeUtf8 . fromJust $ displayName
+        putVarInt . B.length $ displayPayload
+        putByteString displayPayload
+      else
+        return ()
+  put (PlayerListUpdateGameMode gameMode) = do
+    putVarInt . fromEnum $ gameMode
+  put (PlayerListUpdateLatency ping) = do
+    putVarInt ping
+  put (PlayerListUpdateDisplayName hasDisplayName displayName) = do
+    put hasDisplayName
+    if displayName /= Nothing
+      then do
+        let displayPayload = encodeUtf8 . fromJust $ displayName
+        putVarInt . B.length $ displayPayload
+        putByteString displayPayload
+      else
+        return ()
+  put PlayerListRemovePlayer = return ()
+  get = undefined
+
+
+data PlayerProperty = PlayerProperty
+  { playerName    :: !T.Text
+  , playerValue   :: !T.Text
+  , isSigned      :: !Bool
+  , playerSig     :: !(Maybe T.Text)
+  } deriving (Show,Eq)
+
+
+instance Serialize PlayerProperty where
+  put (PlayerProperty pn pv is ps) = do
+    let pnPayload = encodeUtf8 pn
+    putVarInt . B.length $ pnPayload
+    putByteString pnPayload
+    let pvPayload = encodeUtf8 pv
+    putVarInt . B.length $ pvPayload
+    putByteString pvPayload
+    put is
+    if ps /= Nothing
+      then do
+        let sigPayload = encodeUtf8 . fromJust $ ps
+        putVarInt . B.length $ sigPayload
+        putByteString sigPayload
+      else do
+        return ()
+
+  get = undefined
 
 
 data ClientBoundPlay
-  = ClientBoundKeepAlive Int
-  | ClientBoundLogin Int32 GameMode Dimension Difficulty Word8 WorldType Bool
-  | ClientBoundUpdateTime Int64 Int64
-  | ClientBoundHeldItemSlot Bool
-  -- | ClientBoundStatistics Word8 B.ByteString
-  | ClientBoundPlayerAbilities Bool Float Float
+  = ClientBoundDifficulty Difficulty
   | ClientBoundCustomPayload B.ByteString B.ByteString
-  | ClientBoundDifficulty Difficulty
+  | ClientBoundEntityStatus Int Word8
+  | ClientBoundKeepAlive Int
+  -- | ClientBoundChunkData Int32 Int32 Bool Int Int (V.Vector ChunkSection) (Maybe B.ByteString)
+  | ClientBoundLogin Int32 GameMode Dimension Difficulty Word8 WorldType Bool
+  | ClientBoundPlayerAbilities Bool Float Float
+  | ClientBoundPlayerListItem Int (V.Vector Player)
+  | ClientBoundHeldItemSlot Bool
+  | ClientBoundUpdateTime Int64 Int64
+  | ClientBoundStatistics (V.Vector Stat)
   deriving (Show,Eq)
 
 
 instance Serialize ClientBoundPlay where
+  put (ClientBoundStatistics stats) = do
+    let statPayload = encode stats
+    putVarInt $ 1 + (B.length . runPut $ putByteStringField statPayload)
+    putWord8 0x07
+    putByteStringField statPayload
+  put (ClientBoundDifficulty d) = do
+    put (2 :: Word8)
+    putWord8 0x0d
+    putWord8 . toEnum . fromEnum $ d
+  put (ClientBoundCustomPayload channel dat)= do
+    put (fromIntegral $ 1 + 1 + B.length channel + 1 + B.length dat :: Word8)
+    putWord8 0x18
+    putByteStringField channel
+    putByteStringField dat
+  put (ClientBoundEntityStatus entityID entityStatus) = do
+    putWord8 6
+    putWord8 0x1b
+    putWord32be . toEnum $ entityID
+    putWord8 entityStatus
+  put (ClientBoundKeepAlive payload) = do
+    putVarInt $ 1 + 4
+    putWord8 0x1F
+    putVarInt payload
+  --put (ClientBoundChunkData chunkX chunkY groundUpContinuous bitmask chunkSize chunkData biomes) = undefined
   put (ClientBoundLogin entityId gameMode dimension difficulty maxPlayers levelType reducedDebugInfo) = do
-    put (fromIntegral $ 1 + 4 + 1 + 1 + 1 + 1 + 1 + (B.length . BC.pack . show $ levelType) + 1 :: Word8)
-    put (0x23 :: Word8)
+    putVarInt (1 + 4 + 1 + 1 + 1 + 1 + 1 + (B.length . BC.pack . show $ levelType) + 1)
+    putWord8 0x23
     putWord32be . toEnum . fromEnum $ entityId
     putWord8 . toEnum . fromEnum $ gameMode
     putWord8 . toEnum . fromEnum $ dimension
@@ -240,48 +365,53 @@ instance Serialize ClientBoundPlay where
     putVarInt . B.length . BC.pack . show $ levelType
     putByteString . BC.pack . show $ levelType
     put reducedDebugInfo
-  put (ClientBoundUpdateTime age time) = do
-    putWord8 . toEnum $ 1 + 8
-    put (0x43 :: Word8)
-    putWord64be . toEnum . fromEnum $ age
-    putWord64be . toEnum . fromEnum $ time
-  put (ClientBoundHeldItemSlot slot) = do
-    put (2 :: Word8)
-    put (0x37 :: Word8)
-    put slot
   put (ClientBoundPlayerAbilities flags flyingSpeed walkingSpeed) = do
     put (10 :: Word8)
-    put (0x2b :: Word8)
+    putWord8 0x2b
     put flags
     putWord32be . toEnum . fromEnum $ flyingSpeed
     putWord32be . toEnum . fromEnum $ walkingSpeed
-  put (ClientBoundCustomPayload channel dat)= do
-    put (fromIntegral $ 1 + 1 + B.length channel + 1 + B.length dat :: Word8)
-    put (0x18 :: Word8)
-    putByteStringField channel
-    putByteStringField dat
-  put (ClientBoundDifficulty d) = do
+  put (ClientBoundPlayerListItem action players) = do
+    putWord8 0x2d
+  put (ClientBoundHeldItemSlot slot) = do
     put (2 :: Word8)
-    put (0x0d :: Word8)
-    putWord8 . toEnum . fromEnum $ d
-  put (ClientBoundKeepAlive payload) = do
-    putVarInt $ 1 + 4
-    putWord8 0x1F
-    putVarInt payload
+    putWord8 0x37
+    put slot
+  put (ClientBoundUpdateTime age time) = do
+    putWord8 . toEnum $ 1 + 8
+    putWord8 0x43
+    putWord64be . toEnum . fromEnum $ age
+    putWord64be . toEnum . fromEnum $ time
 
   get = do
     _ <- getWord8
     packetID <- getWord8
     case packetID of
-      --0x07 -> ClientBoundStatistics
-      0x0d -> ClientBoundDifficulty <$> (fmap (toEnum . fromEnum) getWord8)
+      0x07 -> ClientBoundStatistics
+                <$> get
+      0x0d -> ClientBoundDifficulty
+                <$> (fmap (toEnum . fromEnum) getWord8)
       0x18 -> ClientBoundCustomPayload
                 <$> (getVarInt >>= getByteString)
                 <*> (getVarInt >>= getByteString)
+      0x1b -> ClientBoundEntityStatus
+                <$> (fmap fromEnum getWord32be)
+                <*> getWord8
+      0x1F -> ClientBoundKeepAlive
+                <$> getVarInt
+      --0x20 -> ClientBoundChunkData
       0x2b -> ClientBoundPlayerAbilities
-                <$> fmap (toEnum . fromEnum) getWord8
-                <*> fmap (toEnum . fromEnum) getWord32be
-                <*> fmap (toEnum . fromEnum) getWord32be
+                <$> get
+                <*> get
+                <*> get
+      0x2d -> ClientBoundPlayerListItem
+                <$> get
+                <*> get
+      0x37 -> ClientBoundHeldItemSlot
+                <$> get
+      0x43 -> ClientBoundUpdateTime
+                <$> get
+                <*> get
       _    -> undefined
 
 
@@ -289,6 +419,26 @@ data ServerBoundPlay
   = ServerBoundKeepAlive Int
   deriving (Show,Eq)
 
+-- Adapted from the protocol-buffers library, but only for Serialize and Ints
+
+putVarInt :: Int -> Put
+putVarInt i | i < 0x80 = putWord8 (fromIntegral i)
+            | otherwise = putWord8 (fromIntegral (i .&. 0x7F) .|. 0x80) >> putVarInt (i `shiftR` 7)
+{-# INLINE putVarInt #-}
+
+getVarInt :: Get Int
+getVarInt = do
+    w <- getWord8
+    if testBit w 7 then go 7 (fromIntegral (w .&. 0x7F))
+      else return (fromIntegral w)
+  where
+    go n val = do
+      w' <- getWord8
+      if testBit w' 7 then go (n+7) (val .|. ((fromIntegral (w' .&. 0x7F)) `shiftL` n))
+        else return (val .|. ((fromIntegral w') `shiftL` n))
+{-# INLINE getVarInt #-}
+
+-------------------------------------------------------------------------------
 
 putByteStringField :: Serialize a => a -> PutM ()
 putByteStringField x = do

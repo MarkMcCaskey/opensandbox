@@ -54,6 +54,7 @@ library
                             thyme,
                             transformers,
                             uuid,
+                            vector,
                             x509,
                             yaml
     default-language:       Haskell2010

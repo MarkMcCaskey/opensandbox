@@ -24,6 +24,7 @@ import            Data.Conduit.Cereal
 import            Data.Conduit.Network
 import qualified  Data.Serialize as S
 import            Data.UUID.V4
+import qualified  Data.Vector as V
 
 import            OpenSandbox.Config
 import            OpenSandbox.Logger
@@ -150,6 +151,7 @@ handleLogin logger = do
 handlePlay :: Config -> Logger -> Conduit ServerBoundPlay (StateT ProtocolState IO) ClientBoundPlay
 handlePlay config logger = do
   liftIO $ writeTo logger Debug $ "Starting PLAY session"
+
   let loginPacket = ClientBoundLogin
                       2566
                       (srvGameMode config)
@@ -185,18 +187,18 @@ handlePlay config logger = do
   liftIO $ writeTo logger Debug $ "Sending: " ++ show heldItemSlotPacket
   yield heldItemSlotPacket
 
-  --let entityStatusPacket = entityStatus
-  --liftIO $ writeTo logger Debug $ "Sending: " ++ show entityStatusPacket
-  --yield entityStatusPacket
+  let entityStatusPacket = ClientBoundEntityStatus 0 1
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show entityStatusPacket
+  yield entityStatusPacket
 
-  --let statisticsPacket = statistics []
-  --liftIO $ writeTo logger Debug $ "Sending: " ++ show statisticsPacket
-  --yield statisticsPacket
-{-
-  let playerListItemPacket = playerListItem
+  let statisticsPacket = ClientBoundStatistics (V.fromList [])
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show statisticsPacket
+  yield statisticsPacket
+
+  let playerListItemPacket = ClientBoundPlayerListItem 0 (V.fromList [])
   liftIO $ writeTo logger Debug $ "Sending: " ++ show playerListItemPacket
   yield playerListItemPacket
-
+{-
   let chunkDataPacket1 = chunkData
   liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket1
   yield chunkDataPacket1
@@ -208,4 +210,4 @@ handlePlay config logger = do
   let chunkDataPacket3 = chunkData
   liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket3
   yield chunkDataPacket3
-  -}
+-}
