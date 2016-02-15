@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.Protocol
@@ -16,6 +17,10 @@ module OpenSandbox.Protocol
   , ServerBoundLogin (..)
   , ClientBoundPlay (..)
   , ServerBoundPlay (..)
+  , Stat (..)
+  , Player (..)
+  , PlayerListAction (..)
+  , PlayerProperty (..)
   , putByteStringField
   , putVarInt
   , getVarInt
@@ -225,12 +230,14 @@ instance Serialize Stat where
 
   get = Stat <$> fmap decodeUtf8 (getVarInt >>= getByteString) <*> getVarInt
 
+
 instance (Serialize a) => Serialize (V.Vector a) where
   put v = do
     putVarInt . V.length $ v
     (mapM_ put v)
 
   get = undefined
+
 
 data Player = Player
   { playerUUID        :: UUID
@@ -315,7 +322,8 @@ instance Serialize PlayerProperty where
 
 
 data ClientBoundPlay
-  = ClientBoundDifficulty Difficulty
+  = ClientBoundStatistics (V.Vector Stat)
+  | ClientBoundDifficulty Difficulty
   | ClientBoundCustomPayload B.ByteString B.ByteString
   | ClientBoundEntityStatus Int Word8
   | ClientBoundKeepAlive Int
@@ -325,7 +333,6 @@ data ClientBoundPlay
   | ClientBoundPlayerListItem Int (V.Vector Player)
   | ClientBoundHeldItemSlot Bool
   | ClientBoundUpdateTime Int64 Int64
-  | ClientBoundStatistics (V.Vector Stat)
   deriving (Show,Eq)
 
 
@@ -336,16 +343,16 @@ instance Serialize ClientBoundPlay where
     putWord8 0x07
     putByteStringField statPayload
   put (ClientBoundDifficulty d) = do
-    put (2 :: Word8)
+    putVarInt 2
     putWord8 0x0d
     putWord8 . toEnum . fromEnum $ d
   put (ClientBoundCustomPayload channel dat)= do
-    put (fromIntegral $ 1 + 1 + B.length channel + 1 + B.length dat :: Word8)
+    putVarInt $ 1 + 1 + B.length channel + 1 + B.length dat
     putWord8 0x18
     putByteStringField channel
     putByteStringField dat
   put (ClientBoundEntityStatus entityID entityStatus) = do
-    putWord8 6
+    putVarInt 6
     putWord8 0x1b
     putWord32be . toEnum $ entityID
     putWord8 entityStatus
@@ -366,7 +373,7 @@ instance Serialize ClientBoundPlay where
     putByteString . BC.pack . show $ levelType
     put reducedDebugInfo
   put (ClientBoundPlayerAbilities flags flyingSpeed walkingSpeed) = do
-    put (10 :: Word8)
+    putVarInt 10
     putWord8 0x2b
     put flags
     putWord32be . toEnum . fromEnum $ flyingSpeed
@@ -374,17 +381,17 @@ instance Serialize ClientBoundPlay where
   put (ClientBoundPlayerListItem action players) = do
     putWord8 0x2d
   put (ClientBoundHeldItemSlot slot) = do
-    put (2 :: Word8)
+    putVarInt 2
     putWord8 0x37
     put slot
   put (ClientBoundUpdateTime age time) = do
-    putWord8 . toEnum $ 1 + 8
+    putVarInt $ 1 + 8
     putWord8 0x43
     putWord64be . toEnum . fromEnum $ age
     putWord64be . toEnum . fromEnum $ time
 
   get = do
-    _ <- getWord8
+    _ <- getVarInt
     packetID <- getWord8
     case packetID of
       0x07 -> ClientBoundStatistics
@@ -448,6 +455,7 @@ putByteStringField x = do
     then do putVarInt len
             putByteString payload
     else do putVarInt len
+{-# INLINE putByteStringField #-}
 
 
 instance Serialize ServerBoundPlay where
