@@ -426,6 +426,22 @@ data ServerBoundPlay
   = ServerBoundKeepAlive Int
   deriving (Show,Eq)
 
+
+instance Serialize ServerBoundPlay where
+  put (ServerBoundKeepAlive payload) = do
+    putVarInt $ 1 + (B.length . runPut . putVarInt $ payload)
+    putWord8 0x0b
+    putVarInt payload
+
+  get = do
+    _ <- getVarInt
+    packetID <- getWord8
+    case packetID of
+      0x0b -> ServerBoundKeepAlive
+                <$> getVarInt
+      _ -> undefined
+
+
 -- Adapted from the protocol-buffers library, but only for Serialize and Ints
 
 putVarInt :: Int -> Put
@@ -456,20 +472,6 @@ putByteStringField x = do
             putByteString payload
     else do putVarInt len
 {-# INLINE putByteStringField #-}
-
-
-instance Serialize ServerBoundPlay where
-  put (ServerBoundKeepAlive keepAliveId) = do
-    putWord8 . toEnum $ 1 + 4
-    putWord8 0x0a
-    putVarInt keepAliveId
-
-  get = do
-    _ <- getWord8
-    packetID <- getWord8
-    case packetID of
-      0x0a -> ServerBoundKeepAlive <$> getVarInt
-      _    -> undefined
 
 
 data StatusPayload = StatusPayload

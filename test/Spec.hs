@@ -234,6 +234,15 @@ instance Arbitrary ClientBoundPlay where
         return $ ClientBoundUpdateTime a b
 
 
+instance Arbitrary ServerBoundPlay where
+  arbitrary = do
+    packetID <- elements [0x0b]
+    case packetID of 
+      0x0b -> do
+        a <- arbitrary
+        return $ ServerBoundKeepAlive a
+  
+
 prop_ClientBoundStatusEq :: [ClientBoundStatus] -> Bool
 prop_ClientBoundStatusEq lst =
   lst == (rights (map decode $ map encode lst :: [Either String ClientBoundStatus]))
@@ -258,11 +267,11 @@ prop_ClientBoundPlayEq :: [ClientBoundPlay] -> Bool
 prop_ClientBoundPlayEq lst =
   lst == (rights (map decode $ map encode lst :: [Either String ClientBoundPlay]))
 
-{-
+
 prop_ServerBoundPlayEq :: [ServerBoundPlay] -> Bool
 prop_ServerBoundPlayEq lst =
   lst == (rights (map decode $ map encode lst :: [Either String ServerBoundPlay]))
--}
+
 
 main :: IO ()
 main = do
@@ -271,4 +280,4 @@ main = do
   quickCheck prop_ClientBoundLoginEq
   quickCheck prop_ServerBoundLoginEq
   quickCheck prop_ClientBoundPlayEq
-  --quickCheck prop_ServerBoundPlayEq
+  quickCheck prop_ServerBoundPlayEq
