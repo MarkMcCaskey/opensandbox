@@ -179,7 +179,7 @@ handlePlay config logger = do
   liftIO $ writeTo logger Debug $ "Sending: " ++ show updateTimePacket
   yield updateTimePacket
 
-  let abilitiesPacket = ClientBoundPlayerAbilities False 0 0
+  let abilitiesPacket = ClientBoundPlayerAbilities 0x02 0 0
   liftIO $ writeTo logger Debug $ "Sending: " ++ show abilitiesPacket
   yield abilitiesPacket
 
@@ -194,11 +194,11 @@ handlePlay config logger = do
   let statisticsPacket = ClientBoundStatistics (V.fromList [])
   liftIO $ writeTo logger Debug $ "Sending: " ++ show statisticsPacket
   yield statisticsPacket
-
+{-
   let playerListItemPacket = ClientBoundPlayerListItem 0 (V.fromList [])
   liftIO $ writeTo logger Debug $ "Sending: " ++ show playerListItemPacket
   yield playerListItemPacket
-{-
+
   let chunkDataPacket1 = chunkData
   liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket1
   yield chunkDataPacket1

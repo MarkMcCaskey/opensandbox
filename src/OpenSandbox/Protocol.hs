@@ -324,12 +324,12 @@ instance Serialize PlayerProperty where
 data ClientBoundPlay
   = ClientBoundStatistics (V.Vector Stat)
   | ClientBoundDifficulty Difficulty
-  | ClientBoundCustomPayload B.ByteString B.ByteString
+  | ClientBoundCustomPayload T.Text T.Text
   | ClientBoundEntityStatus Int Word8
   | ClientBoundKeepAlive Int
   -- | ClientBoundChunkData Int32 Int32 Bool Int Int (V.Vector ChunkSection) (Maybe B.ByteString)
   | ClientBoundLogin Int32 GameMode Dimension Difficulty Word8 WorldType Bool
-  | ClientBoundPlayerAbilities Bool Float Float
+  | ClientBoundPlayerAbilities Word8 Float Float
   | ClientBoundPlayerListItem Int (V.Vector Player)
   | ClientBoundHeldItemSlot Bool
   | ClientBoundUpdateTime Int64 Int64
@@ -339,18 +339,23 @@ data ClientBoundPlay
 instance Serialize ClientBoundPlay where
   put (ClientBoundStatistics stats) = do
     let statPayload = encode stats
-    putVarInt $ 1 + (B.length . runPut $ putByteStringField statPayload)
+    let statLen = B.length statPayload
+    putVarInt $ 1 + statLen
     putWord8 0x07
-    putByteStringField statPayload
+    putByteString statPayload
   put (ClientBoundDifficulty d) = do
     putVarInt 2
     putWord8 0x0d
     putWord8 . toEnum . fromEnum $ d
   put (ClientBoundCustomPayload channel dat)= do
-    putVarInt $ 1 + 1 + B.length channel + 1 + B.length dat
+    let len1 = (B.length . encodeUtf8 $ channel)
+    let len2 = (B.length . encodeUtf8 $ dat)
+    putVarInt $ 1 + 1 + len1 + 1 + len2
     putWord8 0x18
-    putByteStringField channel
-    putByteStringField dat
+    putVarInt len1
+    putByteString $ encodeUtf8 channel
+    putVarInt len2
+    putByteString $ encodeUtf8 dat
   put (ClientBoundEntityStatus entityID entityStatus) = do
     putVarInt 6
     putWord8 0x1b
@@ -379,16 +384,19 @@ instance Serialize ClientBoundPlay where
     putWord32be . toEnum . fromEnum $ flyingSpeed
     putWord32be . toEnum . fromEnum $ walkingSpeed
   put (ClientBoundPlayerListItem action players) = do
+    putVarInt $ 1 + (B.length . encode $ action) + (B.length . encode $ players)
     putWord8 0x2d
+    put action
+    put players
   put (ClientBoundHeldItemSlot slot) = do
     putVarInt 2
     putWord8 0x37
     put slot
   put (ClientBoundUpdateTime age time) = do
-    putVarInt $ 1 + 8
+    putWord8 0x09
     putWord8 0x43
-    putWord64be . toEnum . fromEnum $ age
-    putWord64be . toEnum . fromEnum $ time
+    putWord32be . toEnum . fromEnum $ age
+    putWord32be . toEnum . fromEnum $ time
 
   get = do
     _ <- getVarInt
@@ -399,8 +407,8 @@ instance Serialize ClientBoundPlay where
       0x0d -> ClientBoundDifficulty
                 <$> (fmap (toEnum . fromEnum) getWord8)
       0x18 -> ClientBoundCustomPayload
-                <$> (getVarInt >>= getByteString)
-                <*> (getVarInt >>= getByteString)
+                <$> fmap decodeUtf8 (getVarInt >>= getByteString)
+                <*> fmap decodeUtf8 (getVarInt >>= getByteString)
       0x1b -> ClientBoundEntityStatus
                 <$> (fmap fromEnum getWord32be)
                 <*> getWord8
