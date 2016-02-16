@@ -150,6 +150,7 @@ handleLogin logger = do
 
 handlePlay :: Config -> Logger -> Conduit ServerBoundPlay (StateT ProtocolState IO) ClientBoundPlay
 handlePlay config logger = do
+  someUUID <- liftIO $ nextRandom
   liftIO $ writeTo logger Debug $ "Starting PLAY session"
 
   let loginPacket = ClientBoundLogin
@@ -194,11 +195,14 @@ handlePlay config logger = do
   let statisticsPacket = ClientBoundStatistics (V.fromList [])
   liftIO $ writeTo logger Debug $ "Sending: " ++ show statisticsPacket
   yield statisticsPacket
-{-
-  let playerListItemPacket = ClientBoundPlayerListItem 0 (V.fromList [])
+
+  let testAction = PlayerListAdd "oldmanmike" V.empty Survival 0 Nothing
+  let testPlayer = Player someUUID testAction
+  --let playerListItemPacket = ClientBoundPlayerListItem 0 (V.fromList [testPlayer])
+  let playerListItemPacket = ClientBoundPlayerListItem 0 V.empty
   liftIO $ writeTo logger Debug $ "Sending: " ++ show playerListItemPacket
   yield playerListItemPacket
-
+{-
   let chunkDataPacket1 = chunkData
   liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket1
   yield chunkDataPacket1

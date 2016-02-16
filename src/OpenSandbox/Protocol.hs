@@ -254,7 +254,7 @@ instance Serialize Player where
 
 
 data PlayerListAction
-  = PlayerListAdd T.Text (V.Vector PlayerProperty) GameMode Int Bool (Maybe T.Text)
+  = PlayerListAdd T.Text (V.Vector PlayerProperty) GameMode Int (Maybe T.Text)
   | PlayerListUpdateGameMode GameMode
   | PlayerListUpdateLatency Int
   | PlayerListUpdateDisplayName Bool (Maybe T.Text)
@@ -263,12 +263,14 @@ data PlayerListAction
 
 
 instance Serialize PlayerListAction where
-  put (PlayerListAdd name properties gameMode ping hasDisplayName displayName) = do
-    putByteStringField . encodeUtf8 $ name
+  put (PlayerListAdd name properties gameMode ping displayName) = do
+    let namePayload = encodeUtf8 name
+    let nameLen = B.length namePayload
+    putVarInt nameLen
+    putByteString namePayload
     put properties
     putVarInt . fromEnum $ gameMode
     putVarInt ping
-    put hasDisplayName
     if displayName /= Nothing
       then do
         let displayPayload = encodeUtf8 . fromJust $ displayName

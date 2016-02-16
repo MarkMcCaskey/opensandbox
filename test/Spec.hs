@@ -65,8 +65,7 @@ instance Arbitrary PlayerListAction where
         c <- arbitrary
         d <- arbitrary
         e <- arbitrary
-        f <- arbitrary
-        return $ PlayerListAdd a b c d e f
+        return $ PlayerListAdd a b c d e
       1 -> do
         a <- arbitrary
         return $ PlayerListUpdateGameMode a
@@ -237,11 +236,11 @@ instance Arbitrary ClientBoundPlay where
 instance Arbitrary ServerBoundPlay where
   arbitrary = do
     packetID <- elements [0x0b]
-    case packetID of 
+    case packetID of
       0x0b -> do
         a <- arbitrary
         return $ ServerBoundKeepAlive a
-  
+
 
 prop_ClientBoundStatusEq :: [ClientBoundStatus] -> Bool
 prop_ClientBoundStatusEq lst =
