@@ -4,7 +4,7 @@ branches:
   only:
     - master
 
-sudo: false
+
 cache:
   directories:
     - $HOME/.stack/
@@ -17,6 +17,10 @@ before_install:
   - cd stack-0.1.6.0-linux-x86_64/
   - cp ./stack ~/.local/bin/
   - chmod a+x ~/.local/bin/stack
+  - export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
+  - wget http://libsdl.org/release/SDL2-2.0.4.tar.gz -O - | tar xz
+  - cd SDL2-2.0.4 && ./configure && make -j && sudo make install && cd ..
+
 
 install:
   - stack setup
