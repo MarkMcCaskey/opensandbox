@@ -1,60 +1,164 @@
 {-# LANGUAGE OverloadedStrings #-}
--------------------------------------------------------------------------------
--- |
--- File         : client.hs
--- Copyright    : (c) 2016 Michael Carpenter
--- License      : GPL3
--- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
--- Stability    : experimental
--- Portability  : portable
---
--------------------------------------------------------------------------------
 import            Control.Monad
+import            Data.Array.Repa as Repa
 import qualified  Data.Text as T
+import            Data.Word
+import            Graphics.GL.Compatibility32
+import            Graphics.GL.Core45
+import            Graphics.GL.Types
 import            Linear.V3
 import            Linear.V4
 import            SDL
 
+data Chunk = Chunk
+  { blk       :: !(Array U DIM3 Word8)
+  , vbo       :: !GLuint
+  , elements  :: !Int
+  , changed   :: !Bool
+  } deriving (Show,Eq)
 
-ticksPerSecond :: Int
-ticksPerSecond = 60
+--initChunk :: IO Chunk
+
+--get :: Array U DIM3 Word8 -> V3 Int -> IO Word8
+
+--set :: Array U DIM3 Word8 -> V3 Int -> Word8 -> IO ()
+
+--update :: IO ()
+
+--render :: IO ()
+
+gVertexBufferData :: [Float]
+gVertexBufferData = [ (-1.0),(-1.0),(-1.0)
+                    , (-1.0),(-1.0),(1.0)
+                    , (-1.0),(1.0),(1.0)
+                    , (1.0),(1.0),(-1.0)
+                    , (-1.0),(-1.0),(-1.0)
+                    , (-1.0),(1.0),(-1.0)
+                    , (1.0),(-1.0),(1.0)
+                    , (-1.0),(-1.0),(-1.0)
+                    , (1.0),(-1.0),(-1.0)
+                    , (1.0),(1.0),(-1.0)
+                    , (1.0),(-1.0),(-1.0)
+                    , (-1.0),(-1.0),(-1.0)
+                    , (-1.0),(-1.0),(-1.0)
+                    , (-1.0),(1.0),(1.0)
+                    , (-1.0),(1.0),(-1.0)
+                    , (1.0),(-1.0),(1.0)
+                    , (-1.0),(-1.0),(1.0)
+                    , (-1.0),(-1.0),(-1.0)
+                    , (-1.0),(1.0),(1.0)
+                    , (-1.0),(-1.0),(1.0)
+                    , (1.0),(-1.0),(1.0)
+                    , (1.0),(1.0),(1.0)
+                    , (1.0),(-1.0),(-1.0)
+                    , (1.0),(1.0),(-1.0)
+                    , (1.0),(-1.0),(-1.0)
+                    , (1.0),(1.0),(1.0)
+                    , (1.0),(-1.0),(1.0)
+                    , (1.0),(1.0),(1.0)
+                    , (1.0),(1.0),(-1.0)
+                    , (-1.0),(1.0),(-1.0)
+                    , (1.0),(1.0),(1.0)
+                    , (-1.0),(1.0),(-1.0)
+                    , (-1.0),(1.0),(1.0)
+                    , (1.0),(1.0),(1.0)
+                    , (-1.0),(1.0),(1.0)
+                    , (1.0),(-1.0),(1.0)]
 
 
-sectorSize :: Int
-sectorSize = 16
+initGL :: IO ()
+initGL = do
+  glClearColor 0 0 0 1
+  glClearDepth 1
+  glEnable GL_DEPTH_TEST
+  glDepthFunc GL_LEQUAL
+  glShadeModel GL_SMOOTH
+  glHint GL_PERSPECTIVE_CORRECTION_HINT GL_NICEST
 
+draw :: IO ()
+draw = do
+  glClear GL_COLOR_BUFFER_BIT
+  glClear GL_DEPTH_BUFFER_BIT
+  glMatrixMode GL_MODELVIEW
+  glLoadIdentity
+  glTranslatef (1.5) (0.0) (-7.0)
 
-walkingSpeed :: Int
-walkingSpeed = 5
+  glBegin GL_QUADS
+  glColor3f 0 0 0
+  glVertex3f (1.0) (1.0) (-1.0)
+  glVertex3f (-1.0) (1.0) (-1.0)
+  glVertex3f (-1.0) (1.0) (1.0)
+  glVertex3f (1.0) (1.0) (1.0)
 
+  glColor3f (1.0) (0.5) (0.0)
+  glVertex3f (1.0) (-1.0) (1.0)
+  glVertex3f (-1.0) (-1.0)  (1.0)
+  glVertex3f (-1.0) (-1.0) (-1.0)
+  glVertex3f (1.0) (-1.0) (-1.0)
 
-flyingSpeed :: Int
-flyingSpeed = 15
+  glColor3f (1.0) (0.0) (0.0)
+  glVertex3f (1.0) (1.0) (1.0)
+  glVertex3f (-1.0) (1.0) (1.0)
+  glVertex3f (-1.0) (-1.0) (1.0)
+  glVertex3f ( 1.0) (-1.0) (1.0)
 
+  glColor3f (1.0) (1.0) (0.0)
+  glVertex3f (1.0) (-1.0) (-1.0)
+  glVertex3f (-1.0) (-1.0) (-1.0)
+  glVertex3f (-1.0) (1.0) (-1.0)
+  glVertex3f (1.0) (1.0) (-1.0)
 
-gravity :: Double
-gravity = 20.0
+  glColor3f (0.0) (0.0) (1.0)
+  glVertex3f (-1.0) (1.0) (1.0)
+  glVertex3f (-1.0) (1.0) (-1.0)
+  glVertex3f (-1.0) (-1.0) (-1.0)
+  glVertex3f (-1.0) (-1.0)  (1.0)
 
+  glColor3f (1.0) (0.0) (1.0)
+  glVertex3f (1.0) (1.0) (-1.0)
+  glVertex3f (1.0) (1.0) (1.0)
+  glVertex3f (1.0) (-1.0) (1.0)
+  glVertex3f (1.0) (-1.0) (-1.0)
+  glEnd
+  glLoadIdentity
+  glTranslatef (-1.5) (0.0) (-6.0)
 
-texturePath :: FilePath
-texturePath = "texture.png"
+  glBegin GL_TRIANGLES
+  glColor3f (1.0) (0.0) (0.0)
+  glVertex3f (0.0) (1.0) (0.0)
+  glColor3f (0.0) (1.0) (0.0)
+  glVertex3f (-1.0) (-1.0) (1.0)
+  glColor3f (0.0) (0.0) (1.0)
+  glVertex3f (1.0) (-1.0) (1.0)
 
+  glColor3f (1.0) (0.0) (0.0)
+  glVertex3f (0.0) (1.0) (0.0)
+  glColor3f (0.0) (0.0) (1.0)
+  glVertex3f (1.0) (-1.0) (1.0)
+  glColor3f (0.0) (1.0) (0.0)
+  glVertex3f (1.0) (-1.0) (-1.0)
 
-faces :: [V3 Int]
-faces = [ V3  0  1  0
-        , V3  0 (-1)  0
-        , V3 (-1)  0  0
-        , V3  1  0  0
-        , V3  0  0  1
-        , V3  0  0 (-1) ]
+  glColor3f (1.0) (0.0) (0.0)
+  glVertex3f (0.0) (1.0) (0.0)
+  glColor3f (0.0) (1.0) (0.0)
+  glVertex3f (1.0) (-1.0) (-1.0)
+  glColor3f (0.0) (0.0) (1.0)
+  glVertex3f (-1.0) (-1.0) (-1.0)
 
+  glColor3f (1.0) (0.0) (0.0)
+  glVertex3f (0.0) (1.0) (0.0)
+  glColor3f (0.0) (0.0) (1.0)
+  glVertex3f (-1.0) (-1.0) (-1.0)
+  glColor3f (0.0) (1.0) (0.0)
+  glVertex3f (-1.0) (-1.0) (1.0)
+  glEnd
 
 gameLoop :: Renderer -> IO ()
 gameLoop renderer = do
     events <- pollEvents
     let eventIsQPress event =
           case eventPayload event of
-            KeyboardEvent keyboardEvent -> 
+            KeyboardEvent keyboardEvent ->
               keyboardEventKeyMotion keyboardEvent == Pressed &&
               keysymKeycode (keyboardEventKeysym keyboardEvent) == KeycodeQ
             _ -> False
@@ -63,11 +167,11 @@ gameLoop renderer = do
     clear renderer
     present renderer
     unless qPressed (gameLoop renderer)
-                
+
 
 main :: IO ()
 main = do
-    initializeAll
-    window <- createWindow "OpenSandbox" defaultWindow
-    renderer <- createRenderer window (-1) defaultRenderer
-    gameLoop renderer
+  initializeAll
+  window <- createWindow "OpenSandbox" defaultWindow
+  renderer <- createRenderer window (-1) defaultRenderer
+  gameLoop renderer
