@@ -19,7 +19,7 @@ module OpenSandbox.Version
 import qualified Data.Text as T
 
 openSandboxVersion :: T.Text
-openSandboxVersion = "0.0.1.2"
+openSandboxVersion = "0.0.1.3"
 
 
 majorVersion :: T.Text
