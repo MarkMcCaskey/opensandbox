@@ -143,7 +143,7 @@ instance Arbitrary ClientBoundLogin where
 
       0 -> do
         payload <- fmap B.pack arbitrary
-        return $ ClientBoundDisconnect payload
+        return $ ClientBoundLoginDisconnect payload
 
       1 -> do
         a <- fmap B.pack arbitrary

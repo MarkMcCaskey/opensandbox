@@ -16,7 +16,7 @@ cabal-version:              >=1.10
 
 library
     hs-source-dirs:         src
-    ghc-options:            -Wall -O2
+    ghc-options:            -Wall
     exposed-modules:        OpenSandbox
                             OpenSandbox.Block
                             OpenSandbox.CommandLine
@@ -27,10 +27,11 @@ library
                             OpenSandbox.Logger
                             OpenSandbox.Network
                             OpenSandbox.Protocol
+                            OpenSandbox.Protocol.Packet
+                            OpenSandbox.Protocol.Types
                             OpenSandbox.Types
                             OpenSandbox.User
                             OpenSandbox.Version
-                            OpenSandbox.Window
     build-depends:          aeson,
                             asn1-encoding,
                             asn1-types,
@@ -46,6 +47,7 @@ library
                             directory,
                             exceptions,
                             fast-logger,
+                            nbt,
                             old-locale,
                             optparse-applicative,
                             repa,
