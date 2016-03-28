@@ -39,6 +39,7 @@ module OpenSandbox.Protocol.Types
   , Slot
   , EntityProperty (..)
   , ChunkSection (..)
+  , VarInt
   , putVarInt
   , getVarInt
   , putByteStringField
@@ -74,6 +75,8 @@ type Short = Word16
 type Angle = Word8
 
 type Position = Word64
+
+type VarInt = Int
 
 data BlockChange = BlockChange
   { hPosition     :: !Word8

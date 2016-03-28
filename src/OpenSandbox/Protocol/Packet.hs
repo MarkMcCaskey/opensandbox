@@ -204,83 +204,83 @@ instance Serialize ServerBoundLogin where
 
 
 data ClientBoundPlay
-  = ClientBoundSpawnObject Int UUID Word8 Double Double Double Angle Angle Int Short Short Short
-  | ClientBoundSpawnExperienceOrb Int Double Double Double Short
-  | ClientBoundSpawnGlobalEntity Int Word8 Double Double Double
-  | ClientBoundSpawnMob Int UUID Word8 Double Double Double Angle Angle Angle Short Short Short EntityMetadata
-  | ClientBoundSpawnPainting Int UUID String Position Word8
-  | ClientBoundSpawnPlayer Int UUID Double Double Double Angle Angle EntityMetadata
-  | ClientBoundAnimation Int Animation
+  = ClientBoundSpawnObject VarInt UUID Word8 Double Double Double Angle Angle Int32 Short Short Short
+  | ClientBoundSpawnExperienceOrb VarInt Double Double Double Short
+  | ClientBoundSpawnGlobalEntity VarInt Word8 Double Double Double
+  | ClientBoundSpawnMob VarInt UUID Word8 Double Double Double Angle Angle Angle Short Short Short EntityMetadata
+  | ClientBoundSpawnPainting VarInt UUID String Position Word8
+  | ClientBoundSpawnPlayer VarInt UUID Double Double Double Angle Angle EntityMetadata
+  | ClientBoundAnimation VarInt Animation
   | ClientBoundStatistics (V.Vector Stat)
-  | ClientBoundBlockBreakAnimation Int Position Word8
+  | ClientBoundBlockBreakAnimation VarInt Position Word8
   | ClientBoundUpdateBlockEntity Position Word8 (Maybe NBT)
-  | ClientBoundBlockAction Position Word8 Word8 Int
-  | ClientBoundBlockChange Position Int
-  | ClientBoundBossBar UUID Int BossBarAction
+  | ClientBoundBlockAction Position Word8 Word8 VarInt
+  | ClientBoundBlockChange Position VarInt
+  | ClientBoundBossBar UUID VarInt BossBarAction
   | ClientBoundDifficulty Difficulty
   | ClientBoundTabComplete (V.Vector T.Text)
   | ClientBoundChatMessage Chat Word8
-  | ClientBoundMultiBlockChange Int Int Int (V.Vector BlockChange)
+  | ClientBoundMultiBlockChange Int32 Int32 VarInt (V.Vector BlockChange)
   | ClientBoundConfirmTransaction Word8 Short Bool
   | ClientBoundCloseWindow Word8
   | ClientBoundOpenWindow Word8 T.Text Chat Word8 (Maybe Int32)
   | ClientBoundWindowItems Word8 Short (V.Vector Slot)
   | ClientBoundWindowProperty Word8 Short Short
   | ClientBoundSetSlot Word8 Short Short
-  | ClientBoundSetCooldown Int Int
+  | ClientBoundSetCooldown VarInt VarInt
   | ClientBoundPluginMessage T.Text B.ByteString
-  | ClientBoundNamedSoundEffect T.Text Int Int32 Int32 Int32 Float Word8
+  | ClientBoundNamedSoundEffect T.Text VarInt Int32 Int32 Int32 Float Word8
   | ClientBoundPlayDisconnect Chat
   | ClientBoundEntityStatus Int32 Word8
   | ClientBoundExplosion Float Float Float Float Int32 B.ByteString Float Float Float
   | ClientBoundUnloadChunk Int32 Int32
   | ClientBoundChangeGameState Word8 Float
-  | ClientBoundKeepAlive Int
-  | ClientBoundChunkData Int32 Int32 Bool Int Int (V.Vector ChunkSection) (Maybe B.ByteString)
+  | ClientBoundKeepAlive VarInt
+  | ClientBoundChunkData Int32 Int32 Bool VarInt VarInt (V.Vector ChunkSection) (Maybe B.ByteString)
   | ClientBoundEffect Int32 Position Int32 Bool
-  | ClientBoundParticle Int32 Bool Float Float Float Float Float Float Float Int32 (V.Vector Int)
+  | ClientBoundParticle Int32 Bool Float Float Float Float Float Float Float Int32 (V.Vector VarInt)
   | ClientBoundJoinGame Int32 Word8 Word8 Word8 Word8 T.Text Bool
-  | ClientBoundMap Int Word8 Bool (V.Vector Icon) Word8 (Maybe Word8) (Maybe Word8) (Maybe Word8) (Maybe Int) (Maybe B.ByteString)
-  | ClientBoundEntityRelativeMove Int Short Short Short Bool
-  | ClientBoundEntityLookAndRelativeMove Int Short Short Short Angle Angle Bool
-  | ClientBoundLook Int Angle Angle Bool
-  | ClientBoundEntity Int
+  | ClientBoundMap VarInt Word8 Bool (V.Vector Icon) Word8 (Maybe Word8) (Maybe Word8) (Maybe Word8) (Maybe Int) (Maybe B.ByteString)
+  | ClientBoundEntityRelativeMove VarInt Short Short Short Bool
+  | ClientBoundEntityLookAndRelativeMove VarInt Short Short Short Angle Angle Bool
+  | ClientBoundLook VarInt Angle Angle Bool
+  | ClientBoundEntity VarInt
   | ClientBoundVehicleMove Double Double Double Float Float
   | ClientBoundOpenSignEditor Position
   | ClientBoundPlayerAbilities Word8 Float Float
   | ClientBoundCombatEvent CombatEvent
-  | ClientBoundPlayerListItem Int (V.Vector Player)
-  | ClientBoundPlayerPositionAndLook Double Double Double Float Float Word8 Int
-  | ClientBoundUseBed Int Position
-  | ClientBoundDestroyEntities (V.Vector Int)
-  | ClientBoundRemoveEntityEffect Int Word8
+  | ClientBoundPlayerListItem VarInt (V.Vector Player)
+  | ClientBoundPlayerPositionAndLook Double Double Double Float Float Word8 VarInt
+  | ClientBoundUseBed VarInt Position
+  | ClientBoundDestroyEntities (V.Vector VarInt)
+  | ClientBoundRemoveEntityEffect VarInt Word8
   | ClientBoundResourcePackSend T.Text B.ByteString
   | ClientBoundRespawn Dimension Difficulty GameMode T.Text
-  | ClientBoundEntityHeadLook Int Angle
+  | ClientBoundEntityHeadLook VarInt Angle
   | ClientBoundWorldBorder WorldBorderAction
-  | ClientBoundCamera Int
+  | ClientBoundCamera VarInt
   | ClientBoundHeldItemChange Word8
   | ClientBoundDisplayScoreboard Word8 T.Text
-  | ClientBoundEntityMetadata Int EntityMetadata
+  | ClientBoundEntityMetadata VarInt EntityMetadata
   | ClientBoundAttachEntity Int32 Int32
-  | ClientBoundEntityVelocity Int Short Short Short
-  | ClientBoundEntityEquipment Int Int Slot
-  | ClientBoundSetExperience Float Int Int
-  | ClientBoundUpdateHealth Float Int Float
+  | ClientBoundEntityVelocity VarInt Short Short Short
+  | ClientBoundEntityEquipment VarInt VarInt Slot
+  | ClientBoundSetExperience Float VarInt VarInt
+  | ClientBoundUpdateHealth Float VarInt Float
   | ClientBoundScoreboardObjective T.Text Word8 (Maybe T.Text) (Maybe T.Text)
-  | ClientBoundSetPassengers Int Int (V.Vector Int)
+  | ClientBoundSetPassengers VarInt VarInt (V.Vector VarInt)
   | ClientBoundTeams T.Text Word8 TeamMode
-  | ClientBoundUpdateScore T.Text Word8 T.Text (Maybe Int)
+  | ClientBoundUpdateScore T.Text Word8 T.Text (Maybe VarInt)
   | ClientBoundSpawnPosition Position
   | ClientBoundTimeUpdate Int64 Int64
   | ClientBoundTitle Int TitleAction
   | ClientBoundUpdateSign Position Chat Chat Chat Chat
-  | ClientBoundSoundEffect Int Int Int32 Int32 Int32 Float Word8
+  | ClientBoundSoundEffect VarInt VarInt Int32 Int32 Int32 Float Word8
   | ClientBoundPlayerListHeaderAndFooter Chat Chat
-  | ClientBoundCollectItem Int Int
-  | ClientBoundEntityTeleport Int Double Double Double Angle Angle Bool
-  | ClientBoundEntityProperties Int (V.Vector EntityProperty)
-  | ClientBoundEntityEffect Int Word8 Word8 Int Word8
+  | ClientBoundCollectItem VarInt VarInt
+  | ClientBoundEntityTeleport VarInt Double Double Double Angle Angle Bool
+  | ClientBoundEntityProperties VarInt (V.Vector EntityProperty)
+  | ClientBoundEntityEffect VarInt Word8 Word8 VarInt Word8
 
   | ClientBoundCustomPayload T.Text T.Text
   | ClientBoundLogin Int32 GameMode Dimension Difficulty Word8 WorldType Bool
@@ -417,18 +417,18 @@ instance Serialize ClientBoundPlay where
 
 
 data ServerBoundPlay
-  = ServerBoundTeleportConfirm Int
+  = ServerBoundTeleportConfirm VarInt
   | ServerBoundTabComplete T.Text Bool Bool (Maybe Position)
   | ServerBoundChatMessage T.Text
-  | ServerBoundClientStatus Int
-  | ServerBoundClientSettings T.Text Word8 Int Bool Word8 Int
+  | ServerBoundClientStatus VarInt
+  | ServerBoundClientSettings T.Text Word8 VarInt Bool Word8 VarInt
   | ServerBoundConfirmTransaction Word8 Short Bool
   | ServerBoundEnchantItem Word8 Word8
-  | ServerBoundClickWindow Word8 Short Word8 Short Int Slot
+  | ServerBoundClickWindow Word8 Short Word8 Short VarInt Slot
   | ServerBoundCloseWindow Word8
   | ServerBoundPluginMessage T.Text B.ByteString
-  | ServerBoundUseEntity Int Int (Maybe Float) (Maybe Float) (Maybe Float) (Maybe Int)
-  | ServerBoundKeepAlive Int
+  | ServerBoundUseEntity VarInt VarInt (Maybe Float) (Maybe Float) (Maybe Float) (Maybe VarInt)
+  | ServerBoundKeepAlive VarInt
   | ServerBoundPlayerPosition Double Double Double Bool
   | ServerBoundPlayerPositionAndLook Double Double Double Float Float Bool
   | ServerBoundPlayerLook Float Float Bool
@@ -436,17 +436,17 @@ data ServerBoundPlay
   | ServerBoundVehicleMove Double Double Double Float Float
   | ServerBoundSteerBoat Bool Bool
   | ServerBoundPlayerAbilities Word8 Float Float
-  | ServerBoundPlayerDigging Int Position Word8
-  | ServerBoundEntityAction Int Int Int
+  | ServerBoundPlayerDigging VarInt Position Word8
+  | ServerBoundEntityAction VarInt VarInt VarInt
   | ServerBoundSteerVehicle Float Float Word8
-  | ServerBoundResourcePackStatus B.ByteString Int
+  | ServerBoundResourcePackStatus B.ByteString VarInt
   | ServerBoundHeldItemChange Short
   | ServerBoundCreativeInventoryAction Short Slot
   | ServerBoundUpdateSign Position T.Text T.Text T.Text T.Text
-  | ServerBoundAnimation Int
+  | ServerBoundAnimation VarInt
   | ServerBoundSpectate UUID
-  | ServerBoundPlayerBlockPlacement Position Int Int Word8 Word8 Word8
-  | ServerBoundUseItem Int
+  | ServerBoundPlayerBlockPlacement Position VarInt VarInt Word8 Word8 Word8
+  | ServerBoundUseItem VarInt
   deriving (Show,Eq)
 
 
