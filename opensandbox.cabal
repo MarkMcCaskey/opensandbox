@@ -18,12 +18,8 @@ library
     hs-source-dirs:         src
     ghc-options:            -Wall
     exposed-modules:        OpenSandbox
-                            OpenSandbox.Block
                             OpenSandbox.CommandLine
                             OpenSandbox.Config
-                            OpenSandbox.Effect
-                            OpenSandbox.Entity
-                            OpenSandbox.Item
                             OpenSandbox.Logger
                             OpenSandbox.Network
                             OpenSandbox.Protocol
