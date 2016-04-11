@@ -10,6 +10,7 @@ import            Data.UUID
 import qualified  Data.Vector as V
 import            Data.Word
 import            OpenSandbox
+import            Test.Hspec
 import            Test.QuickCheck
 
 instance Arbitrary a => Arbitrary (V.Vector a) where
@@ -142,7 +143,7 @@ instance Arbitrary ClientBoundLogin where
 
       0 -> do
         payload <- fmap B.pack arbitrary
-        return $ ClientBoundDisconnect payload
+        return $ ClientBoundLoginDisconnect payload
 
       1 -> do
         a <- fmap B.pack arbitrary
@@ -273,10 +274,17 @@ prop_ServerBoundPlayEq lst =
 
 
 main :: IO ()
-main = do
-  quickCheck prop_ClientBoundStatusEq
-  quickCheck prop_ServerBoundStatusEq
-  quickCheck prop_ClientBoundLoginEq
-  quickCheck prop_ServerBoundLoginEq
-  quickCheck prop_ClientBoundPlayEq
-  quickCheck prop_ServerBoundPlayEq
+main = hspec $ do
+  describe "Minecraft Protocol" $ do
+    context "Client bound status packets:" $ do
+      it "Identity" $ property prop_ClientBoundStatusEq
+    context "Server bound status packets:" $ do
+      it "Identity" $ property prop_ServerBoundStatusEq
+    context "Client bound login packets:" $ do
+      it "Identity" $ property prop_ClientBoundLoginEq
+    context "Server bound login packets:" $ do
+      it "Identity" $ property prop_ServerBoundLoginEq
+    context "Client bound play packets:" $ do
+      it "Identity" $ property prop_ClientBoundPlayEq
+    context "Server bound play packets:" $ do
+      it "Identity" $ property prop_ServerBoundPlayEq
