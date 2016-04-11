@@ -21,6 +21,7 @@ import Control.Concurrent.STM.TVar
 import Data.Monoid
 import Data.Thyme.Format
 import Data.Thyme.LocalTime
+import System.Console.ANSI
 import System.Locale
 import System.Log.FastLogger
 
@@ -64,6 +65,16 @@ writeTo logger lvl s = do
       let lvlField = "[" ++ show lvl ++ "]"
       let msg = s
       let logEntry = timestampField <> " " <> lvlField <> " " <> msg
+      case lvl of
+        Debug -> setSGR [SetColor Foreground Dull Cyan]
+        Info -> return ()
+        Notice -> setSGR [SetColor Foreground Dull Yellow]
+        Warning -> setSGR [SetColor Foreground Dull Yellow]
+        Err -> setSGR [SetColor Foreground Dull Red]
+        Crit -> setSGR [SetColor Foreground Dull Red]
+        Alert -> setSGR [SetColor Foreground Dull Red]
+        Emerg -> setSGR [SetColor Foreground Dull Red]
       putStrLn logEntry >> pushLogStrLn (loggerSet logger) (toLogStr logEntry)
+      setSGR [Reset]
     else
       return ()
