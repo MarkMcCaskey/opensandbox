@@ -1,5 +1,5 @@
 flags: {}
 packages:
 - '.'
-extra-deps: [nbt-0.6]
-resolver: lts-5.10
+extra-deps: [nbt-0.6,thyme-0.3.5.5]
+resolver: nightly-2016-06-10
