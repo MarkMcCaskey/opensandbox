@@ -42,11 +42,11 @@ instance Arbitrary WorldType where
   arbitrary = elements [Default,Flat,LargeBiomes,Amplified]
 
 
-instance Arbitrary Stat where
+instance Arbitrary Statistic where
   arbitrary = do
     a <- arbitrary :: Gen T.Text
     b <- arbitrary :: Gen Int
-    return $ Stat a b
+    return $ Statistic a b
 
 
 instance Arbitrary Player where
@@ -54,6 +54,14 @@ instance Arbitrary Player where
     a <- arbitrary
     b <- arbitrary
     return $ Player a b
+
+
+instance Arbitrary NextState where
+  arbitrary = do
+    switch <- choose (1,2) :: Gen Int
+    case switch of
+      1 -> return ProtocolStatus
+      2 -> return ProtocolLogin
 
 
 instance Arbitrary PlayerListAction where
@@ -98,24 +106,26 @@ instance Arbitrary B.ByteString where
   arbitrary = fmap B.pack arbitrary
 
 
+instance Arbitrary ServerBoundHandshaking where
+  arbitrary = do
+    v <- arbitrary
+    a <- arbitrary
+    p <- arbitrary
+    s <- arbitrary
+    return $ SBHandshake v a p s
+
+
 instance Arbitrary ServerBoundStatus where
   arbitrary = do
-    packetID <- elements [0..2] :: Gen Int
+    packetID <- elements [0..1] :: Gen Int
     case packetID of
 
       0x00 -> do
-        v <- arbitrary
-        a <- arbitrary
-        p <- arbitrary
-        s <- arbitrary
-        return $ ServerBoundHandshake v a p s
+        return ServerBoundRequest
 
       0x01 -> do
-        return ServerBoundPingStart
-
-      0x02 -> do
-        payload <- arbitrary
-        return $ ServerBoundPing payload
+        a <- arbitrary
+        return $ ServerBoundPing a
 
 
 instance Arbitrary ClientBoundStatus where
@@ -124,16 +134,12 @@ instance Arbitrary ClientBoundStatus where
     case packetID of
 
       0x00  -> do
-        a <- fmap T.pack arbitrary
-        b <- arbitrary
-        c <- arbitrary
-        d <- arbitrary
-        e <- fmap T.pack arbitrary
-        return $ ClientBoundResponse a b c d e
+        a <- arbitrary
+        return $ ClientBoundResponse a
 
       0x01  -> do
-        pong <- arbitrary
-        return $ ClientBoundPong pong
+        a <- arbitrary
+        return $ ClientBoundPong a
 
 
 instance Arbitrary ClientBoundLogin where
@@ -142,18 +148,18 @@ instance Arbitrary ClientBoundLogin where
     case packetID of
 
       0 -> do
-        payload <- fmap B.pack arbitrary
-        return $ ClientBoundLoginDisconnect payload
+        a <- arbitrary
+        return $ ClientBoundLoginDisconnect a
 
       1 -> do
-        a <- fmap B.pack arbitrary
+        a <- arbitrary
         b <- fmap B.pack arbitrary
         c <- fmap B.pack arbitrary
         return $ ClientBoundEncryptionRequest a b c
 
       2 -> do
-        a <- fmap B.pack arbitrary
-        b <- fmap B.pack arbitrary
+        a <- arbitrary
+        b <- arbitrary
         return $ ClientBoundLoginSuccess a b
 
       3 -> do
@@ -167,7 +173,7 @@ instance Arbitrary ServerBoundLogin where
     case packetID of
 
       0 -> do
-        a <- fmap B.pack arbitrary
+        a <- arbitrary
         return $ ServerBoundLoginStart a
 
       1 -> do
@@ -176,71 +182,9 @@ instance Arbitrary ServerBoundLogin where
         return $ ServerBoundEncryptionResponse a b
 
 
-instance Arbitrary ClientBoundPlay where
-  arbitrary = do
-    packetID <- elements [0x07,0x0d,0x18,0x1b,0x1f,0x2b,0x2d,0x37,0x43] :: Gen Word8
-    case packetID of
-
-      0x07 -> do
-        a <- fmap V.fromList (arbitrary :: Gen [Stat])
-        return $ ClientBoundStatistics a
-
-      0x0d -> do
-        a <- arbitrary
-        return $ ClientBoundDifficulty a
-
-      0x18 -> do
-        a <- arbitrary
-        b <- arbitrary
-        return $ ClientBoundCustomPayload a b
-
-      0x1b -> do
-        a <- arbitrary
-        b <- arbitrary
-        return $ ClientBoundEntityStatus a b
-
-      0x1f -> do
-        a <- arbitrary
-        return $ ClientBoundKeepAlive a
-
-      0x23 -> do
-        a <- (fmap toEnum arbitrary) :: Gen Int32
-        b <- arbitrary :: Gen GameMode
-        c <- arbitrary :: Gen Dimension
-        d <- arbitrary :: Gen Difficulty
-        e <- arbitrary :: Gen Word8
-        f <- arbitrary :: Gen WorldType
-        g <- arbitrary :: Gen Bool
-        return $ ClientBoundLogin a b c d e f g
-
-      0x2b -> do
-        a <- arbitrary
-        b <- arbitrary
-        c <- arbitrary
-        return $ ClientBoundPlayerAbilities a b c
-
-      0x2d -> do
-        a <- arbitrary
-        b <- arbitrary
-        return $ ClientBoundPlayerListItem a b
-
-      0x37 -> do
-        a <- arbitrary
-        return $ ClientBoundHeldItemSlot a
-
-      0x43 -> do
-        a <- arbitrary
-        b <- arbitrary
-        return $ ClientBoundUpdateTime a b
-
-
-instance Arbitrary ServerBoundPlay where
-  arbitrary = do
-    packetID <- elements [0x0b]
-    case packetID of
-      0x0b -> do
-        a <- arbitrary
-        return $ ServerBoundKeepAlive a
+prop_ServerBoundHandshakingEq :: [ServerBoundHandshaking] -> Bool
+prop_ServerBoundHandshakingEq lst =
+  lst == (rights (map decode $ map encode lst :: [Either String ServerBoundHandshaking]))
 
 
 prop_ClientBoundStatusEq :: [ClientBoundStatus] -> Bool
@@ -263,19 +207,12 @@ prop_ServerBoundLoginEq lst =
   lst == (rights (map decode $ map encode lst :: [Either String ServerBoundLogin]))
 
 
-prop_ClientBoundPlayEq :: [ClientBoundPlay] -> Bool
-prop_ClientBoundPlayEq lst =
-  lst == (rights (map decode $ map encode lst :: [Either String ClientBoundPlay]))
-
-
-prop_ServerBoundPlayEq :: [ServerBoundPlay] -> Bool
-prop_ServerBoundPlayEq lst =
-  lst == (rights (map decode $ map encode lst :: [Either String ServerBoundPlay]))
-
-
 main :: IO ()
 main = hspec $ do
   describe "Minecraft Protocol" $ do
+    context "Server bound handshaking packets:" $ do
+      it "Identity" $ property prop_ServerBoundHandshakingEq
+{-
     context "Client bound status packets:" $ do
       it "Identity" $ property prop_ClientBoundStatusEq
     context "Server bound status packets:" $ do
@@ -284,7 +221,4 @@ main = hspec $ do
       it "Identity" $ property prop_ClientBoundLoginEq
     context "Server bound login packets:" $ do
       it "Identity" $ property prop_ServerBoundLoginEq
-    context "Client bound play packets:" $ do
-      it "Identity" $ property prop_ClientBoundPlayEq
-    context "Server bound play packets:" $ do
-      it "Identity" $ property prop_ServerBoundPlayEq
+      -}

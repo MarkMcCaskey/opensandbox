@@ -23,6 +23,8 @@ library
                             OpenSandbox.Logger
                             OpenSandbox.Network
                             OpenSandbox.Protocol
+                            OpenSandbox.Protocol.Decode
+                            OpenSandbox.Protocol.Encode
                             OpenSandbox.Protocol.Packet
                             OpenSandbox.Protocol.Types
                             OpenSandbox.Types
@@ -30,7 +32,6 @@ library
                             OpenSandbox.Version
     build-depends:          aeson,
                             ansi-terminal,
-                            attoparsec,
                             asn1-encoding,
                             asn1-types,
                             base,

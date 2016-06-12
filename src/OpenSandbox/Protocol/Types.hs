@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# OPTIONS_GHC -fno-warn-unused-binds #-}
 {-# OPTIONS_GHC -fno-warn-unused-matches #-}
@@ -17,19 +18,21 @@ module OpenSandbox.Protocol.Types
   , Short
   , Angle
   , Position
+  , NextState (..)
   , Animation (..)
+  , BlockAction (..)
   , BossBarAction (..)
   , EntityMetadataEntry (..)
   , ValueField (..)
   , EntityMetadata
   , PlayerProperty (..)
   , PlayerListAction (..)
-  , Stat (..)
+  , Statistic (..)
   , Player (..)
   , StatusPayload (..)
   , Players (..)
   , Version (..)
-  , Description (..)
+  --, Description (..)
   , BlockChange (..)
   , Icon (..)
   , CombatEvent (..)
@@ -40,14 +43,19 @@ module OpenSandbox.Protocol.Types
   , EntityProperty (..)
   , ChunkSection (..)
   , VarInt
+  , UpdateBlockEntityAction (..)
+  , EntityStatus (..)
+  , GameChangeReason (..)
   , putVarInt
   , getVarInt
   , putByteStringField
   , putPosition
   , putText
+  , getText
   , putBool
   , putSlot
   , putUUID
+  , getUUID
   ) where
 
 import            Prelude hiding (max)
@@ -78,11 +86,22 @@ type Position = Word64
 
 type VarInt = Int
 
+
+data NextState = ProtocolStatus | ProtocolLogin deriving (Show,Eq)
+
+instance Enum NextState where
+  fromEnum ProtocolStatus = 1
+  fromEnum ProtocolLogin = 2
+  toEnum 1 = ProtocolStatus
+  toEnum 2 = ProtocolLogin
+  toEnum _ = undefined
+
 data BlockChange = BlockChange
   { hPosition     :: !Word8
   , yCoord        :: !Word8
   , blockId       :: !Int
   } deriving (Show,Eq)
+
 
 data Animation
   = SwingArm
@@ -91,22 +110,105 @@ data Animation
   | EatFood
   | CriticalEffect
   | MagicCriticalEffect
+  deriving (Show,Eq,Enum)
+
+data UpdateBlockEntityAction
+  = SetSpawnPotentials
+  | SetCommandBlockText
+  | SetBeacon
+  | SetModHead
+  | SetFlower
+  | SetBanner
+  | SetStuctureTileEntity
+  | SetGateway
+  | SetSign
   deriving (Show,Eq)
 
-instance Enum Animation where
-  fromEnum SwingArm = 0
-  fromEnum TakeDamage = 1
-  fromEnum LeaveBed = 2
-  fromEnum EatFood = 3
-  fromEnum CriticalEffect = 4
-  fromEnum MagicCriticalEffect = 5
-  toEnum 0 = SwingArm
-  toEnum 1 = TakeDamage
-  toEnum 2 = LeaveBed
-  toEnum 3 = EatFood
-  toEnum 4 = CriticalEffect
-  toEnum 5 = MagicCriticalEffect
+
+instance Enum UpdateBlockEntityAction where
+  fromEnum SetSpawnPotentials = 1
+  fromEnum SetCommandBlockText = 2
+  fromEnum SetBeacon = 3
+  fromEnum SetModHead = 4
+  fromEnum SetFlower = 5
+  fromEnum SetBanner = 6
+  fromEnum SetStuctureTileEntity = 7
+  fromEnum SetGateway = 8
+  fromEnum SetSign = 9
+  fromEnum _ = undefined
+
+  toEnum 1 = SetSpawnPotentials
+  toEnum 2 = SetCommandBlockText
+  toEnum 3 = SetBeacon
+  toEnum 4 = SetModHead
+  toEnum 5 = SetFlower
+  toEnum 6 = SetBanner
+  toEnum 7 = SetStuctureTileEntity
+  toEnum 8 = SetGateway
+  toEnum 9 = SetSign
   toEnum _ = undefined
+
+
+data BlockAction
+  = NoteBlockAction InstrumentType NotePitch
+  | PistonBlockAction PistonState PistonDirection
+  | ChestBlockAction Word8
+  deriving (Show,Eq)
+
+
+data InstrumentType
+  = Harp
+  | DoubleBass
+  | SnareDrum
+  | Clicks
+  | BassDrum
+  deriving (Show,Eq,Enum)
+
+
+data NotePitch
+  = FSharp
+  | G
+  | GSharp
+  | A
+  | ASharp
+  | B
+  | C
+  | CSharp
+  | D
+  | DSharp
+  | E
+  | F
+  | FSharp2
+  | G2
+  | GSharp2
+  | A2
+  | ASharp2
+  | B2
+  | C2
+  | CSharp2
+  | D2
+  | DSharp2
+  | E2
+  | F2
+  | FSharp3
+  deriving (Show,Eq,Enum)
+
+
+data PistonState
+  = PistonPushing
+  | PistonPulling
+  deriving (Show,Eq,Enum)
+
+
+data PistonDirection
+  = PistonDown
+  | PistonUp
+  | PistonSouth
+  | PistonWest
+  | PistonNorth
+  | PistonEast
+  deriving (Show,Eq,Enum)
+
 
 data BossBarAction
   = BossBarAdd Chat Float Int Int Word8
@@ -116,6 +218,190 @@ data BossBarAction
   | BossBarUpdateStyle Int Int
   | BossBarUpdateFlags Word8
   deriving (Show,Eq)
+
+
+data WindowType
+  = WindowFurnace FurnaceProperty
+  | WindowEnchantmentTable EnchantmentTableProperty
+  | WindowBeacon BeaconProperty
+  | WindowAnvil AnvilProperty
+  | WindowBrewingStand BrewingStandProperty
+  deriving (Show,Eq)
+
+
+data FurnaceProperty
+  = FireIcon
+  | MaxBurnTime
+  | ProgressArrow
+  | MaxProgress
+  deriving (Show,Eq,Enum)
+
+data EnchantmentTableProperty
+  = LvlReqTopSlot
+  | LvlReqMiddleSlot
+  | LvlReqBottomSlot
+  | Seed
+  | TopMouseHover
+  | MiddleMouseHover
+  | BottomMouseHover
+  deriving (Show,Eq,Enum)
+
+
+data BeaconProperty
+  = PowerLevel
+  | FirstPotionEffect
+  | SecondPotionEffect
+  deriving (Show,Eq,Enum)
+
+
+data AnvilProperty
+  = RepairCost
+  deriving (Show,Eq,Enum)
+
+
+data BrewingStandProperty
+  = BrewTime
+  deriving (Show,Eq,Enum)
+
+
+data EntityStatus
+  = TippedArrowParticles
+  | ResetMobSpawnerMinecartTimer
+  | RabbitRunningParticles
+  | EntityHurt
+  | EntityDied
+  | IronGolemThrowingUpArms
+  | SpawnTamingParticles
+  | SpawnTamedParticles
+  | WolfShakingWater
+  | FinishItemUse
+  | SheepEatingGrass
+  | IgniteTNTMinecart
+  | IronGolemHandingOverRose
+  | VillageMating
+  | AngryVillagerParticles
+  | HappyVillagerParticles
+  | WitchAnimation
+  | ZombieConvertingToVillager
+  | FireworkExploding
+  | AnimalInLove
+  | ResetSquidRotation
+  | SpawnExplosionParticles
+  | PlayGuardianSound
+  | EnableReducedDebug
+  | DisableReducedDebug
+  | SetOpPermissionLvl0
+  | SetOpPermissionLvl1
+  | SetOpPermissionLvl2
+  | SetOpPermissionLvl3
+  | SetOpPermissionLvl4
+  | ShieldBlockSound
+  | ShieldBreakSound
+  | FishingRodBobber
+  | ArmorstandHitSound
+  | EntityHurtFromThorns
+  deriving (Show,Eq,Enum)
+
+
+data GameChangeReason
+  = InvalidBed
+  | EndRaining
+  | BeginRaining
+  | ChangeGameMode
+  | ExitEnd
+  | DemoMessage
+  | ArrowHittingPlayer
+  | FadeValue
+  | FateTime
+  | PlayElderGuardianAppearance
+  deriving (Show,Eq,Enum)
+
+
+data EffectID
+  = DispenserDispenses
+  | DispenserFails
+  | DispenserShoots
+  | EnderEyeLaunched
+  | FireworkShot
+  | IronDoorOpened
+  | WoodenDoorOpened
+  | WoodenTrapdoorOpened
+  | FenceGateOpened
+  | FireExtinguished
+  | PlayRecord
+  | IronDoorClosed
+  | WoodenDoorClosed
+  | WoodenTrapdoorClosed
+  | FenceGateClosed
+  | GhastWarns
+  | GhastShoots
+  | EnderdragonShoots
+  | BlazeShoots
+  deriving (Show,Eq)
+
+
+data SmokeDirection
+  = SouthEast
+  | South
+  | SouthWest
+  | East
+  | Up
+  | West
+  | NorthEast
+  | North
+  | NorthWest
+  deriving (Show,Eq,Enum)
+
+
+data ParticleID
+  = Explode
+  | LargeExplosion
+  | HugeExplosion
+  | FireworksSpark
+  | Bubble
+  | Splash
+  | Wake
+  | Suspended
+  | DepthSuspend
+  | Crit
+  | MagicCrit
+  | Smoke
+  | LargeSmoke
+  | Spell
+  | InstantSpell
+  | MobSpell
+  | MobSpellAmbient
+  | WitchMagic
+  | DripWater
+  | DripLava
+  | AngryVillager
+  | HappyVillager
+  | TownAura
+  | Note
+  | Portal
+  | EnchantmentTable
+  | Flame
+  | Lava
+  | Footstep
+  | Cloud
+  | RedDust
+  | SnowballPoof
+  | SnowShovel
+  | Slime
+  | Heart
+  | Barrier
+  | IconCrack
+  | BlockCrack
+  | BlockDust
+  | Droplet
+  | Take
+  | MobAppearance
+  | DragonBreath
+  | Endrod
+  | DamageIndicator
+  | SweepAttack
+  deriving (Show,Eq,Enum)
+
 
 data EntityMetadataEntry = Entry
   { entryIndex  :: Word8
@@ -217,15 +503,15 @@ data ChunkSection = ChunkSection
   , skyLight      :: !(Maybe B.ByteString)
   } deriving (Show,Eq)
 
-data Stat = Stat T.Text Int deriving (Show,Eq)
+data Statistic = Statistic T.Text VarInt deriving (Show,Eq)
 
 
-instance Serialize Stat where
-  put (Stat statName statVal) = do
+instance Serialize Statistic where
+  put (Statistic statName statVal) = do
     putByteStringField . encodeUtf8 $ statName
     putVarInt statVal
 
-  get = Stat <$> fmap decodeUtf8 (getVarInt >>= getByteString) <*> getVarInt
+  get = Statistic <$> fmap decodeUtf8 (getVarInt >>= getByteString) <*> getVarInt
 
 
 instance (Serialize a) => Serialize (V.Vector a) where
@@ -372,15 +658,18 @@ putVarInt i | i < 0x80 = putWord8 (fromIntegral i)
             | otherwise = putWord8 (fromIntegral (i .&. 0x7F) .|. 0x80) >> putVarInt (i `shiftR` 7)
 {-# INLINE putVarInt #-}
 
+
 getVarInt :: Get Int
 getVarInt = do
     w <- getWord8
-    if testBit w 7 then go 7 (fromIntegral (w .&. 0x7F))
+    if testBit w 7
+      then go 7 (fromIntegral (w .&. 0x7F))
       else return (fromIntegral w)
   where
     go n val = do
       w' <- getWord8
-      if testBit w' 7 then go (n+7) (val .|. ((fromIntegral (w' .&. 0x7F)) `shiftL` n))
+      if testBit w' 7
+        then go (n+7) (val .|. ((fromIntegral (w' .&. 0x7F)) `shiftL` n))
         else return (val .|. ((fromIntegral w') `shiftL` n))
 {-# INLINE getVarInt #-}
 
@@ -401,8 +690,19 @@ putPosition p = putWord64be p
 {-# INLINE putPosition #-}
 
 putText :: T.Text -> PutM ()
-putText = putByteString . encodeUtf8
+putText "" = do
+  putVarInt 0
+putText t = do
+  let bs = encodeUtf8 t
+  putVarInt . B.length $ bs
+  putByteString bs
 {-# INLINE putText #-}
+
+getText :: Get T.Text
+getText = do
+  i <- getVarInt
+  fmap decodeUtf8 $ getByteString i
+{-# INLINE getText #-}
 
 putBool :: Bool -> PutM ()
 putBool b = put b
@@ -415,3 +715,7 @@ putSlot = put
 putUUID :: UUID -> PutM ()
 putUUID = putByteString . toASCIIBytes
 {-# INLINE putUUID #-}
+
+getUUID :: Get UUID
+getUUID = undefined
+{-# INLINE getUUID #-}

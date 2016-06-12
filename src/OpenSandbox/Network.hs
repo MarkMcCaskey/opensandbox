@@ -35,32 +35,42 @@ import            OpenSandbox.Version
 runOpenSandboxServer :: Config -> Logger -> IO ()
 runOpenSandboxServer config logger =
     runTCPServer (serverSettings (srvPort config) "*") $ \app -> do
-      protocolState <- flip execStateT Handshake
+      firstState <- flip execStateT Handshake
         $ packetSource app
-        $$ deserializeStatus
-        =$= handleStatus config logger
+        $$ deserializeHandshaking
+        =$= handleHandshaking config logger
         =$= serializeStatus
         =$= packetSink app
       writeTo logger Debug "Somebody's pinging!"
-      if protocolState == Login
+      if firstState == Status
         then do
-          writeTo logger Debug "Somebody's logging in!"
-          nextState <- flip execStateT Login
+          secondState <- flip execStateT Status
             $ packetSource app
-            $$ deserializeLogin
-            =$= handleLogin logger
-            =$= serializeLogin
+            $$ deserializeStatus
+            =$= handleStatus config logger
+            =$= serializeStatus
             =$= packetSink app
-          if nextState == Play
+          writeTo logger Debug "Somebody's pinging!"
+          if secondState == Login
             then do
-              writeTo logger Debug "Somebody succeeded to login"
-              void $ flip execStateT Play
+              writeTo logger Debug "Somebody's logging in!"
+              thirdState <- flip execStateT Login
                 $ packetSource app
-                $$ deserializePlay
-                =$= handlePlay config logger
-                =$= serializePlay
+                $$ deserializeLogin
+                =$= handleLogin logger
+                =$= serializeLogin
                 =$= packetSink app
-            else writeTo logger Debug "Somebody failed login"
+              if thirdState == Play
+                then do
+                  writeTo logger Debug "Somebody succeeded to login"
+                  void $ flip execStateT Play
+                    $ packetSource app
+                    $$ deserializePlay
+                    =$= handlePlay config logger
+                    =$= serializePlay
+                    =$= packetSink app
+                else writeTo logger Debug "Somebody failed login"
+            else return ()
         else return ()
 
 
@@ -72,63 +82,74 @@ packetSink :: AppData -> Sink B.ByteString (StateT ProtocolState IO) ()
 packetSink app = transPipe lift $ appSink app
 
 
+deserializeHandshaking :: Conduit B.ByteString (StateT ProtocolState IO) ServerBoundHandshaking
+deserializeHandshaking = undefined -- conduitGet (S.get :: S.Get ServerBoundHandshaking)
+
+
 deserializeStatus :: Conduit B.ByteString (StateT ProtocolState IO) ServerBoundStatus
-deserializeStatus = conduitGet (S.get :: S.Get ServerBoundStatus)
+deserializeStatus = undefined -- conduitGet (S.get :: S.Get ServerBoundStatus)
 
 
 serializeStatus :: Conduit ClientBoundStatus (StateT ProtocolState IO) B.ByteString
-serializeStatus = conduitPut (S.put :: S.Putter ClientBoundStatus)
+serializeStatus = undefined -- conduitPut (S.put :: S.Putter ClientBoundStatus)
 
 
 deserializeLogin :: Conduit B.ByteString (StateT ProtocolState IO) ServerBoundLogin
-deserializeLogin = conduitGet (S.get :: S.Get ServerBoundLogin)
+deserializeLogin = undefined -- conduitGet (S.get :: S.Get ServerBoundLogin)
 
 
 serializeLogin :: Conduit ClientBoundLogin (StateT ProtocolState IO) B.ByteString
-serializeLogin = conduitPut (S.put :: S.Putter ClientBoundLogin)
+serializeLogin = undefined -- conduitPut (S.put :: S.Putter ClientBoundLogin)
 
 
 deserializePlay :: Conduit B.ByteString (StateT ProtocolState IO) ServerBoundPlay
-deserializePlay = conduitGet (S.get :: S.Get ServerBoundPlay)
+deserializePlay = undefined -- conduitGet (S.get :: S.Get ServerBoundPlay)
 
 
 serializePlay :: Conduit ClientBoundPlay (StateT ProtocolState IO) B.ByteString
-serializePlay = conduitPut (S.put :: S.Putter ClientBoundPlay)
+serializePlay = undefined -- conduitPut (S.put :: S.Putter ClientBoundPlay)
+
+
+handleHandshaking :: Config -> Logger -> Conduit ServerBoundHandshaking (StateT ProtocolState IO) ClientBoundStatus
+handleHandshaking config logger = do
+  maybeHandshake <- await
+  liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybeHandshake
+  case maybeHandshake of
+    Just (SBHandshake _ _ _ ProtocolStatus) -> do
+      maybeHandshake <- await
+      liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybeHandshake
+      lift $ put Status
+
+    Just (SBHandshake _ _ _ ProtocolLogin) -> do
+      liftIO $ writeTo logger Debug $ "Switching protocol state to LOGIN"
+      lift $ put Login
+
+    Just _ -> liftIO $ writeTo logger Err $ "Expecting ServerBoundHandshake, recieved " ++ show maybeHandshake
+    Nothing -> return ()
 
 
 handleStatus :: Config -> Logger -> Conduit ServerBoundStatus (StateT ProtocolState IO) ClientBoundStatus
 handleStatus config logger = do
-  maybeHandshake <- await
-  liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybeHandshake
-  case maybeHandshake of
-    Just (ServerBoundHandshake _ _ _ 1) -> do
-      maybePingStart <- await
-      liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybePingStart
-      lift $ put Status
+  maybeStatus <- await
+  case maybeStatus of
+    Just SBRequest -> do
+      let responsePacket = CBResponse ""
+      {-
+                            snapshotVersion
+                            (toEnum protocolVersion)
+                            0
+                            (srvMaxPlayers $ config)
+                            (srvMotd config)
+                            -}
+      liftIO $ writeTo logger Debug $ "Sending: " ++ show responsePacket
+      yield responsePacket
 
-      let statusPacket = ClientBoundResponse
-                          snapshotVersion
-                          (toEnum protocolVersion)
-                          0
-                          (srvMaxPlayers $ config)
-                          (srvMotd config)
-      liftIO $ writeTo logger Debug $ "Sending: " ++ show statusPacket
-      yield statusPacket
+    Just (SBPing payload) -> do
+      let pongPacket = CBPong payload
+      liftIO $ writeTo logger Debug $ "Sending: " ++ show pongPacket
+      yield pongPacket
 
-      maybePing <- await
-      liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybePing
-      case maybePing of
-        Just (ServerBoundPing payload) -> do
-          let pongPacket = ClientBoundPong payload
-          liftIO $ writeTo logger Debug $ "Sending: " ++ show pongPacket
-          yield pongPacket
-        Just _ -> liftIO $ writeTo logger Err $ "Expecting ServerBoundPing, recieved " ++ show maybePing
-        Nothing -> return ()
-
-    Just (ServerBoundHandshake _ _ _ 2) -> do
-      liftIO $ writeTo logger Debug $ "Switching protocol state to LOGIN"
-      lift $ put Login
-    Just _ -> liftIO $ writeTo logger Err $ "Expecting ServerBoundHandshake, recieved " ++ show maybeHandshake
+    Just _ -> liftIO $ writeTo logger Err $ "Expecting ServerBoundPing, recieved " ++ show maybeStatus
     Nothing -> return ()
 
 
@@ -137,9 +158,9 @@ handleLogin logger = do
   maybeLoginStart <- await
   liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybeLoginStart
   case maybeLoginStart of
-    Just (ServerBoundLoginStart username) ->
+    Just (SBLoginStart username) ->
       do  someUUID <- liftIO nextRandom
-          let loginSuccess = ClientBoundLoginSuccess (BC.pack $ show someUUID) username
+          let loginSuccess = CBLoginSuccess someUUID username
           liftIO $ writeTo logger Debug $ "Sending: " ++ show loginSuccess
           yield loginSuccess
           liftIO $ writeTo logger Debug $ "Switching protocol state to PLAY"
@@ -152,7 +173,7 @@ handlePlay :: Config -> Logger -> Conduit ServerBoundPlay (StateT ProtocolState 
 handlePlay config logger = do
   someUUID <- liftIO $ nextRandom
   liftIO $ writeTo logger Debug $ "Starting PLAY session"
-
+{-
   let loginPacket = ClientBoundLogin
                       2566
                       (srvGameMode config)
@@ -202,7 +223,7 @@ handlePlay config logger = do
   let playerListItemPacket = ClientBoundPlayerListItem 0 V.empty
   liftIO $ writeTo logger Debug $ "Sending: " ++ show playerListItemPacket
   yield playerListItemPacket
-{-
+
   let chunkDataPacket1 = chunkData
   liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket1
   yield chunkDataPacket1
