@@ -23,8 +23,6 @@ library
                             OpenSandbox.Logger
                             OpenSandbox.Network
                             OpenSandbox.Protocol
-                            OpenSandbox.Protocol.Decode
-                            OpenSandbox.Protocol.Encode
                             OpenSandbox.Protocol.Packet
                             OpenSandbox.Protocol.Types
                             OpenSandbox.Types
@@ -34,6 +32,7 @@ library
                             ansi-terminal,
                             asn1-encoding,
                             asn1-types,
+                            attoparsec,
                             base,
                             bytes,
                             bytestring,
@@ -75,7 +74,8 @@ test-suite opensandbox-test
     type:                   exitcode-stdio-1.0
     hs-source-dirs:         test
     main-is:                Spec.hs
-    build-depends:          base,
+    build-depends:          attoparsec,
+                            base,
                             bytestring,
                             cereal,
                             hspec,

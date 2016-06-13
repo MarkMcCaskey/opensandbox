@@ -82,35 +82,35 @@ packetSink :: AppData -> Sink B.ByteString (StateT ProtocolState IO) ()
 packetSink app = transPipe lift $ appSink app
 
 
-deserializeHandshaking :: Conduit B.ByteString (StateT ProtocolState IO) ServerBoundHandshaking
+deserializeHandshaking :: Conduit B.ByteString (StateT ProtocolState IO) SBHandshaking
 deserializeHandshaking = undefined -- conduitGet (S.get :: S.Get ServerBoundHandshaking)
 
 
-deserializeStatus :: Conduit B.ByteString (StateT ProtocolState IO) ServerBoundStatus
+deserializeStatus :: Conduit B.ByteString (StateT ProtocolState IO) SBStatus
 deserializeStatus = undefined -- conduitGet (S.get :: S.Get ServerBoundStatus)
 
 
-serializeStatus :: Conduit ClientBoundStatus (StateT ProtocolState IO) B.ByteString
+serializeStatus :: Conduit CBStatus (StateT ProtocolState IO) B.ByteString
 serializeStatus = undefined -- conduitPut (S.put :: S.Putter ClientBoundStatus)
 
 
-deserializeLogin :: Conduit B.ByteString (StateT ProtocolState IO) ServerBoundLogin
+deserializeLogin :: Conduit B.ByteString (StateT ProtocolState IO) SBLogin
 deserializeLogin = undefined -- conduitGet (S.get :: S.Get ServerBoundLogin)
 
 
-serializeLogin :: Conduit ClientBoundLogin (StateT ProtocolState IO) B.ByteString
+serializeLogin :: Conduit CBLogin (StateT ProtocolState IO) B.ByteString
 serializeLogin = undefined -- conduitPut (S.put :: S.Putter ClientBoundLogin)
 
 
-deserializePlay :: Conduit B.ByteString (StateT ProtocolState IO) ServerBoundPlay
+deserializePlay :: Conduit B.ByteString (StateT ProtocolState IO) SBPlay
 deserializePlay = undefined -- conduitGet (S.get :: S.Get ServerBoundPlay)
 
 
-serializePlay :: Conduit ClientBoundPlay (StateT ProtocolState IO) B.ByteString
+serializePlay :: Conduit CBPlay (StateT ProtocolState IO) B.ByteString
 serializePlay = undefined -- conduitPut (S.put :: S.Putter ClientBoundPlay)
 
 
-handleHandshaking :: Config -> Logger -> Conduit ServerBoundHandshaking (StateT ProtocolState IO) ClientBoundStatus
+handleHandshaking :: Config -> Logger -> Conduit SBHandshaking (StateT ProtocolState IO) CBStatus
 handleHandshaking config logger = do
   maybeHandshake <- await
   liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybeHandshake
@@ -128,7 +128,7 @@ handleHandshaking config logger = do
     Nothing -> return ()
 
 
-handleStatus :: Config -> Logger -> Conduit ServerBoundStatus (StateT ProtocolState IO) ClientBoundStatus
+handleStatus :: Config -> Logger -> Conduit SBStatus (StateT ProtocolState IO) CBStatus
 handleStatus config logger = do
   maybeStatus <- await
   case maybeStatus of
@@ -153,7 +153,7 @@ handleStatus config logger = do
     Nothing -> return ()
 
 
-handleLogin :: Logger -> Conduit ServerBoundLogin (StateT ProtocolState IO) ClientBoundLogin
+handleLogin :: Logger -> Conduit SBLogin (StateT ProtocolState IO) CBLogin
 handleLogin logger = do
   maybeLoginStart <- await
   liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybeLoginStart
@@ -169,7 +169,7 @@ handleLogin logger = do
     Nothing -> return ()
 
 
-handlePlay :: Config -> Logger -> Conduit ServerBoundPlay (StateT ProtocolState IO) ClientBoundPlay
+handlePlay :: Config -> Logger -> Conduit SBPlay (StateT ProtocolState IO) CBPlay
 handlePlay config logger = do
   someUUID <- liftIO $ nextRandom
   liftIO $ writeTo logger Debug $ "Starting PLAY session"

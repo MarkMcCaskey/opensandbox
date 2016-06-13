@@ -1,6 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 import            Control.Monad
+import            Data.Attoparsec.ByteString
 import qualified  Data.ByteString as B
+import qualified  Data.ByteString.Lazy as BL
+import qualified  Data.ByteString.Builder as BB
 import            Data.Either
 import            Data.Int
 import            Data.Serialize
@@ -106,7 +109,7 @@ instance Arbitrary B.ByteString where
   arbitrary = fmap B.pack arbitrary
 
 
-instance Arbitrary ServerBoundHandshaking where
+instance Arbitrary SBHandshaking where
   arbitrary = do
     v <- arbitrary
     a <- arbitrary
@@ -115,103 +118,105 @@ instance Arbitrary ServerBoundHandshaking where
     return $ SBHandshake v a p s
 
 
-instance Arbitrary ServerBoundStatus where
+instance Arbitrary SBStatus where
   arbitrary = do
     packetID <- elements [0..1] :: Gen Int
     case packetID of
 
       0x00 -> do
-        return ServerBoundRequest
+        return SBRequest
 
       0x01 -> do
         a <- arbitrary
-        return $ ServerBoundPing a
+        return $ SBPing a
 
 
-instance Arbitrary ClientBoundStatus where
+instance Arbitrary CBStatus where
   arbitrary = do
     packetID <- choose (0,1) :: Gen Word8
     case packetID of
 
       0x00  -> do
         a <- arbitrary
-        return $ ClientBoundResponse a
+        return $ CBResponse a
 
       0x01  -> do
         a <- arbitrary
-        return $ ClientBoundPong a
+        return $ CBPong a
 
 
-instance Arbitrary ClientBoundLogin where
+instance Arbitrary CBLogin where
   arbitrary = do
     packetID <- elements [0..3] :: Gen Int
     case packetID of
 
       0 -> do
         a <- arbitrary
-        return $ ClientBoundLoginDisconnect a
+        return $ CBLoginDisconnect a
 
       1 -> do
         a <- arbitrary
         b <- fmap B.pack arbitrary
         c <- fmap B.pack arbitrary
-        return $ ClientBoundEncryptionRequest a b c
+        return $ CBEncryptionRequest a b c
 
       2 -> do
         a <- arbitrary
         b <- arbitrary
-        return $ ClientBoundLoginSuccess a b
+        return $ CBLoginSuccess a b
 
       3 -> do
         a <- arbitrary
-        return $ ClientBoundSetCompression a
+        return $ CBSetCompression a
 
 
-instance Arbitrary ServerBoundLogin where
+instance Arbitrary SBLogin where
   arbitrary = do
     packetID <- choose (0,1) :: Gen Int
     case packetID of
 
       0 -> do
         a <- arbitrary
-        return $ ServerBoundLoginStart a
+        return $ SBLoginStart a
 
       1 -> do
         a <- fmap B.pack arbitrary
         b <- fmap B.pack arbitrary
-        return $ ServerBoundEncryptionResponse a b
+        return $ SBEncryptionResponse a b
 
 
-prop_ServerBoundHandshakingEq :: [ServerBoundHandshaking] -> Bool
-prop_ServerBoundHandshakingEq lst =
-  lst == (rights (map decode $ map encode lst :: [Either String ServerBoundHandshaking]))
+prop_SBHandshakingEq :: [SBHandshaking] -> Bool
+prop_SBHandshakingEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeSBHandshaking x)) lst
+  let decoded = fmap (parseOnly decodeSBHandshaking) encoded :: [Either String SBHandshaking]
+  lst == (rights decoded)
+
+{-
+prop_CBStatusEq :: [CBStatus] -> Bool
+prop_CBStatusEq lst =
+  lst == (rights (map decode $ map encode lst :: [Either String CBStatus]))
 
 
-prop_ClientBoundStatusEq :: [ClientBoundStatus] -> Bool
-prop_ClientBoundStatusEq lst =
-  lst == (rights (map decode $ map encode lst :: [Either String ClientBoundStatus]))
+prop_SBStatusEq :: [SBStatus] -> Bool
+prop_SBStatusEq lst =
+  lst == (rights (map decode $ map encode lst :: [Either String SBStatus]))
 
 
-prop_ServerBoundStatusEq :: [ServerBoundStatus] -> Bool
-prop_ServerBoundStatusEq lst =
-  lst == (rights (map decode $ map encode lst :: [Either String ServerBoundStatus]))
+prop_CBLoginEq :: [CBLogin] -> Bool
+prop_CBLoginEq lst =
+  lst == (rights (map decode $ map encode lst :: [Either String CBLogin]))
 
 
-prop_ClientBoundLoginEq :: [ClientBoundLogin] -> Bool
-prop_ClientBoundLoginEq lst =
-  lst == (rights (map decode $ map encode lst :: [Either String ClientBoundLogin]))
-
-
-prop_ServerBoundLoginEq :: [ServerBoundLogin] -> Bool
-prop_ServerBoundLoginEq lst =
-  lst == (rights (map decode $ map encode lst :: [Either String ServerBoundLogin]))
-
+prop_SBLoginEq :: [SBLogin] -> Bool
+prop_SBLoginEq lst =
+  lst == (rights (map decode $ map encode lst :: [Either String SBLogin]))
+-}
 
 main :: IO ()
 main = hspec $ do
   describe "Minecraft Protocol" $ do
     context "Server bound handshaking packets:" $ do
-      it "Identity" $ property prop_ServerBoundHandshakingEq
+      it "Identity" $ property prop_SBHandshakingEq
 {-
     context "Client bound status packets:" $ do
       it "Identity" $ property prop_ClientBoundStatusEq

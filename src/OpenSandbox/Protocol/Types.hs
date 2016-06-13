@@ -46,6 +46,7 @@ module OpenSandbox.Protocol.Types
   , UpdateBlockEntityAction (..)
   , EntityStatus (..)
   , GameChangeReason (..)
+  , WindowProperty (..)
   , putVarInt
   , getVarInt
   , putByteStringField
@@ -56,15 +57,45 @@ module OpenSandbox.Protocol.Types
   , putSlot
   , putUUID
   , getUUID
+  , encodeVarInt
+  , decodeVarInt
+  , encodeText
+  , decodeText
+  , encodeUUID
+  , decodeUUID
+  , decodeWord16BE
+  , decodeWord64BE
+  , decodeInt16BE
+  , decodeInt32BE
+  , decodeInt64BE
+  , encodeAngle
+  , decodeAngle
+  , encodeEntityMetadata
+  , decodeEntityMetadata
+  , encodePosition
+  , decodePosition
+  , encodeStatistic
+  , decodeStatistic
+  , encodeNBT
+  , decodeNBT
+  , encodeVector
+  , decodeVector
+  , encodeRecord
+  , encodeSlot
+  , encodeChunkSection
+  , encodeIcon
   ) where
 
 import            Prelude hiding (max)
 import qualified  Data.Aeson as Aeson
+import qualified  Data.Attoparsec.ByteString as Decode
 import            Data.Bits
 import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Lazy as BL
+import qualified  Data.ByteString.Builder as BB
 import            Data.Int
 import            Data.Maybe
+import            Data.Monoid
 import            Data.NBT
 import            Data.Serialize
 import qualified  Data.Text as T
@@ -78,7 +109,7 @@ import OpenSandbox.Types
 
 type Chat = T.Text
 
-type Short = Word16
+type Short = Int16
 
 type Angle = Word8
 
@@ -220,7 +251,7 @@ data BossBarAction
   deriving (Show,Eq)
 
 
-data WindowType
+data WindowProperty
   = WindowFurnace FurnaceProperty
   | WindowEnchantmentTable EnchantmentTableProperty
   | WindowBeacon BeaconProperty
@@ -235,6 +266,7 @@ data FurnaceProperty
   | ProgressArrow
   | MaxProgress
   deriving (Show,Eq,Enum)
+
 
 data EnchantmentTableProperty
   = LvlReqTopSlot
@@ -605,17 +637,20 @@ instance Serialize PlayerProperty where
 
   get = undefined
 
+
 data Icon = Icon
   { directionAndType  :: !Word8
   , x                 :: !Word8
   , z                 :: !Word8
   } deriving (Show,Eq)
 
+
 data CombatEvent
   = EnterCombat
   | EndCombat Int Int32
   | EntityDead Int Int32 Chat
   deriving (Show,Eq)
+
 
 data WorldBorderAction
   = SetSize Double
@@ -626,6 +661,7 @@ data WorldBorderAction
   | SetWarningBlocks Int
   deriving (Show,Eq)
 
+
 data TeamMode
   = CreateTeam T.Text T.Text T.Text Word8 T.Text T.Text Word8 Int (V.Vector T.Text)
   | RemoveTeam
@@ -633,6 +669,7 @@ data TeamMode
   | AddPlayers (V.Vector T.Text)
   | RemovePlayers (V.Vector T.Text)
   deriving (Show,Eq)
+
 
 data TitleAction
   = SetTitle Chat
@@ -642,7 +679,9 @@ data TitleAction
   | Reset
   deriving (Show,Eq)
 
+
 type Slot = NBT
+
 
 data EntityProperty = EntityProperty
   { key             :: !T.Text
@@ -650,6 +689,7 @@ data EntityProperty = EntityProperty
   , numOfModifiers  :: !Int
   , modifiers       :: !Int
   } deriving (Show,Eq)
+
 
 -- Adapted from the protocol-buffers library, but only for Serialize and Ints
 
@@ -685,9 +725,11 @@ putByteStringField x = do
     else do putVarInt len
 {-# INLINE putByteStringField #-}
 
+
 putPosition :: Position -> PutM ()
 putPosition p = putWord64be p
 {-# INLINE putPosition #-}
+
 
 putText :: T.Text -> PutM ()
 putText "" = do
@@ -698,24 +740,125 @@ putText t = do
   putByteString bs
 {-# INLINE putText #-}
 
+
 getText :: Get T.Text
 getText = do
   i <- getVarInt
   fmap decodeUtf8 $ getByteString i
 {-# INLINE getText #-}
 
+
 putBool :: Bool -> PutM ()
 putBool b = put b
 {-# INLINE putBool #-}
+
 
 putSlot :: Slot -> PutM ()
 putSlot = put
 {-# INLINE putSlot #-}
 
+
 putUUID :: UUID -> PutM ()
 putUUID = putByteString . toASCIIBytes
 {-# INLINE putUUID #-}
 
+
 getUUID :: Get UUID
 getUUID = undefined
 {-# INLINE getUUID #-}
+
+
+encodeVarInt :: Int -> BB.Builder
+encodeVarInt i  | i < 0x80 = BB.word8 (fromIntegral i)
+                | otherwise = BB.word8 (fromIntegral (i .&. 0x7F) .|. 0x80) <> encodeVarInt (i `shiftR` 7)
+{-# INLINE encodeVarInt #-}
+
+
+decodeVarInt :: Decode.Parser VarInt
+decodeVarInt = undefined
+
+
+encodeText :: T.Text -> BB.Builder
+encodeText t =
+  (encodeVarInt . B.length . encodeUtf8 $ t)
+  <> (BB.byteString . encodeUtf8 $ t)
+
+
+decodeText :: Decode.Parser T.Text
+decodeText = undefined
+
+
+encodeUUID :: UUID -> BB.Builder
+encodeUUID u = undefined
+
+
+decodeUUID :: Decode.Parser UUID
+decodeUUID = undefined
+
+
+decodeWord16BE :: Decode.Parser Word16
+decodeWord16BE = undefined
+
+
+decodeWord64BE :: Decode.Parser Word64
+decodeWord64BE = undefined
+
+decodeInt16BE :: Decode.Parser Int16
+decodeInt16BE = undefined
+
+decodeInt32BE :: Decode.Parser Int32
+decodeInt32BE = undefined
+
+decodeInt64BE :: Decode.Parser Int64
+decodeInt64BE = undefined
+
+encodeAngle :: Angle -> BB.Builder
+encodeAngle a = undefined
+
+decodeAngle :: Decode.Parser Angle
+decodeAngle = undefined
+
+encodeEntityMetadata :: EntityMetadata -> BB.Builder
+encodeEntityMetadata e = undefined
+
+decodeEntityMetadata :: Decode.Parser EntityMetadata
+decodeEntityMetadata = undefined
+
+encodePosition :: Position -> BB.Builder
+encodePosition p = undefined
+
+decodePosition :: Decode.Parser Position
+decodePosition = undefined
+
+encodeStatistic :: Statistic -> BB.Builder
+encodeStatistic s = undefined
+
+decodeStatistic :: Decode.Parser Statistic
+decodeStatistic = undefined
+
+encodeNBT :: NBT -> BB.Builder
+encodeNBT n = undefined
+
+decodeNBT :: Decode.Parser NBT
+decodeNBT = undefined
+
+encodeVector :: V.Vector a -> BB.Builder
+encodeVector v = undefined
+
+decodeVector :: Decode.Parser (V.Vector a)
+decodeVector = undefined
+
+encodeRecord :: BlockChange -> BB.Builder
+encodeRecord m =
+  (BB.word8 . hPosition $ m)
+  <> (BB.word8 . yCoord $ m)
+  <> (encodeVarInt . blockId $ m)
+
+encodeSlot :: Slot -> BB.Builder
+encodeSlot s = undefined
+
+encodeChunkSection :: ChunkSection -> BB.Builder
+encodeChunkSection c = undefined
+
+encodeIcon :: Icon -> BB.Builder
+encodeIcon i = undefined
