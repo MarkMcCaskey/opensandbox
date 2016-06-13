@@ -22,22 +22,28 @@ module OpenSandbox.Protocol.Packet
   , SBPlay (..)
   , encodeSBHandshaking
   , decodeSBHandshaking
+  , encodeCBStatus
+  , encodeSBStatus
+  , encodeCBLogin
+  , encodeSBLogin
+  , encodeCBPlay
+  , encodeSBPlay
   ) where
 
 import            Prelude hiding (max)
-import qualified  Data.Aeson as Aeson
+--import qualified  Data.Aeson as Aeson
 import qualified  Data.Attoparsec.ByteString as Decode
 import qualified  Data.ByteString as B
-import qualified  Data.ByteString.Char8 as BC
-import qualified  Data.ByteString.Lazy as BL
+--import qualified  Data.ByteString.Char8 as BC
+--import qualified  Data.ByteString.Lazy as BL
 import qualified  Data.ByteString.Builder as Encode
 import            Data.Int
-import            Data.Maybe
+--import            Data.Maybe
 import            Data.Monoid
 import            Data.NBT
 import qualified  Data.Text as T
-import            Data.Text.Encoding
-import            Data.Serialize
+--import            Data.Text.Encoding
+--import            Data.Serialize
 import            Data.UUID
 import qualified  Data.Vector as V
 import            Data.Word
@@ -417,7 +423,7 @@ data CBPlay
 
   -- | __Entity Look:__
   -- This packet is sent by the server when an entity rotates.
-  | CBLook VarInt Angle Angle Bool
+  | CBEntityLook VarInt Angle Angle Bool
 
   -- | __Entity:__
   -- This packet may be used to initialize an entity.
@@ -441,7 +447,7 @@ data CBPlay
 
   -- | __Player List Item:__
   -- Sent by the server to update the user list (<tab> in the client).
-  | CBPlayerListItem VarInt (V.Vector Player)
+  | CBPlayerListItem (V.Vector Player)
 
   -- | __Player Position And Look (clientbound):__
   -- Updates the player's position on the server. This packet will also close the “Downloading Terrain” screen when joining/respawning.
@@ -468,7 +474,7 @@ data CBPlay
   | CBDestroyEntities (V.Vector VarInt)
 
   | CBRemoveEntityEffect VarInt Word8
-  | CBResourcePackSend T.Text B.ByteString
+  | CBResourcePackSend T.Text T.Text
 
   -- | __Respawn:__
   -- To change the player's dimension (overworld/nether/end), send them a respawn packet with the appropriate dimension, followed by prechunks/chunks for the new dimension, and finally a position and look packet. You do not need to unload chunks, the client will do it automatically.
@@ -526,15 +532,15 @@ data CBPlay
   -- This is sent to the client when it should create a new scoreboard objective or remove one.
   | CBScoreboardObjective T.Text Word8 (Maybe T.Text) (Maybe T.Text)
 
-  | CBSetPassengers VarInt VarInt (V.Vector VarInt)
+  | CBSetPassengers VarInt (V.Vector VarInt)
 
   -- | __Teams:__
   -- Creates and updates teams.
-  | CBTeams T.Text Word8 TeamMode
+  | CBTeams T.Text TeamMode
 
   -- | __Update Score:__
   -- This is sent to the client when it should update a scoreboard item.
-  | CBUpdateScore T.Text Word8 T.Text (Maybe VarInt)
+  | CBUpdateScore T.Text Int8 T.Text (Maybe VarInt)
 
   -- | __Spawn Position:__
   -- Sent by the server after login to specify the coordinates of the spawn point (the point at which players spawn at, and which the compass points to). It can be sent at any time to update the point compasses point at.
@@ -548,7 +554,7 @@ data CBPlay
   -- The default SMP server increments the time by 20 every second.
   | CBTimeUpdate Int64 Int64
 
-  | CBTitle Int TitleAction
+  | CBTitle TitleAction
 
   -- | __Sound Effect:__
   -- This packet is used to play a number of hardcoded sound events. For custom sounds, use Named Sound Effect (Play, 0x19, clientbound).
@@ -569,7 +575,7 @@ data CBPlay
   -- | __Entity Properties:__
   -- Sets attributes on the given entity.
   | CBEntityProperties VarInt (V.Vector EntityProperty)
-  | CBEntityEffect VarInt Word8 Word8 VarInt Word8
+  | CBEntityEffect VarInt Int8 Int8 VarInt Word8
   deriving (Show,Eq)
 
 
@@ -895,7 +901,335 @@ encodeCBPlay (CBMap itemDamage scale trackingPosition icons columns rows x z dat
           else mempty
       _ -> undefined
 
-encodeCBPlay _ = undefined
+encodeCBPlay (CBEntityRelativeMove entityID dX dY dZ onGround) =
+  Encode.word8 0x25
+  <> encodeVarInt entityID
+  <> Encode.int16BE dX
+  <> Encode.int16BE dY
+  <> Encode.int16BE dZ
+  <> (Encode.word8 . toEnum . fromEnum $ onGround)
+
+encodeCBPlay (CBEntityLookAndRelativeMove entityID dX dY dZ yaw pitch onGround) =
+  Encode.word8 0x26
+  <> encodeVarInt entityID
+  <> Encode.int16BE dX
+  <> Encode.int16BE dY
+  <> Encode.int16BE dZ
+  <> encodeAngle yaw
+  <> encodeAngle pitch
+  <> (Encode.word8 . toEnum . fromEnum $ onGround)
+
+encodeCBPlay (CBEntityLook entityID yaw pitch onGround) =
+  Encode.word8 0x27
+  <> encodeVarInt entityID
+  <> encodeAngle yaw
+  <> encodeAngle pitch
+  <> (Encode.word8 . toEnum . fromEnum $ onGround)
+
+encodeCBPlay (CBEntity entityID) =
+  Encode.word8 0x28
+  <> encodeVarInt entityID
+
+encodeCBPlay (CBVehicleMove x y z yaw pitch) =
+  Encode.word8 0x29
+  <> Encode.doubleBE x
+  <> Encode.doubleBE y
+  <> Encode.doubleBE z
+  <> Encode.floatBE yaw
+  <> Encode.floatBE pitch
+
+encodeCBPlay (CBOpenSignEditor location) =
+  Encode.word8 0x2A
+  <> encodePosition location
+
+encodeCBPlay (CBPlayerAbilities flags flyingSpeed viewModifiers) =
+  Encode.word8 0x2B
+  <> Encode.word8 flags
+  <> Encode.floatBE flyingSpeed
+  <> Encode.floatBE viewModifiers
+
+encodeCBPlay (CBCombatEvent combatEvent) =
+  Encode.word8 0x2C
+  <> (case combatEvent of
+      EnterCombat   -> do
+        encodeVarInt 0
+      EndCombat duration entityID ->  do
+        encodeVarInt 1
+        <> encodeVarInt duration
+        <> Encode.int32BE entityID
+      EntityDead playerID entityID message -> do
+        encodeVarInt 2
+        <> encodeVarInt playerID
+        <> Encode.int32BE entityID
+        <> encodeText message
+    )
+
+encodeCBPlay (CBPlayerListItem players) =
+  Encode.word8 0x2D
+  <> encodeVarInt 0
+  <> (encodeVarInt . V.length $ players)
+  <> V.foldl1' (<>) (fmap encodePlayer players)
+
+encodeCBPlay (CBPlayerPositionAndLook x y z yaw pitch flags teleportID) =
+  Encode.word8 0x2E
+  <> Encode.doubleBE x
+  <> Encode.doubleBE y
+  <> Encode.doubleBE z
+  <> Encode.floatBE yaw
+  <> Encode.floatBE pitch
+  <> Encode.word8 flags
+  <> encodeVarInt teleportID
+
+encodeCBPlay (CBUseBed entityID location) =
+  Encode.word8 0x2F
+  <> encodeVarInt entityID
+  <> encodePosition location
+
+encodeCBPlay (CBDestroyEntities entityIDs) =
+  Encode.word8 0x30
+  <> (encodeVarInt . V.length $ entityIDs)
+  <> V.foldl1' (<>) (fmap encodeVarInt entityIDs)
+
+encodeCBPlay (CBRemoveEntityEffect entityID effectID) =
+  Encode.word8 0x31
+  <> encodeVarInt entityID
+  <> Encode.word8 effectID
+
+encodeCBPlay (CBResourcePackSend url hash) =
+  Encode.word8 0x32
+  <> encodeText url
+  <> encodeText hash
+
+encodeCBPlay (CBRespawn dimension difficulty gameMode levelType) =
+  Encode.word8 0x33
+  <> (Encode.int32BE . toEnum . fromEnum $ dimension)
+  <> (Encode.word8 . toEnum . fromEnum $ difficulty)
+  <> (Encode.word8 . toEnum . fromEnum $ gameMode)
+  <> encodeText levelType
+
+encodeCBPlay (CBEntityHeadLook entityID headYaw) =
+  Encode.word8 0x34
+  <> encodeVarInt entityID
+  <> encodeAngle headYaw
+
+encodeCBPlay (CBWorldBorder worldBorderAction) =
+  Encode.word8 0x35
+  <> (case worldBorderAction of
+      SetSize diameter -> do
+        encodeVarInt 0
+        <> Encode.doubleBE diameter
+      LerpSize oldDiameter newDiameter speed -> do
+        encodeVarInt 1
+        <> Encode.doubleBE oldDiameter
+        <> Encode.doubleBE newDiameter
+        <> encodeVarLong speed
+      SetCenter x z -> do
+        encodeVarInt 2
+        <> Encode.doubleBE x
+        <> Encode.doubleBE z
+      Initialize x z oldDiameter newDiameter speed portalBoundary warningTime warningBlocks -> do
+        encodeVarInt 3
+        <> Encode.doubleBE x
+        <> Encode.doubleBE z
+        <> Encode.doubleBE oldDiameter
+        <> Encode.doubleBE newDiameter
+        <> encodeVarLong speed
+        <> encodeVarInt portalBoundary
+        <> encodeVarInt warningTime
+        <> encodeVarInt warningBlocks
+      SetWarningTime warningTime -> do
+        encodeVarInt 4
+        <> encodeVarInt warningTime
+      SetWarningBlocks warningBlocks -> do
+        encodeVarInt 5
+        <> encodeVarInt warningBlocks
+    )
+
+encodeCBPlay (CBCamera cameraID) =
+  Encode.word8 0x36
+  <> encodeVarInt cameraID
+
+encodeCBPlay (CBHeldItemChange slot) =
+  Encode.word8 0x37
+  <> Encode.word8 slot
+
+encodeCBPlay (CBDisplayScoreboard position scoreName) =
+  Encode.word8 0x38
+  <> Encode.word8 position
+  <> encodeText scoreName
+
+encodeCBPlay (CBEntityMetadata entityID metadata) =
+  Encode.word8 0x39
+  <> encodeVarInt entityID
+  <> encodeEntityMetadata metadata
+
+encodeCBPlay (CBAttachEntity attachedEntityID holdingEntityID) =
+  Encode.word8 0x3A
+  <> Encode.int32BE attachedEntityID
+  <> Encode.int32BE holdingEntityID
+
+encodeCBPlay (CBEntityVelocity entityID vX vY vZ) =
+  Encode.word8 0x3B
+  <> encodeVarInt entityID
+  <> Encode.int16BE vX
+  <> Encode.int16BE vY
+  <> Encode.int16BE vZ
+
+encodeCBPlay (CBEntityEquipment entityID slot item) =
+  Encode.word8 0x3C
+  <> encodeVarInt entityID
+  <> encodeVarInt slot
+  <> encodeSlot item
+
+encodeCBPlay (CBSetExperience experienceBar level totalExperience) =
+  Encode.word8 0x3D
+  <> Encode.floatBE experienceBar
+  <> encodeVarInt level
+  <> encodeVarInt totalExperience
+
+encodeCBPlay (CBUpdateHealth health food foodSaturation) =
+  Encode.word8 0x3E
+  <> Encode.floatBE health
+  <> encodeVarInt food
+  <> Encode.floatBE foodSaturation
+
+encodeCBPlay (CBScoreboardObjective objectiveName mode objectiveValue t) =
+  Encode.word8 0x3F
+  <> encodeText objectiveName
+  <> Encode.word8 mode
+  <> (case (mode,objectiveValue,t) of
+      (0x00,Just v',Just t')  -> do
+        encodeText v'
+        <> encodeText t'
+      (0x02,Just v',Just t')  -> do
+        encodeText v'
+        <> encodeText t'
+      _     -> mempty
+    )
+
+encodeCBPlay (CBSetPassengers entityID passengers) =
+  Encode.word8 0x40
+  <> encodeVarInt entityID
+  <> (encodeVarInt . V.length $ passengers)
+  <> V.foldl1' (<>) (fmap encodeVarInt passengers)
+
+encodeCBPlay (CBTeams teamName mode) =
+  Encode.word8 0x41
+  <> encodeText teamName
+  <> (case mode of
+      CreateTeam displayName prefix suffix flags tagVisibility collision color players -> do
+        encodeVarInt 0
+        <> encodeText displayName
+        <> encodeText prefix
+        <> encodeText suffix
+        <> Encode.int8 flags
+        <> encodeText tagVisibility
+        <> encodeText collision
+        <> Encode.int8 color
+        <> (encodeVarInt . V.length $ players)
+        <> V.foldl1' (<>) (fmap encodeText players)
+      RemoveTeam -> do
+        encodeVarInt 1
+      UpdateTeamInfo displayName prefix suffix flags tagVisibility collision color -> do
+        encodeVarInt 2
+        <> encodeText displayName
+        <> encodeText prefix
+        <> encodeText suffix
+        <> Encode.int8 flags
+        <> encodeText tagVisibility
+        <> encodeText collision
+        <> Encode.int8 color
+      AddPlayers players -> do
+        encodeVarInt 3
+        <> (encodeVarInt . V.length $ players)
+        <> V.foldl1' (<>) (fmap encodeText players)
+      RemovePlayers players -> do
+        encodeVarInt 4
+        <> (encodeVarInt . V.length $ players)
+        <> V.foldl1' (<>) (fmap encodeText players)
+    )
+
+encodeCBPlay (CBUpdateScore scoreName action objectiveName value) =
+  Encode.word8 0x42
+  <> encodeText scoreName
+  <> Encode.int8 action
+  <> encodeText objectiveName
+  <> case (action,value) of
+      (0x01,Nothing)  -> mempty
+      (_,Just v')     -> encodeVarInt v'
+
+encodeCBPlay (CBSpawnPosition location) =
+  Encode.word8 0x43
+  <> encodePosition location
+
+encodeCBPlay (CBTimeUpdate worldAge timeOfDay) =
+  Encode.word8 0x44
+  <> Encode.int64BE worldAge
+  <> Encode.int64BE timeOfDay
+
+encodeCBPlay (CBTitle titleAction) =
+  Encode.word8 0x45
+  <> case titleAction of
+      SetTitle titleText -> do
+        encodeVarInt 0
+        <> encodeText titleText
+      SetSubtitle subtitleText -> do
+        encodeVarInt 1
+        <> encodeText subtitleText
+      SetTimesAndDisplay fadeIn stay fadeOut -> do
+        encodeVarInt 2
+        <> Encode.int32BE fadeIn
+        <> Encode.int32BE stay
+        <> Encode.int32BE fadeOut
+      Hide -> do
+        encodeVarInt 3
+      Reset -> do
+        encodeVarInt 4
+
+encodeCBPlay (CBSoundEffect soundID soundCategory effPosX effPosY effPosZ volume pitch) =
+  Encode.word8 0x46
+  <> encodeVarInt soundID
+  <> encodeVarInt soundCategory
+  <> Encode.int32BE effPosX
+  <> Encode.int32BE effPosY
+  <> Encode.int32BE effPosZ
+  <> Encode.floatBE volume
+  <> Encode.floatBE pitch
+
+encodeCBPlay (CBPlayerListHeaderAndFooter header footer) =
+  Encode.word8 0x47
+  <> encodeText header
+  <> encodeText footer
+
+encodeCBPlay (CBCollectItem collectedEntityID collectorEntityID) =
+  Encode.word8 0x48
+  <> encodeVarInt collectedEntityID
+  <> encodeVarInt collectorEntityID
+
+encodeCBPlay (CBEntityTeleport entityID x y z yaw pitch onGround) =
+  Encode.word8 0x49
+  <> encodeVarInt entityID
+  <> Encode.doubleBE x
+  <> Encode.doubleBE y
+  <> Encode.doubleBE z
+  <> encodeAngle yaw
+  <> encodeAngle pitch
+  <> (Encode.word8 . toEnum . fromEnum $ onGround)
+
+-- Needs to be better typed
+encodeCBPlay (CBEntityProperties entityID properties) =
+  Encode.word8 0x4A
+  <> encodeVarInt entityID
+  <> (encodeVarInt . V.length $ properties)
+  <> V.foldl1' (<>) (fmap encodeEntityProperty properties)
+
+encodeCBPlay (CBEntityEffect entityID effectID amplifier duration hideParticles) =
+  Encode.word8 0x4B
+  <> encodeVarInt entityID
+  <> Encode.int8 effectID
+  <> Encode.int8 amplifier
+  <> encodeVarInt duration
+  <> (Encode.word8 . toEnum . fromEnum $ hideParticles)
 
 
 data SBPlay
@@ -920,17 +1254,17 @@ data SBPlay
 
   -- | __Client Settings:__
   -- Sent when the player connects, or when settings are changed.
-  | SBClientSettings T.Text Word8 VarInt Bool Word8 VarInt
+  | SBClientSettings T.Text Int8 VarInt Bool Word8 VarInt
 
   -- | __Confirm Transaction (serverbound):__
   -- If a transaction sent by the client was not accepted, the server will reply with a Confirm Transaction (Play, 0x32, clientbound) packet with the Accepted field set to false. When this happens, the client must reflect the packet to apologize (as with movement), otherwise the server ignores any successive transactions.
-  | SBConfirmTransaction Word8 Short Bool
+  | SBConfirmTransaction Int8 Short Bool
 
-  | SBEnchantItem Word8 Word8
+  | SBEnchantItem Int8 Int8
 
   -- | __Click Window:__
   -- This packet is sent by the player when it clicks on a slot in a window.
-  | SBClickWindow Word8 Short Word8 Short VarInt Slot
+  | SBClickWindow Word8 Short Int8 Short VarInt Slot
 
   -- | __Close Window:__
   -- This packet is sent by the client when closing a window.
@@ -1005,18 +1339,18 @@ data SBPlay
   -- The latter 2 bytes are used to indicate the walking and flying speeds respectively, while the first byte is used to determine the value of 4 booleans.
   --
   -- The vanilla client sends this packet when the player starts/stops flying with the Flags parameter changed accordingly. All other parameters are ignored by the vanilla server.
-  | SBPlayerAbilities Word8 Float Float
+  | SBPlayerAbilities Int8 Float Float
 
   -- | __Player Digging:__
   -- Sent when the player mines a block. A Notchian server only accepts digging packets with coordinates within a 6-unit radius between the center of the block and 1.5 units from the player's feet (not their eyes).
-  | SBPlayerDigging VarInt Position Word8
+  | SBPlayerDigging VarInt Position Int8
 
   -- | __Entity Action:__
   -- Sent by the client to indicate that it has performed certain actions: sneaking (crouching), sprinting, exiting a bed, jumping with a horse, and opening a horse's inventory while riding it.
   | SBEntityAction VarInt VarInt VarInt
 
   | SBSteerVehicle Float Float Word8
-  | SBResourcePackStatus B.ByteString VarInt
+  | SBResourcePackStatus VarInt
 
   -- | __Held Item Change (serverbound):__
   -- Sent when the player changes the slot selection.
@@ -1064,3 +1398,195 @@ data SBPlay
   -- Sent when pressing the Use Item key (default: right click) with an item in hand.
   | SBUseItem VarInt
   deriving (Show,Eq)
+
+encodeSBPlay :: SBPlay -> Encode.Builder
+encodeSBPlay (SBTeleportConfirm teleportID) =
+  Encode.word8 0x00
+  <> encodeVarInt teleportID
+
+encodeSBPlay (SBTabComplete text assumeCommand hasPosition lookedAtBlock) =
+  Encode.word8 0x01
+  <> encodeText text
+  <> (Encode.word8 . toEnum . fromEnum $ assumeCommand)
+  <> (Encode.word8 . toEnum . fromEnum $ hasPosition)
+  <> case (hasPosition,lookedAtBlock) of
+      (True,Just lookedAtBlock') -> encodePosition lookedAtBlock'
+      _ -> mempty
+
+encodeSBPlay (SBChatMessage message) =
+  Encode.word8 0x02
+  <> encodeText message
+
+encodeSBPlay (SBClientStatus actionID) =
+  Encode.word8 0x03
+  <> encodeVarInt actionID
+
+encodeSBPlay (SBClientSettings locale viewDistance chatMode chatColors displayedSkinParts mainHand) =
+  Encode.word8 0x04
+  <> encodeText locale
+  <> Encode.int8 viewDistance
+  <> encodeVarInt chatMode
+  <> (Encode.word8 . toEnum . fromEnum $ chatColors)
+  <> Encode.word8 displayedSkinParts
+  <> encodeVarInt mainHand
+
+encodeSBPlay (SBConfirmTransaction windowID actionNumber accepted) =
+  Encode.word8 0x05
+  <> Encode.int8 windowID
+  <> Encode.int16BE actionNumber
+  <> (Encode.word8 . toEnum . fromEnum $ accepted)
+
+encodeSBPlay (SBEnchantItem windowID enchantment) =
+  Encode.word8 0x06
+  <> Encode.int8 windowID
+  <> Encode.int8 enchantment
+
+encodeSBPlay (SBClickWindow windowID slot button actionNumber mode clickedItem) =
+  Encode.word8 0x07
+  <> Encode.word8 windowID
+  <> Encode.int16BE slot
+  <> Encode.int8 button
+  <> Encode.int16BE actionNumber
+  <> encodeVarInt mode
+  <> encodeSlot clickedItem
+
+encodeSBPlay (SBCloseWindow windowID) =
+  Encode.word8 0x08
+  <> Encode.word8 windowID
+
+encodeSBPlay (SBPluginMessage channel dat) =
+  Encode.word8 0x09
+  <> encodeText channel
+  <> Encode.byteString dat
+
+encodeSBPlay (SBUseEntity target t tX tY tZ hand) =
+  Encode.word8 0x0A
+  <> encodeVarInt target
+  <> encodeVarInt t
+  <> case (t,tX,tY,tZ) of
+      (2,Just tX',Just tY',Just tZ') -> do
+        Encode.floatBE tX'
+        <> Encode.floatBE tY'
+        <> Encode.floatBE tZ'
+      _ -> mempty
+  <> case (t,hand) of
+      (0,Just 0) -> encodeVarInt 0
+      (0,Just 2) -> encodeVarInt 2
+      (2,Just 0) -> encodeVarInt 0
+      (2,Just 2) -> encodeVarInt 2
+      _ -> mempty
+
+encodeSBPlay (SBKeepAlive keepAliveID) =
+  Encode.word8 0x0B
+  <> encodeVarInt keepAliveID
+
+encodeSBPlay (SBPlayerPosition x feetY z onGround) =
+  Encode.word8 0x0C
+  <> Encode.doubleBE x
+  <> Encode.doubleBE feetY
+  <> Encode.doubleBE z
+  <> (Encode.word8 . toEnum . fromEnum $ onGround)
+
+encodeSBPlay (SBPlayerPositionAndLook x feetY z yaw pitch onGround) =
+  Encode.word8 0x0D
+  <> Encode.doubleBE x
+  <> Encode.doubleBE feetY
+  <> Encode.doubleBE z
+  <> Encode.floatBE yaw
+  <> Encode.floatBE pitch
+  <> (Encode.word8 . toEnum . fromEnum $ onGround)
+
+encodeSBPlay (SBPlayerLook yaw pitch onGround) =
+  Encode.word8 0x0E
+  <> Encode.floatBE yaw
+  <> Encode.floatBE pitch
+  <> (Encode.word8 . toEnum . fromEnum $ onGround)
+
+encodeSBPlay (SBPlayer onGround) =
+  Encode.word8 0x0F
+  <> (Encode.word8 . toEnum . fromEnum $ onGround)
+
+encodeSBPlay (SBVehicleMove x y z yaw pitch) =
+  Encode.word8 0x10
+  <> Encode.doubleBE x
+  <> Encode.doubleBE y
+  <> Encode.doubleBE z
+  <> Encode.floatBE yaw
+  <> Encode.floatBE pitch
+
+encodeSBPlay (SBSteerBoat rightPaddle leftPaddle) =
+  Encode.word8 0x11
+  <> (Encode.word8 . toEnum . fromEnum $ rightPaddle)
+  <> (Encode.word8 . toEnum . fromEnum $ leftPaddle)
+
+encodeSBPlay (SBPlayerAbilities flags flyingSpeed walkingSpeed) =
+  Encode.word8 0x12
+  <> Encode.int8 flags
+  <> Encode.floatBE flyingSpeed
+  <> Encode.floatBE walkingSpeed
+
+encodeSBPlay (SBPlayerDigging status location face) =
+  Encode.word8 0x13
+  <> encodeVarInt status
+  <> encodePosition location
+  <> Encode.int8 face
+
+encodeSBPlay (SBEntityAction entityID actionID jumpBoost) =
+  Encode.word8 0x14
+  <> encodeVarInt entityID
+  <> encodeVarInt actionID
+  <> encodeVarInt jumpBoost
+
+encodeSBPlay (SBSteerVehicle sideways forward flags) =
+  Encode.word8 0x15
+  <> Encode.floatBE sideways
+  <> Encode.floatBE forward
+  <> Encode.word8 flags
+
+encodeSBPlay (SBResourcePackStatus result) =
+  Encode.word8 0x16
+  <> encodeVarInt result
+
+encodeSBPlay (SBHeldItemChange slot) =
+  Encode.word8 0x17
+  <> Encode.int16BE slot
+
+encodeSBPlay (SBCreativeInventoryAction slot clickedItem) =
+  Encode.word8 0x18
+  <> Encode.int16BE slot
+  <> encodeSlot clickedItem
+
+encodeSBPlay (SBUpdateSign location line1 line2 line3 line4) =
+  Encode.word8 0x19
+  <> encodePosition location
+  <> encodeText line1
+  <> encodeText line2
+  <> encodeText line3
+  <> encodeText line4
+
+encodeSBPlay (SBAnimation hand) =
+  Encode.word8 0x1A
+  <> encodeVarInt hand
+
+encodeSBPlay (SBSpectate targetPlayer) =
+  Encode.word8 0x1B
+  <> encodeUUID targetPlayer
+
+encodeSBPlay (SBPlayerBlockPlacement location face hand cursorPosX cursorPosY cursorPosZ) =
+  Encode.word8 0x1C
+  <> encodePosition location
+  <> encodeVarInt face
+  <> encodeVarInt hand
+  <> Encode.word8 cursorPosX
+  <> Encode.word8 cursorPosY
+  <> Encode.word8 cursorPosZ
+
+encodeSBPlay (SBSpectate targetPlayer) =
+  Encode.word8 0x1B
+  <> encodeUUID targetPlayer
+
+encodeSBPlay (SBUseItem hand) =
+  Encode.word8 0x1D
+  <> encodeVarInt hand
+
+encodeSBPlay _ = undefined

@@ -43,6 +43,7 @@ module OpenSandbox.Protocol.Types
   , EntityProperty (..)
   , ChunkSection (..)
   , VarInt
+  , VarLong
   , UpdateBlockEntityAction (..)
   , EntityStatus (..)
   , GameChangeReason (..)
@@ -84,6 +85,9 @@ module OpenSandbox.Protocol.Types
   , encodeSlot
   , encodeChunkSection
   , encodeIcon
+  , encodePlayer
+  , encodeVarLong
+  , encodeEntityProperty
   ) where
 
 import            Prelude hiding (max)
@@ -117,6 +121,7 @@ type Position = Word64
 
 type VarInt = Int
 
+type VarLong = Int64
 
 data NextState = ProtocolStatus | ProtocolLogin deriving (Show,Eq)
 
@@ -663,9 +668,9 @@ data WorldBorderAction
 
 
 data TeamMode
-  = CreateTeam T.Text T.Text T.Text Word8 T.Text T.Text Word8 Int (V.Vector T.Text)
+  = CreateTeam T.Text T.Text T.Text Int8 T.Text T.Text Int8 (V.Vector T.Text)
   | RemoveTeam
-  | UpdateTeamInfo T.Text T.Text T.Text Word8 T.Text T.Text Word8
+  | UpdateTeamInfo T.Text T.Text T.Text Int8 T.Text T.Text Int8
   | AddPlayers (V.Vector T.Text)
   | RemovePlayers (V.Vector T.Text)
   deriving (Show,Eq)
@@ -862,3 +867,12 @@ encodeChunkSection c = undefined
 
 encodeIcon :: Icon -> BB.Builder
 encodeIcon i = undefined
+
+encodePlayer :: Player -> BB.Builder
+encodePlayer p = undefined
+
+encodeVarLong :: Int64 -> BB.Builder
+encodeVarLong l = undefined
+
+encodeEntityProperty :: EntityProperty -> BB.Builder
+encodeEntityProperty e = undefined
