@@ -230,7 +230,7 @@ data CBPlay
 
   -- | __Spawn Object:__
   -- Sent by the server when a vehicle or other object is created.
-  = CBSpawnObject VarInt UUID Word8 Double Double Double Angle Angle Int32 Short Short Short
+  = CBSpawnObject VarInt UUID Int8 Double Double Double Angle Angle Int32 Short Short Short
 
   -- | __Spawn Experience Orb:__
   -- Spawns one or more experience orbs.
@@ -238,7 +238,7 @@ data CBPlay
 
   -- | __Spawn Global Entity:__
   -- With this packet, the server notifies the client of thunderbolts striking within a 512 block radius around the player. The coordinates specify where exactly the thunderbolt strikes.
-  | CBSpawnGlobalEntity VarInt Word8 Double Double Double
+  | CBSpawnGlobalEntity VarInt Int8 Double Double Double
 
   -- | __Spawn Mob:__
   -- Sent by the server when a mob entity is spawned.
@@ -246,7 +246,7 @@ data CBPlay
 
   -- | __Spawn Painting:__
   -- This packet shows location, name, and type of painting.
-  | CBSpawnPainting VarInt UUID T.Text Position Word8
+  | CBSpawnPainting VarInt UUID T.Text Position Int8
 
   -- | __Spawn Player:__
   -- This packet is sent by the server when a player comes into visible range,
@@ -280,7 +280,7 @@ data CBPlay
   --
   -- If you need to display several break animations at the same time you have
   -- to give each of them a unique Entity ID.
-  | CBBlockBreakAnimation VarInt Position Word8
+  | CBBlockBreakAnimation VarInt Position Int8
 
   -- | __Update Block Entity:__
   -- Sets tile entity associated with the block at the given location.
@@ -315,7 +315,7 @@ data CBPlay
 
   -- | __Chat Message (clientbound):__
   -- Identifying the difference between Chat/System Message is important as it helps respect the user's chat visibility options. While Position 2 accepts json formatting it will not display, old style formatting works.
-  | CBChatMessage Chat Word8
+  | CBChatMessage Chat Int8
 
   -- | __Multi Block Change:__
   -- Fired whenever 2 or more blocks are changed within the same chunk on the same tick.
@@ -324,7 +324,7 @@ data CBPlay
   -- | __Confirm Transaction (clientbound):__
   --  A packet from the server indicating whether a request from the client was accepted,
   --  or whether there was a conflict (due to lag).
-  | CBConfirmTransaction Word8 Short Bool
+  | CBConfirmTransaction Int8 Short Bool
 
   -- | __Close Window (clientbound):__
   -- This packet is sent from the server to the client when a window is forcibly closed,
@@ -351,7 +351,7 @@ data CBPlay
 
   -- | __Set Slot:__
   -- Sent by the server when an item in a slot (in a window) is added/removed.
-  | CBSetSlot Word8 Short Slot
+  | CBSetSlot Int8 Short Slot
 
   -- | __Set Cooldown:__
   -- Applies a cooldown period to all items with the given type. Used by the Notchian server with enderpearls. This packet should be sent when the cooldown starts and also when the cooldown ends (to compensate for lag), although the client will end the cooldown automatically.
@@ -375,7 +375,7 @@ data CBPlay
   -- Sent when an explosion occurs (creepers, TNT, and ghast fireballs).
   --
   -- Each block in Records is set to air. Coordinates for each axis in record is int(X) + record.x
-  | CBExplosion Float Float Float Float (V.Vector (Word8,Word8,Word8)) Float Float Float
+  | CBExplosion Float Float Float Float (V.Vector (Int8,Int8,Int8)) Float Float Float
 
   -- | __Unload Chunk:__
   -- Tells the client to unload a chunk column.
@@ -409,7 +409,7 @@ data CBPlay
 
   -- | __Map:__
   -- Updates a rectangular area on a map item.
-  | CBMap VarInt Word8 Bool (V.Vector Icon) Word8 (Maybe Word8) (Maybe Word8) (Maybe Word8) (Maybe B.ByteString)
+  | CBMap VarInt Int8 Bool (V.Vector Icon) Int8 (Maybe Int8) (Maybe Int8) (Maybe Int8) (Maybe B.ByteString)
 
   -- | __Entity Relative Move:__
   -- This packet is sent by the server when an entity moves less then 8 blocks; if an entity moves more than 8 blocks Entity Teleport (Play, 0x4A, clientbound) should be sent instead.
@@ -441,7 +441,7 @@ data CBPlay
 
   -- | __Player Abilities (clientbound):__
   -- The latter 2 floats are used to indicate the field of view and flying speed respectively, while the first byte is used to determine the value of 4 booleans.
-  | CBPlayerAbilities Word8 Float Float
+  | CBPlayerAbilities Int8 Float Float
 
   | CBCombatEvent CombatEvent
 
@@ -459,7 +459,7 @@ data CBPlay
   -- Yaw is measured in degrees, and does not follow classical trigonometry rules. The unit circle of yaw on the XZ-plane starts at (0, 1) and turns counterclockwise, with 90 at (-1, 0), 180 at (0, -1) and 270 at (1, 0). Additionally, yaw is not clamped to between 0 and 360 degrees; any number is valid, including negative numbers and numbers greater than 360.
   --
   -- Pitch is measured in degrees, where 0 is looking straight ahead, -90 is looking straight up, and 90 is looking straight down.
-  | CBPlayerPositionAndLook Double Double Double Float Float Word8 VarInt
+  | CBPlayerPositionAndLook Double Double Double Float Float Int8 VarInt
 
   -- | __Use Bed:__
   -- This packet tells that a player goes to bed.
@@ -473,7 +473,7 @@ data CBPlay
   -- Sent by the server when a list of entities is to be destroyed on the client.
   | CBDestroyEntities (V.Vector VarInt)
 
-  | CBRemoveEntityEffect VarInt Word8
+  | CBRemoveEntityEffect VarInt Int8
   | CBResourcePackSend T.Text T.Text
 
   -- | __Respawn:__
@@ -498,11 +498,11 @@ data CBPlay
 
   -- | __Held Item Change (clientbound):__
   -- Sent to change the player's slot selection.
-  | CBHeldItemChange Word8
+  | CBHeldItemChange Int8
 
   -- | __Display Scoreboard:__
   -- This is sent to the client when it should display a scoreboard.
-  | CBDisplayScoreboard Word8 T.Text
+  | CBDisplayScoreboard Int8 T.Text
 
   -- | __Entity Metadata:__
   -- Updates one or more metadata properties for an existing entity. Any properties not included in the Metadata field are left unchanged.
@@ -530,7 +530,7 @@ data CBPlay
 
   -- | __Scoreboard Objective:__
   -- This is sent to the client when it should create a new scoreboard objective or remove one.
-  | CBScoreboardObjective T.Text Word8 (Maybe T.Text) (Maybe T.Text)
+  | CBScoreboardObjective T.Text Int8 (Maybe T.Text) (Maybe T.Text)
 
   | CBSetPassengers VarInt (V.Vector VarInt)
 
@@ -584,7 +584,7 @@ encodeCBPlay (CBSpawnObject entityID objectUUID entityType x y z pitch yaw dat v
   Encode.word8 0x00
   <> encodeVarInt entityID
   <> encodeUUID objectUUID
-  <> Encode.word8 entityType
+  <> Encode.int8 entityType
   <> Encode.doubleBE x
   <> Encode.doubleBE y
   <> Encode.doubleBE z
@@ -606,7 +606,7 @@ encodeCBPlay (CBSpawnExperienceOrb entityID x y z count) =
 encodeCBPlay (CBSpawnGlobalEntity entityID entityType x y z) =
   Encode.word8 0x02
   <> encodeVarInt entityID
-  <> Encode.word8 entityType
+  <> Encode.int8 entityType
   <> Encode.doubleBE x
   <> Encode.doubleBE y
   <> Encode.doubleBE z
@@ -633,7 +633,7 @@ encodeCBPlay (CBSpawnPainting entityID entityUUID title location direction) =
   <> encodeUUID entityUUID
   <> encodeText title
   <> encodePosition location
-  <> Encode.word8 direction
+  <> Encode.int8 direction
 
 encodeCBPlay (CBSpawnPlayer entityID playerUUID x y z yaw pitch metadata) =
   Encode.word8 0x05
@@ -660,7 +660,7 @@ encodeCBPlay (CBBlockBreakAnimation entityID location destroyStage) =
   Encode.word8 0x08
   <> encodeVarInt entityID
   <> encodePosition location
-  <> Encode.word8 destroyStage
+  <> Encode.int8 destroyStage
 
 encodeCBPlay (CBUpdateBlockEntity location action nbtData) =
   Encode.word8 0x09
@@ -733,7 +733,7 @@ encodeCBPlay (CBTabComplete matches) =
 encodeCBPlay (CBChatMessage jsonData position) =
   Encode.word8 0x0F
   <> encodeText jsonData
-  <> Encode.word8 position
+  <> Encode.int8 position
 
 encodeCBPlay (CBMultiBlockChange chunkX chunkZ records) =
   Encode.word8 0x10
@@ -744,7 +744,7 @@ encodeCBPlay (CBMultiBlockChange chunkX chunkZ records) =
 
 encodeCBPlay (CBConfirmTransaction windowID actionNumber accepted) =
   Encode.word8 0x11
-  <> Encode.word8 windowID
+  <> Encode.int8 windowID
   <> Encode.int16BE actionNumber
   <> (Encode.word8 . toEnum . fromEnum $ accepted)
 
@@ -776,7 +776,7 @@ encodeCBPlay (CBWindowProperty windowID property value) =
 
 encodeCBPlay (CBSetSlot windowID slot slotData) =
   Encode.word8 0x16
-  <> Encode.word8 windowID
+  <> Encode.int8 windowID
   <> Encode.int16BE slot
   <> encodeSlot slotData
 
@@ -807,7 +807,7 @@ encodeCBPlay (CBPlayDisconnect reason) =
 encodeCBPlay (CBEntityStatus entityID entityStatus) =
   Encode.word8 0x1B
   <> Encode.int32BE entityID
-  <> (Encode.word8 . toEnum . fromEnum $ entityStatus)
+  <> (Encode.int8 . toEnum . fromEnum $ entityStatus)
 
 encodeCBPlay (CBExplosion x y z radius records pMotionX pMotionY pMotionZ) =
   Encode.word8 0x1C
@@ -816,7 +816,7 @@ encodeCBPlay (CBExplosion x y z radius records pMotionX pMotionY pMotionZ) =
   <> Encode.floatBE z
   <> Encode.floatBE radius
   <> (Encode.int32BE . toEnum . V.length $ records)
-  <> V.foldl1' (<>) (fmap (\(a,b,c) -> Encode.word8 a <> Encode.word8 b <> Encode.word8 c) records)
+  <> V.foldl1' (<>) (fmap (\(a,b,c) -> Encode.int8 a <> Encode.int8 b <> Encode.int8 c) records)
   <> Encode.floatBE pMotionX
   <> Encode.floatBE pMotionY
   <> Encode.floatBE pMotionZ
@@ -885,17 +885,17 @@ encodeCBPlay (CBJoinGame entityID gameMode dimension difficulty maxPlayers level
 encodeCBPlay (CBMap itemDamage scale trackingPosition icons columns rows x z dat) =
   Encode.word8 0x24
   <> encodeVarInt itemDamage
-  <> Encode.word8 scale
+  <> Encode.int8 scale
   <> (Encode.word8 . toEnum . fromEnum $ trackingPosition)
   <> (encodeVarInt . V.length $ icons)
   <> V.foldl1' (<>) (fmap encodeIcon icons)
-  <> Encode.word8 columns
+  <> Encode.int8 columns
   <> case (columns,rows,x,z,dat) of
       (columns,Just rows',Just x',Just z', Just dat') -> do
         if columns > 0
-          then Encode.word8 rows'
-                <> Encode.word8 x'
-                <> Encode.word8 z'
+          then Encode.int8 rows'
+                <> Encode.int8 x'
+                <> Encode.int8 z'
                 <> (encodeVarInt . B.length $ dat')
                 <> Encode.byteString dat'
           else mempty
@@ -942,9 +942,10 @@ encodeCBPlay (CBOpenSignEditor location) =
   Encode.word8 0x2A
   <> encodePosition location
 
+-- flags should be better typed
 encodeCBPlay (CBPlayerAbilities flags flyingSpeed viewModifiers) =
   Encode.word8 0x2B
-  <> Encode.word8 flags
+  <> Encode.int8 flags
   <> Encode.floatBE flyingSpeed
   <> Encode.floatBE viewModifiers
 
@@ -970,6 +971,7 @@ encodeCBPlay (CBPlayerListItem players) =
   <> (encodeVarInt . V.length $ players)
   <> V.foldl1' (<>) (fmap encodePlayer players)
 
+-- flags should be better typed
 encodeCBPlay (CBPlayerPositionAndLook x y z yaw pitch flags teleportID) =
   Encode.word8 0x2E
   <> Encode.doubleBE x
@@ -977,7 +979,7 @@ encodeCBPlay (CBPlayerPositionAndLook x y z yaw pitch flags teleportID) =
   <> Encode.doubleBE z
   <> Encode.floatBE yaw
   <> Encode.floatBE pitch
-  <> Encode.word8 flags
+  <> Encode.int8 flags
   <> encodeVarInt teleportID
 
 encodeCBPlay (CBUseBed entityID location) =
@@ -993,7 +995,7 @@ encodeCBPlay (CBDestroyEntities entityIDs) =
 encodeCBPlay (CBRemoveEntityEffect entityID effectID) =
   Encode.word8 0x31
   <> encodeVarInt entityID
-  <> Encode.word8 effectID
+  <> Encode.int8 effectID
 
 encodeCBPlay (CBResourcePackSend url hash) =
   Encode.word8 0x32
@@ -1051,11 +1053,11 @@ encodeCBPlay (CBCamera cameraID) =
 
 encodeCBPlay (CBHeldItemChange slot) =
   Encode.word8 0x37
-  <> Encode.word8 slot
+  <> Encode.int8 slot
 
 encodeCBPlay (CBDisplayScoreboard position scoreName) =
   Encode.word8 0x38
-  <> Encode.word8 position
+  <> Encode.int8 position
   <> encodeText scoreName
 
 encodeCBPlay (CBEntityMetadata entityID metadata) =
@@ -1096,7 +1098,7 @@ encodeCBPlay (CBUpdateHealth health food foodSaturation) =
 encodeCBPlay (CBScoreboardObjective objectiveName mode objectiveValue t) =
   Encode.word8 0x3F
   <> encodeText objectiveName
-  <> Encode.word8 mode
+  <> Encode.int8 mode
   <> (case (mode,objectiveValue,t) of
       (0x00,Just v',Just t')  -> do
         encodeText v'
@@ -1118,7 +1120,7 @@ encodeCBPlay (CBTeams teamName mode) =
   <> encodeText teamName
   <> (case mode of
       CreateTeam displayName prefix suffix flags tagVisibility collision color players -> do
-        encodeVarInt 0
+        Encode.int8 0
         <> encodeText displayName
         <> encodeText prefix
         <> encodeText suffix
@@ -1129,9 +1131,9 @@ encodeCBPlay (CBTeams teamName mode) =
         <> (encodeVarInt . V.length $ players)
         <> V.foldl1' (<>) (fmap encodeText players)
       RemoveTeam -> do
-        encodeVarInt 1
+        Encode.int8 1
       UpdateTeamInfo displayName prefix suffix flags tagVisibility collision color -> do
-        encodeVarInt 2
+        Encode.int8 2
         <> encodeText displayName
         <> encodeText prefix
         <> encodeText suffix
@@ -1140,11 +1142,11 @@ encodeCBPlay (CBTeams teamName mode) =
         <> encodeText collision
         <> Encode.int8 color
       AddPlayers players -> do
-        encodeVarInt 3
+        Encode.int8 3
         <> (encodeVarInt . V.length $ players)
         <> V.foldl1' (<>) (fmap encodeText players)
       RemovePlayers players -> do
-        encodeVarInt 4
+        Encode.int8 4
         <> (encodeVarInt . V.length $ players)
         <> V.foldl1' (<>) (fmap encodeText players)
     )
@@ -1580,10 +1582,6 @@ encodeSBPlay (SBPlayerBlockPlacement location face hand cursorPosX cursorPosY cu
   <> Encode.word8 cursorPosX
   <> Encode.word8 cursorPosY
   <> Encode.word8 cursorPosZ
-
-encodeSBPlay (SBSpectate targetPlayer) =
-  Encode.word8 0x1B
-  <> encodeUUID targetPlayer
 
 encodeSBPlay (SBUseItem hand) =
   Encode.word8 0x1D
