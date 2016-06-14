@@ -23,19 +23,24 @@ module OpenSandbox.Protocol.Packet
   , encodeSBHandshaking
   , decodeSBHandshaking
   , encodeCBStatus
+  , decodeCBStatus
   , encodeSBStatus
+  , decodeSBStatus
   , encodeCBLogin
+  , decodeCBLogin
   , encodeSBLogin
+  , decodeSBLogin
   , encodeCBPlay
-  , encodeSBPlay
+  --, decodeSBPlay
   ) where
 
+import            Debug.Trace
 import            Prelude hiding (max)
---import qualified  Data.Aeson as Aeson
+import qualified  Data.Aeson as Aeson
 import qualified  Data.Attoparsec.ByteString as Decode
 import qualified  Data.ByteString as B
---import qualified  Data.ByteString.Char8 as BC
---import qualified  Data.ByteString.Lazy as BL
+import qualified  Data.ByteString.Char8 as BC
+import qualified  Data.ByteString.Lazy as BL
 import qualified  Data.ByteString.Builder as Encode
 import            Data.Int
 --import            Data.Maybe
@@ -69,7 +74,7 @@ encodeSBHandshaking (SBHandshake protocolVersion srvAddress srvPort nextState) =
     <> encodeVarInt protocolVersion
     <> encodeText srvAddress
     <> Encode.int16BE srvPort
-    <> (encodeVarInt . fromEnum $ nextState)
+    <> (encodeVarInt . toEnum . fromEnum $ nextState)
 encodeSBHandshaking (SBLegacyServerListPing payload) =
     Encode.word8 0xfe
     <> Encode.word8 payload
@@ -83,26 +88,33 @@ decodeSBHandshaking = do
         protocolVersion <- decodeVarInt
         srvAddress <- decodeText
         srvPort <- decodeInt16BE
-        nextState <- (fmap toEnum decodeVarInt)
-        return $ SBHandshake protocolVersion srvAddress srvPort nextState
-      0xfe  -> do
+        nextState <- (fmap (toEnum . fromEnum) decodeVarInt)
+        --bs <- Decode.takeByteString
+        --traceShowM bs
+        return $! SBHandshake protocolVersion srvAddress srvPort nextState
+      0x01  -> do
         payload <- Decode.anyWord8
-        return $ SBLegacyServerListPing payload
-
+        return $! SBLegacyServerListPing payload
+      _ -> fail ("Couldn't match packetID: " ++ show packetID)
 
 data CBStatus
-  = CBResponse T.Text
+  = CBResponse T.Text Word8 Word8 Word8 T.Text
   | CBPong Int64
   deriving (Show,Eq)
 
 
 encodeCBStatus :: CBStatus -> Encode.Builder
-encodeCBStatus (CBResponse jsonResponse) =
+encodeCBStatus (CBResponse mcVersion versionID currentPlayers maxPlayers motd) =
     Encode.word8 0x00
-    <> (encodeText jsonResponse)
+    <> (encodeByteString
+        $ BL.toStrict . Aeson.encode $
+            StatusPayload (Version mcVersion versionID)
+                          (Players maxPlayers currentPlayers)
+                          (Description motd)
+        )
 encodeCBStatus (CBPong payload) =
     Encode.word8 0x01
-    <> (Encode.word64BE . toEnum . fromEnum $ payload)
+    <> Encode.int64BE payload
 
 
 decodeCBStatus :: Decode.Parser CBStatus
@@ -110,10 +122,19 @@ decodeCBStatus = do
     packetID <- Decode.anyWord8
     case packetID of
       0x00  -> do
-        jsonResponse <- decodeText
-        return $ CBResponse jsonResponse
+        rawJSON <- decodeByteString
+        let eitherJSON = Aeson.eitherDecodeStrict rawJSON
+        case eitherJSON of
+          Left err -> fail err
+          Right json -> do
+            return $ CBResponse
+              (name . version $ json)
+              (protocol . version $ json)
+              (online . players $ json)
+              (max . players $ json)
+              (text . description $ json)
       0x01  -> do
-        payload <- (fmap (toEnum . fromEnum) decodeWord64BE)
+        payload <- decodeInt64BE
         return $ CBPong payload
 
 
@@ -128,7 +149,7 @@ encodeSBStatus SBRequest =
   Encode.word8 0x00
 encodeSBStatus (SBPing payload) =
   Encode.word8 0x01
-  <> (Encode.word64BE . toEnum . fromEnum $ payload)
+  <> Encode.int64BE payload
 
 
 decodeSBStatus :: Decode.Parser SBStatus
@@ -138,7 +159,7 @@ decodeSBStatus = do
       0x00  -> do
         return $ SBRequest
       0x01  -> do
-        payload <- (fmap (toEnum . fromEnum) decodeWord64BE)
+        payload <- decodeInt64BE
         return $ SBPing payload
 
 
@@ -179,9 +200,9 @@ decodeCBLogin = do
         return $ CBLoginDisconnect reason
       0x01  -> do
         srvID <- decodeText
-        publicKeyLn <- decodeVarInt
+        publicKeyLn <- fmap fromEnum decodeVarInt
         publicKey <- Decode.take publicKeyLn
-        verifyTokenLn <- decodeVarInt
+        verifyTokenLn <- fmap fromEnum decodeVarInt
         verifyToken <- Decode.take verifyTokenLn
         return $ CBEncryptionRequest srvID publicKey verifyToken
       0x02  -> do
@@ -205,9 +226,9 @@ encodeSBLogin (SBLoginStart name) =
   <> encodeText name
 encodeSBLogin (SBEncryptionResponse sharedSecret verifyToken) =
   Encode.word8 0x01
-  <> (encodeVarInt . B.length $ sharedSecret)
+  <> (encodeVarInt . toEnum . B.length $ sharedSecret)
   <> Encode.byteString sharedSecret
-  <> (encodeVarInt . B.length $ verifyToken)
+  <> (encodeVarInt . toEnum . B.length $ verifyToken)
   <> Encode.byteString verifyToken
 
 
@@ -219,9 +240,9 @@ decodeSBLogin = do
         name <- decodeText
         return $ SBLoginStart name
       0x01  -> do
-        sharedSecretLn <- decodeVarInt
+        sharedSecretLn <- fmap fromEnum decodeVarInt
         sharedSecret <- Decode.take sharedSecretLn
-        verifyTokenLn <- decodeVarInt
+        verifyTokenLn <- fmap fromEnum decodeVarInt
         verifyToken <- Decode.take verifyTokenLn
         return $ SBEncryptionResponse sharedSecret verifyToken
 
@@ -648,12 +669,12 @@ encodeCBPlay (CBSpawnPlayer entityID playerUUID x y z yaw pitch metadata) =
 
 encodeCBPlay (CBAnimation entityID animation) =
   Encode.word8 0x06
-  <> encodeVarInt entityID
+  <> (encodeVarInt entityID)
   <> (Encode.word8 . toEnum . fromEnum $ animation)
 
 encodeCBPlay (CBStatistics statistics) =
   Encode.word8 0x07
-  <> (encodeVarInt . V.length $ statistics)
+  <> (encodeVarInt . toEnum . V.length $ statistics)
   <> (V.foldl1' (<>) (fmap encodeStatistic statistics))
 
 encodeCBPlay (CBBlockBreakAnimation entityID location destroyStage) =
@@ -696,8 +717,8 @@ encodeCBPlay (CBBossBar uuid bossBarAction) =
         encodeVarInt 0
         <> encodeText title
         <> Encode.floatBE health
-        <> encodeVarInt color
-        <> encodeVarInt division
+        <> (encodeVarInt . toEnum $ color)
+        <> (encodeVarInt . toEnum $ division)
         <> Encode.word8 flags
 
       BossBarRemove -> do
@@ -713,8 +734,8 @@ encodeCBPlay (CBBossBar uuid bossBarAction) =
 
       BossBarUpdateStyle color dividers -> do
         encodeVarInt 4
-        <> encodeVarInt color
-        <> encodeVarInt dividers
+        <> (encodeVarInt . toEnum $ color)
+        <> (encodeVarInt . toEnum $ dividers)
 
       BossBarUpdateFlags flags -> do
         encodeVarInt 5
@@ -727,7 +748,7 @@ encodeCBPlay (CBServerDifficulty difficulty) =
 
 encodeCBPlay (CBTabComplete matches) =
   Encode.word8 0x0E
-  <> (encodeVarInt . V.length $ matches)
+  <> (encodeVarInt . toEnum . V.length $ matches)
   <> V.foldl1' (<>) (fmap encodeText matches)
 
 encodeCBPlay (CBChatMessage jsonData position) =
@@ -739,7 +760,7 @@ encodeCBPlay (CBMultiBlockChange chunkX chunkZ records) =
   Encode.word8 0x10
   <> Encode.int32BE chunkX
   <> Encode.int32BE chunkZ
-  <> (encodeVarInt . V.length $ records)
+  <> (encodeVarInt . toEnum . V.length $ records)
   <> V.foldl1' (<>) (fmap encodeRecord records)
 
 encodeCBPlay (CBConfirmTransaction windowID actionNumber accepted) =
@@ -841,13 +862,13 @@ encodeCBPlay (CBChunkData chunkX chunkZ groundUpCont primaryBitMask dat biomes b
   <> Encode.int32BE chunkZ
   <> (Encode.word8 . toEnum . fromEnum $ groundUpCont)
   <> encodeVarInt primaryBitMask
-  <> (encodeVarInt . V.length $ dat)
+  <> (encodeVarInt . toEnum . V.length $ dat)
   <> V.foldl1' (<>) (fmap encodeChunkSection dat)
   <> (case (groundUpCont,biomes) of
       (True,Just b)   -> Encode.byteString b
       _               -> mempty
     )
-  <> (encodeVarInt . V.length $ blockEntities)
+  <> (encodeVarInt . toEnum . V.length $ blockEntities)
   <> V.foldl1' (<>) (fmap encodeNBT blockEntities)
 
 -- (NOTE) Should be better typed to Effect IDs that actually exist
@@ -887,7 +908,7 @@ encodeCBPlay (CBMap itemDamage scale trackingPosition icons columns rows x z dat
   <> encodeVarInt itemDamage
   <> Encode.int8 scale
   <> (Encode.word8 . toEnum . fromEnum $ trackingPosition)
-  <> (encodeVarInt . V.length $ icons)
+  <> (encodeVarInt . toEnum . V.length $ icons)
   <> V.foldl1' (<>) (fmap encodeIcon icons)
   <> Encode.int8 columns
   <> case (columns,rows,x,z,dat) of
@@ -896,7 +917,7 @@ encodeCBPlay (CBMap itemDamage scale trackingPosition icons columns rows x z dat
           then Encode.int8 rows'
                 <> Encode.int8 x'
                 <> Encode.int8 z'
-                <> (encodeVarInt . B.length $ dat')
+                <> (encodeVarInt . toEnum . B.length $ dat')
                 <> Encode.byteString dat'
           else mempty
       _ -> undefined
@@ -956,11 +977,11 @@ encodeCBPlay (CBCombatEvent combatEvent) =
         encodeVarInt 0
       EndCombat duration entityID ->  do
         encodeVarInt 1
-        <> encodeVarInt duration
+        <> (encodeVarInt . toEnum $ duration)
         <> Encode.int32BE entityID
       EntityDead playerID entityID message -> do
         encodeVarInt 2
-        <> encodeVarInt playerID
+        <> (encodeVarInt . toEnum $ playerID)
         <> Encode.int32BE entityID
         <> encodeText message
     )
@@ -968,7 +989,7 @@ encodeCBPlay (CBCombatEvent combatEvent) =
 encodeCBPlay (CBPlayerListItem players) =
   Encode.word8 0x2D
   <> encodeVarInt 0
-  <> (encodeVarInt . V.length $ players)
+  <> (encodeVarInt . toEnum . V.length $ players)
   <> V.foldl1' (<>) (fmap encodePlayer players)
 
 -- flags should be better typed
@@ -989,7 +1010,7 @@ encodeCBPlay (CBUseBed entityID location) =
 
 encodeCBPlay (CBDestroyEntities entityIDs) =
   Encode.word8 0x30
-  <> (encodeVarInt . V.length $ entityIDs)
+  <> (encodeVarInt . toEnum . V.length $ entityIDs)
   <> V.foldl1' (<>) (fmap encodeVarInt entityIDs)
 
 encodeCBPlay (CBRemoveEntityEffect entityID effectID) =
@@ -1036,15 +1057,15 @@ encodeCBPlay (CBWorldBorder worldBorderAction) =
         <> Encode.doubleBE oldDiameter
         <> Encode.doubleBE newDiameter
         <> encodeVarLong speed
-        <> encodeVarInt portalBoundary
-        <> encodeVarInt warningTime
-        <> encodeVarInt warningBlocks
+        <> (encodeVarInt . toEnum $ portalBoundary)
+        <> (encodeVarInt . toEnum $ warningTime)
+        <> (encodeVarInt . toEnum $ warningBlocks)
       SetWarningTime warningTime -> do
         encodeVarInt 4
-        <> encodeVarInt warningTime
+        <> (encodeVarInt . toEnum $ warningTime)
       SetWarningBlocks warningBlocks -> do
         encodeVarInt 5
-        <> encodeVarInt warningBlocks
+        <> (encodeVarInt . toEnum $ warningBlocks)
     )
 
 encodeCBPlay (CBCamera cameraID) =
@@ -1112,7 +1133,7 @@ encodeCBPlay (CBScoreboardObjective objectiveName mode objectiveValue t) =
 encodeCBPlay (CBSetPassengers entityID passengers) =
   Encode.word8 0x40
   <> encodeVarInt entityID
-  <> (encodeVarInt . V.length $ passengers)
+  <> (encodeVarInt . toEnum . V.length $ passengers)
   <> V.foldl1' (<>) (fmap encodeVarInt passengers)
 
 encodeCBPlay (CBTeams teamName mode) =
@@ -1128,7 +1149,7 @@ encodeCBPlay (CBTeams teamName mode) =
         <> encodeText tagVisibility
         <> encodeText collision
         <> Encode.int8 color
-        <> (encodeVarInt . V.length $ players)
+        <> (encodeVarInt . toEnum . V.length $ players)
         <> V.foldl1' (<>) (fmap encodeText players)
       RemoveTeam -> do
         Encode.int8 1
@@ -1143,11 +1164,11 @@ encodeCBPlay (CBTeams teamName mode) =
         <> Encode.int8 color
       AddPlayers players -> do
         Encode.int8 3
-        <> (encodeVarInt . V.length $ players)
+        <> (encodeVarInt . toEnum . V.length $ players)
         <> V.foldl1' (<>) (fmap encodeText players)
       RemovePlayers players -> do
         Encode.int8 4
-        <> (encodeVarInt . V.length $ players)
+        <> (encodeVarInt . toEnum . V.length $ players)
         <> V.foldl1' (<>) (fmap encodeText players)
     )
 
@@ -1222,7 +1243,7 @@ encodeCBPlay (CBEntityTeleport entityID x y z yaw pitch onGround) =
 encodeCBPlay (CBEntityProperties entityID properties) =
   Encode.word8 0x4A
   <> encodeVarInt entityID
-  <> (encodeVarInt . V.length $ properties)
+  <> (encodeVarInt . toEnum . V.length $ properties)
   <> V.foldl1' (<>) (fmap encodeEntityProperty properties)
 
 encodeCBPlay (CBEntityEffect entityID effectID amplifier duration hideParticles) =
@@ -1233,6 +1254,99 @@ encodeCBPlay (CBEntityEffect entityID effectID amplifier duration hideParticles)
   <> encodeVarInt duration
   <> (Encode.word8 . toEnum . fromEnum $ hideParticles)
 
+decodeCBPlay :: Decode.Parser CBPlay
+decodeCBPlay = do
+  packetID <- Decode.anyWord8
+  case packetID of
+    0x00  -> do
+      entityID <- decodeVarInt
+      objectUUID <- decodeUUID
+      t <- decodeInt8
+      x <- decodeDoubleBE
+      y <- decodeDoubleBE
+      z <- decodeDoubleBE
+      pitch <- decodeAngle
+      yaw <- decodeAngle
+      dat <- decodeInt32BE
+      vX <- decodeInt16BE
+      vY <- decodeInt16BE
+      vZ <- decodeInt16BE
+      return $ CBSpawnObject entityID objectUUID t x y z pitch yaw dat vX vY vZ
+
+    0x01  -> do
+      entityID <- decodeVarInt
+      x <- decodeDoubleBE
+      y <- decodeDoubleBE
+      z <- decodeDoubleBE
+      count <- decodeInt16BE
+      return $ CBSpawnExperienceOrb entityID x y z count
+
+    0x02  -> do
+      entityID <- decodeVarInt
+      t <- decodeInt8
+      x <- decodeDoubleBE
+      y <- decodeDoubleBE
+      z <- decodeDoubleBE
+      return $ CBSpawnGlobalEntity entityID t x y z
+
+    0x03  -> do
+      entityID <- decodeVarInt
+      entityUUID <- decodeUUID
+      t <- Decode.anyWord8
+      x <- decodeDoubleBE
+      y <- decodeDoubleBE
+      z <- decodeDoubleBE
+      yaw <- decodeAngle
+      pitch <- decodeAngle
+      headPitch <- decodeAngle
+      vX <- decodeInt16BE
+      vY <- decodeInt16BE
+      vZ <- decodeInt16BE
+      metadata <- decodeEntityMetadata
+      return $ CBSpawnMob entityID entityUUID t x y z yaw pitch headPitch vX vY vZ metadata
+
+    0x04  -> do
+      entityID <- decodeVarInt
+      entityUUID <- decodeUUID
+      title <- decodeText
+      location <- decodePosition
+      direction <- decodeInt8
+      return $ CBSpawnPainting entityID entityUUID title location direction
+
+    0x05  -> do
+      entityID <- decodeVarInt
+      playerUUID <- decodeUUID
+      x <- decodeDoubleBE
+      y <- decodeDoubleBE
+      z <- decodeDoubleBE
+      yaw <- decodeAngle
+      pitch <- decodeAngle
+      metadata <- decodeEntityMetadata
+      return $ CBSpawnPlayer entityID playerUUID x y z yaw pitch metadata
+
+    0x06  -> do
+      entityID <- decodeVarInt
+      animation <- fmap (toEnum . fromEnum) Decode.anyWord8
+      return $ CBAnimation entityID animation
+
+    0x07  -> do
+      count <- fmap fromEnum decodeVarInt
+      statistics <- (fmap V.fromList $ Decode.count count decodeStatistic)
+      return $ CBStatistics statistics
+
+    0x08  -> do
+      entityID <- decodeVarInt
+      location <- decodePosition
+      destroyStage <- decodeInt8
+      return $ CBBlockBreakAnimation entityID location destroyStage
+
+    0x09  -> do
+      location <- decodePosition
+      action <- (fmap (toEnum . fromEnum) Decode.anyWord8)
+      nbtData <- decodeNBT
+      return $ CBUpdateBlockEntity location action nbtData
+
+    _ -> undefined
 
 data SBPlay
   -- | __Teleport Confirm:__

@@ -138,7 +138,11 @@ instance Arbitrary CBStatus where
 
       0x00  -> do
         a <- arbitrary
-        return $ CBResponse a
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        return $ CBResponse a b c d e
 
       0x01  -> do
         a <- arbitrary
@@ -191,39 +195,45 @@ prop_SBHandshakingEq lst = do
   let decoded = fmap (parseOnly decodeSBHandshaking) encoded :: [Either String SBHandshaking]
   lst == (rights decoded)
 
-{-
+
 prop_CBStatusEq :: [CBStatus] -> Bool
-prop_CBStatusEq lst =
-  lst == (rights (map decode $ map encode lst :: [Either String CBStatus]))
+prop_CBStatusEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeCBStatus x)) lst
+  let decoded = fmap (parseOnly decodeCBStatus) encoded :: [Either String CBStatus]
+  lst == (rights decoded)
 
 
 prop_SBStatusEq :: [SBStatus] -> Bool
-prop_SBStatusEq lst =
-  lst == (rights (map decode $ map encode lst :: [Either String SBStatus]))
+prop_SBStatusEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeSBStatus x)) lst
+  let decoded = fmap (parseOnly decodeSBStatus) encoded :: [Either String SBStatus]
+  lst == (rights decoded)
 
 
 prop_CBLoginEq :: [CBLogin] -> Bool
-prop_CBLoginEq lst =
-  lst == (rights (map decode $ map encode lst :: [Either String CBLogin]))
+prop_CBLoginEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeCBLogin x)) lst
+  let decoded = fmap (parseOnly decodeCBLogin) encoded :: [Either String CBLogin]
+  lst == (rights decoded)
 
 
 prop_SBLoginEq :: [SBLogin] -> Bool
-prop_SBLoginEq lst =
-  lst == (rights (map decode $ map encode lst :: [Either String SBLogin]))
--}
+prop_SBLoginEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeSBLogin x)) lst
+  let decoded = fmap (parseOnly decodeSBLogin) encoded :: [Either String SBLogin]
+  lst == (rights decoded)
+
 
 main :: IO ()
 main = hspec $ do
   describe "Minecraft Protocol" $ do
     context "Server bound handshaking packets:" $ do
       it "Identity" $ property prop_SBHandshakingEq
-{-
     context "Client bound status packets:" $ do
-      it "Identity" $ property prop_ClientBoundStatusEq
+      it "Identity" $ property prop_CBStatusEq
     context "Server bound status packets:" $ do
-      it "Identity" $ property prop_ServerBoundStatusEq
+      it "Identity" $ property prop_SBStatusEq
     context "Client bound login packets:" $ do
-      it "Identity" $ property prop_ClientBoundLoginEq
+      it "Identity" $ property prop_CBLoginEq
     context "Server bound login packets:" $ do
-      it "Identity" $ property prop_ServerBoundLoginEq
-      -}
+      it "Identity" $ property prop_SBLoginEq

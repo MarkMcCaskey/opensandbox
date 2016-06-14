@@ -32,7 +32,7 @@ module OpenSandbox.Protocol.Types
   , StatusPayload (..)
   , Players (..)
   , Version (..)
-  --, Description (..)
+  , Description (..)
   , BlockChange (..)
   , Icon (..)
   , CombatEvent (..)
@@ -48,27 +48,23 @@ module OpenSandbox.Protocol.Types
   , EntityStatus (..)
   , GameChangeReason (..)
   , WindowProperty (..)
-  , putVarInt
-  , getVarInt
-  , putByteStringField
-  , putPosition
-  , putText
-  , getText
-  , putBool
-  , putSlot
-  , putUUID
-  , getUUID
+  , decodeWord16BE
+  , decodeWord32BE
+  , decodeWord64BE
+  , decodeInt8
+  , decodeInt16BE
+  , decodeInt32BE
+  , decodeInt64BE
+  , decodeFloatBE
+  , decodeDoubleBE
   , encodeVarInt
   , decodeVarInt
+  , encodeVarLong
+  , decodeVarLong
   , encodeText
   , decodeText
   , encodeUUID
   , decodeUUID
-  , decodeWord16BE
-  , decodeWord64BE
-  , decodeInt16BE
-  , decodeInt32BE
-  , decodeInt64BE
   , encodeAngle
   , decodeAngle
   , encodeEntityMetadata
@@ -82,12 +78,19 @@ module OpenSandbox.Protocol.Types
   , encodeVector
   , decodeVector
   , encodeRecord
+  , decodeRecord
   , encodeSlot
+  , decodeSlot
   , encodeChunkSection
+  , decodeChunkSection
   , encodeIcon
+  , decodeIcon
   , encodePlayer
-  , encodeVarLong
+  , decodePlayer
   , encodeEntityProperty
+  , decodeEntityProperty
+  , encodeByteString
+  , decodeByteString
   ) where
 
 import            Prelude hiding (max)
@@ -95,9 +98,11 @@ import qualified  Data.Aeson as Aeson
 import qualified  Data.Attoparsec.ByteString as Decode
 import            Data.Bits
 import qualified  Data.ByteString as B
+import qualified  Data.ByteString.Unsafe as B
 import qualified  Data.ByteString.Lazy as BL
 import qualified  Data.ByteString.Builder as BB
 import            Data.Int
+import            Data.List
 import            Data.Maybe
 import            Data.Monoid
 import            Data.NBT
@@ -111,19 +116,28 @@ import            GHC.Generics
 
 import OpenSandbox.Types
 
+
 type Chat = T.Text
+
 
 type Short = Int16
 
+
 type Angle = Word8
+
 
 type Position = Word64
 
+
 type VarInt = Int
+
 
 type VarLong = Int64
 
-data NextState = ProtocolStatus | ProtocolLogin deriving (Show,Eq)
+
+data NextState = ProtocolStatus | ProtocolLogin
+  deriving (Show,Eq)
+
 
 instance Enum NextState where
   fromEnum ProtocolStatus = 1
@@ -131,6 +145,7 @@ instance Enum NextState where
   toEnum 1 = ProtocolStatus
   toEnum 2 = ProtocolLogin
   toEnum _ = undefined
+
 
 data BlockChange = BlockChange
   { hPosition     :: !Word8
@@ -147,6 +162,7 @@ data Animation
   | CriticalEffect
   | MagicCriticalEffect
   deriving (Show,Eq,Enum)
+
 
 data UpdateBlockEntityAction
   = SetSpawnPotentials
@@ -446,6 +462,7 @@ data EntityMetadataEntry = Entry
   , entryValue  :: Maybe Word8
   } deriving (Show,Eq)
 
+
 data ValueField
   = ByteField
   | VarIntField
@@ -461,6 +478,7 @@ data ValueField
   | OptUUIDField
   | BlockIDField
   deriving (Show,Eq)
+
 
 instance Enum ValueField where
   fromEnum ByteField = 0
@@ -491,7 +509,9 @@ instance Enum ValueField where
   toEnum 12 = BlockIDField
   toEnum _ = undefined
 
+
 type EntityMetadata = V.Vector EntityMetadataEntry
+
 
 data StatusPayload = StatusPayload
   { version       :: Version
@@ -532,6 +552,7 @@ data Description = Description
 instance Aeson.ToJSON Description
 instance Aeson.FromJSON Description
 
+
 data ChunkSection = ChunkSection
   { bitsPerBlock  :: !Word8
   , palette       :: !(Maybe (V.Vector Int))
@@ -540,37 +561,14 @@ data ChunkSection = ChunkSection
   , skyLight      :: !(Maybe B.ByteString)
   } deriving (Show,Eq)
 
+
 data Statistic = Statistic T.Text VarInt deriving (Show,Eq)
-
-
-instance Serialize Statistic where
-  put (Statistic statName statVal) = do
-    putByteStringField . encodeUtf8 $ statName
-    putVarInt statVal
-
-  get = Statistic <$> fmap decodeUtf8 (getVarInt >>= getByteString) <*> getVarInt
-
-
-instance (Serialize a) => Serialize (V.Vector a) where
-  put v = do
-    putVarInt . V.length $ v
-    (mapM_ put v)
-
-  get = undefined
 
 
 data Player = Player
   { playerUUID        :: UUID
   , playerListAction  :: PlayerListAction
   } deriving (Show,Eq)
-
-
-instance Serialize Player where
-  put (Player u pla) = do
-    putByteString . BL.toStrict . toByteString $ u
-    put pla
-
-  get = undefined
 
 
 data PlayerListAction
@@ -582,65 +580,12 @@ data PlayerListAction
   deriving (Show,Eq)
 
 
-instance Serialize PlayerListAction where
-  put (PlayerListAdd name properties gameMode ping displayName) = do
-    let namePayload = encodeUtf8 name
-    let nameLen = B.length namePayload
-    putVarInt nameLen
-    putByteString namePayload
-    put properties
-    putVarInt . fromEnum $ gameMode
-    putVarInt ping
-    if displayName /= Nothing
-      then do
-        let displayPayload = encodeUtf8 . fromJust $ displayName
-        putVarInt . B.length $ displayPayload
-        putByteString displayPayload
-      else
-        return ()
-  put (PlayerListUpdateGameMode gameMode) = do
-    putVarInt . fromEnum $ gameMode
-  put (PlayerListUpdateLatency ping) = do
-    putVarInt ping
-  put (PlayerListUpdateDisplayName hasDisplayName displayName) = do
-    put hasDisplayName
-    if displayName /= Nothing
-      then do
-        let displayPayload = encodeUtf8 . fromJust $ displayName
-        putVarInt . B.length $ displayPayload
-        putByteString displayPayload
-      else
-        return ()
-  put PlayerListRemovePlayer = return ()
-  get = undefined
-
-
 data PlayerProperty = PlayerProperty
   { playerName    :: !T.Text
   , playerValue   :: !T.Text
   , isSigned      :: !Bool
   , playerSig     :: !(Maybe T.Text)
   } deriving (Show,Eq)
-
-
-instance Serialize PlayerProperty where
-  put (PlayerProperty pn pv is ps) = do
-    let pnPayload = encodeUtf8 pn
-    putVarInt . B.length $ pnPayload
-    putByteString pnPayload
-    let pvPayload = encodeUtf8 pv
-    putVarInt . B.length $ pvPayload
-    putByteString pvPayload
-    put is
-    if ps /= Nothing
-      then do
-        let sigPayload = encodeUtf8 . fromJust $ ps
-        putVarInt . B.length $ sigPayload
-        putByteString sigPayload
-      else do
-        return ()
-
-  get = undefined
 
 
 data Icon = Icon
@@ -696,183 +641,233 @@ data EntityProperty = EntityProperty
   } deriving (Show,Eq)
 
 
--- Adapted from the protocol-buffers library, but only for Serialize and Ints
-
-putVarInt :: Int -> Put
-putVarInt i | i < 0x80 = putWord8 (fromIntegral i)
-            | otherwise = putWord8 (fromIntegral (i .&. 0x7F) .|. 0x80) >> putVarInt (i `shiftR` 7)
-{-# INLINE putVarInt #-}
-
-
-getVarInt :: Get Int
-getVarInt = do
-    w <- getWord8
-    if testBit w 7
-      then go 7 (fromIntegral (w .&. 0x7F))
-      else return (fromIntegral w)
-  where
-    go n val = do
-      w' <- getWord8
-      if testBit w' 7
-        then go (n+7) (val .|. ((fromIntegral (w' .&. 0x7F)) `shiftL` n))
-        else return (val .|. ((fromIntegral w') `shiftL` n))
-{-# INLINE getVarInt #-}
-
--------------------------------------------------------------------------------
-
-putByteStringField :: Serialize a => a -> PutM ()
-putByteStringField x = do
-  let payload = runPut (put x)
-  let len = B.length payload
-  if len /= 0
-    then do putVarInt len
-            putByteString payload
-    else do putVarInt len
-{-# INLINE putByteStringField #-}
-
-
-putPosition :: Position -> PutM ()
-putPosition p = putWord64be p
-{-# INLINE putPosition #-}
-
-
-putText :: T.Text -> PutM ()
-putText "" = do
-  putVarInt 0
-putText t = do
-  let bs = encodeUtf8 t
-  putVarInt . B.length $ bs
-  putByteString bs
-{-# INLINE putText #-}
-
-
-getText :: Get T.Text
-getText = do
-  i <- getVarInt
-  fmap decodeUtf8 $ getByteString i
-{-# INLINE getText #-}
-
-
-putBool :: Bool -> PutM ()
-putBool b = put b
-{-# INLINE putBool #-}
-
-
-putSlot :: Slot -> PutM ()
-putSlot = put
-{-# INLINE putSlot #-}
-
-
-putUUID :: UUID -> PutM ()
-putUUID = putByteString . toASCIIBytes
-{-# INLINE putUUID #-}
-
-
-getUUID :: Get UUID
-getUUID = undefined
-{-# INLINE getUUID #-}
-
-
-encodeVarInt :: Int -> BB.Builder
-encodeVarInt i  | i < 0x80 = BB.word8 (fromIntegral i)
-                | otherwise = BB.word8 (fromIntegral (i .&. 0x7F) .|. 0x80) <> encodeVarInt (i `shiftR` 7)
+encodeVarInt :: VarInt -> BB.Builder
+encodeVarInt i
+    | i < 0     = encodeVarInt ((abs i) + (2^31 :: Int))
+    | i < 0x80  = BB.word8 (fromIntegral i)
+    | otherwise = BB.word8 (fromIntegral (i .&. 0x7F) .|. 0x80) <> encodeVarInt (i `shiftR` 7)
 {-# INLINE encodeVarInt #-}
 
 
 decodeVarInt :: Decode.Parser VarInt
-decodeVarInt = undefined
+decodeVarInt = do
+    w <- Decode.anyWord8
+    if testBit w 7
+      then do
+        result <- go 7 (fromIntegral (w .&. 0x7F))
+        if result <= (2^31)
+          then return result
+          else return (0 - (result - (2^31)))
+      else return (fromIntegral w)
+  where
+    go n val = do
+      w' <- Decode.anyWord8
+      if testBit w' 7
+        then go (n+7) (val .|. ((fromIntegral (w' .&. 0x7F)) `shiftL` n))
+        else return (val .|. ((fromIntegral w') `shiftL` n))
+{-# INLINE decodeVarInt #-}
+
+
+encodeVarLong :: Int64 -> BB.Builder
+encodeVarLong l = undefined
+
+
+decodeVarLong :: Decode.Parser VarLong
+decodeVarLong = undefined
+
+
+decodeFloatBE :: Decode.Parser Float
+decodeFloatBE = undefined
+
+
+decodeDoubleBE :: Decode.Parser Double
+decodeDoubleBE = undefined
 
 
 encodeText :: T.Text -> BB.Builder
 encodeText t =
   (encodeVarInt . B.length . encodeUtf8 $ t)
   <> (BB.byteString . encodeUtf8 $ t)
+{-# INLINE encodeText #-}
 
 
 decodeText :: Decode.Parser T.Text
-decodeText = undefined
+decodeText = do
+  ln <- decodeVarInt
+  if ln /= 0
+    then fmap decodeUtf8 (Decode.take ln)
+    else return ""
+{-# INLINE decodeText #-}
 
 
 encodeUUID :: UUID -> BB.Builder
-encodeUUID u = undefined
+encodeUUID u = encodeText (toText u)
+{-# INLINE encodeUUID #-}
 
 
 decodeUUID :: Decode.Parser UUID
-decodeUUID = undefined
+decodeUUID = do
+  txt <- decodeText
+  case fromText txt of
+    Just uuid -> return uuid
+    Nothing   -> fail "Error: Could not decode UUID!"
+{-# INLINE decodeUUID #-}
 
 
 decodeWord16BE :: Decode.Parser Word16
 decodeWord16BE = undefined
 
 
+decodeWord32BE :: Decode.Parser Word32
+decodeWord32BE = undefined
+
+
 decodeWord64BE :: Decode.Parser Word64
 decodeWord64BE = undefined
 
+
+decodeInt8 :: Decode.Parser Int8
+decodeInt8 = do
+  bs <- Decode.take 1
+  return $! fromIntegral (B.unsafeHead bs)
+
+
 decodeInt16BE :: Decode.Parser Int16
-decodeInt16BE = undefined
+decodeInt16BE = do
+    bs <- Decode.take 2
+    return $! (fromIntegral (bs `B.unsafeIndex` 0) `shiftL` 8) .|.
+              (fromIntegral (bs `B.unsafeIndex` 1))
+
 
 decodeInt32BE :: Decode.Parser Int32
-decodeInt32BE = undefined
+decodeInt32BE = do
+    bs <- Decode.take 4
+    return $!
+      (fromIntegral (bs `B.unsafeIndex` 0) `shiftL` 24) .|.
+      (fromIntegral (bs `B.unsafeIndex` 1) `shiftL` 16) .|.
+      (fromIntegral (bs `B.unsafeIndex` 2) `shiftL`  8) .|.
+      (fromIntegral (bs `B.unsafeIndex` 3))
+
+
 
 decodeInt64BE :: Decode.Parser Int64
-decodeInt64BE = undefined
+decodeInt64BE = do
+    bs <- Decode.take 8
+    return $!
+      (fromIntegral (bs `B.unsafeIndex` 0) `shiftL` 56) .|.
+      (fromIntegral (bs `B.unsafeIndex` 1) `shiftL` 48) .|.
+      (fromIntegral (bs `B.unsafeIndex` 2) `shiftL` 40) .|.
+      (fromIntegral (bs `B.unsafeIndex` 3) `shiftL` 32) .|.
+      (fromIntegral (bs `B.unsafeIndex` 4) `shiftL` 24) .|.
+      (fromIntegral (bs `B.unsafeIndex` 5) `shiftL` 16) .|.
+      (fromIntegral (bs `B.unsafeIndex` 6) `shiftL`  8) .|.
+      (fromIntegral (bs `B.unsafeIndex` 7))
+
 
 encodeAngle :: Angle -> BB.Builder
 encodeAngle a = undefined
 
+
 decodeAngle :: Decode.Parser Angle
 decodeAngle = undefined
+
 
 encodeEntityMetadata :: EntityMetadata -> BB.Builder
 encodeEntityMetadata e = undefined
 
+
 decodeEntityMetadata :: Decode.Parser EntityMetadata
 decodeEntityMetadata = undefined
+
 
 encodePosition :: Position -> BB.Builder
 encodePosition p = undefined
 
+
 decodePosition :: Decode.Parser Position
 decodePosition = undefined
+
 
 encodeStatistic :: Statistic -> BB.Builder
 encodeStatistic s = undefined
 
+
 decodeStatistic :: Decode.Parser Statistic
 decodeStatistic = undefined
+
 
 encodeNBT :: NBT -> BB.Builder
 encodeNBT n = undefined
 
+
 decodeNBT :: Decode.Parser NBT
 decodeNBT = undefined
+
 
 encodeVector :: V.Vector a -> BB.Builder
 encodeVector v = undefined
 
+
 decodeVector :: Decode.Parser (V.Vector a)
 decodeVector = undefined
+
 
 encodeRecord :: BlockChange -> BB.Builder
 encodeRecord m =
   (BB.word8 . hPosition $ m)
   <> (BB.word8 . yCoord $ m)
-  <> (encodeVarInt . blockId $ m)
+  <> (encodeVarInt . toEnum . blockId $ m)
+
+
+decodeRecord :: Decode.Parser BlockChange
+decodeRecord = undefined
+
 
 encodeSlot :: Slot -> BB.Builder
 encodeSlot s = undefined
 
+
+decodeSlot :: Decode.Parser Slot
+decodeSlot = undefined
+
+
 encodeChunkSection :: ChunkSection -> BB.Builder
 encodeChunkSection c = undefined
+
+
+decodeChunkSection :: Decode.Parser ChunkSection
+decodeChunkSection = undefined
+
 
 encodeIcon :: Icon -> BB.Builder
 encodeIcon i = undefined
 
+
+decodeIcon :: Decode.Parser Icon
+decodeIcon = undefined
+
+
 encodePlayer :: Player -> BB.Builder
 encodePlayer p = undefined
 
-encodeVarLong :: Int64 -> BB.Builder
-encodeVarLong l = undefined
+
+decodePlayer :: Decode.Parser Player
+decodePlayer = undefined
+
 
 encodeEntityProperty :: EntityProperty -> BB.Builder
 encodeEntityProperty e = undefined
+
+
+decodeEntityProperty :: Decode.Parser EntityProperty
+decodeEntityProperty = undefined
+
+encodeByteString :: B.ByteString -> BB.Builder
+encodeByteString b =
+  (encodeVarInt . toEnum . B.length $ b)
+  <> BB.byteString b
+
+decodeByteString :: Decode.Parser B.ByteString
+decodeByteString = do
+  len <- fmap fromEnum decodeVarInt
+  Decode.take len

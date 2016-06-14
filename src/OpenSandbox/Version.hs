@@ -23,12 +23,12 @@ openSandboxVersion = "0.0.1.3"
 
 
 majorVersion :: T.Text
-majorVersion = "1.9"
+majorVersion = "1.10"
 
 
 snapshotVersion :: T.Text
-snapshotVersion = "1.9"
+snapshotVersion = "1.10"
 
 
 protocolVersion :: Int
-protocolVersion = 107
+protocolVersion = 210
