@@ -79,6 +79,7 @@ test-suite opensandbox-test
                             bytestring,
                             cereal,
                             hspec,
+                            nbt,
                             opensandbox,
                             QuickCheck,
                             text,

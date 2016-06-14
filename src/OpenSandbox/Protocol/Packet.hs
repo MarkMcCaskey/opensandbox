@@ -31,7 +31,9 @@ module OpenSandbox.Protocol.Packet
   , encodeSBLogin
   , decodeSBLogin
   , encodeCBPlay
-  --, decodeSBPlay
+  , decodeCBPlay
+  , encodeSBPlay
+  , decodeSBPlay
   ) where
 
 import            Debug.Trace
@@ -1702,3 +1704,209 @@ encodeSBPlay (SBUseItem hand) =
   <> encodeVarInt hand
 
 encodeSBPlay _ = undefined
+
+
+decodeSBPlay :: Decode.Parser SBPlay
+decodeSBPlay = do
+  packetID <- Decode.anyWord8
+  case packetID of
+    0x00  -> do
+      teleportID <- decodeVarInt
+      return $ SBTeleportConfirm teleportID
+
+    0x01 -> do
+      text <- decodeText
+      assumeCommand <- fmap (toEnum . fromEnum) Decode.anyWord8
+      hasPosition <- fmap (toEnum . fromEnum) Decode.anyWord8
+      case hasPosition of
+        False -> do
+          return $
+            SBTabComplete
+              text
+              assumeCommand
+              hasPosition
+              Nothing
+        True -> do
+          lookedAtBlock <- decodePosition
+          return $
+            SBTabComplete
+              text
+              assumeCommand
+              hasPosition
+              (Just lookedAtBlock)
+
+    0x02 -> do
+      message <- decodeText
+      return $ SBChatMessage message
+
+    0x03 -> do
+      actionID <- decodeVarInt
+      return $ SBClientStatus actionID
+
+    0x04 -> do
+      locale <- decodeText
+      viewDistance <- decodeInt8
+      chatMode <- decodeVarInt
+      chatColors <- fmap (toEnum . fromEnum) Decode.anyWord8
+      displayedSkinParts <- Decode.anyWord8
+      mainHand <- decodeVarInt
+      return $ SBClientSettings locale viewDistance chatMode chatColors displayedSkinParts mainHand
+
+    0x05 -> do
+      windowID <- decodeInt8
+      actionNumber <- decodeInt16BE
+      accepted <- fmap (toEnum . fromEnum) Decode.anyWord8
+      return $ SBConfirmTransaction windowID actionNumber accepted
+
+    0x06 -> do
+      windowID <- decodeInt8
+      enchantment <- decodeInt8
+      return $ SBEnchantItem windowID enchantment
+
+    0x07 -> do
+      windowID <- Decode.anyWord8
+      slot <- decodeInt16BE
+      button <- decodeInt8
+      actionNumber <- decodeInt16BE
+      mode <- decodeVarInt
+      clickedItem <- decodeSlot
+      return $ SBClickWindow windowID slot button actionNumber mode clickedItem
+
+    0x08 -> do
+      windowID <- Decode.anyWord8
+      return $ SBCloseWindow windowID
+
+    0x09 -> do
+      channel <- decodeText
+      dat <- Decode.takeByteString
+      return $ SBPluginMessage channel dat
+
+    0x0A -> do
+      target <- decodeVarInt
+      t <- decodeVarInt
+      case t of
+        0 -> do
+          targetX <- decodeFloatBE
+          targetY <- decodeFloatBE
+          targetZ <- decodeFloatBE
+          hand <- decodeVarInt
+          return $ SBUseEntity target t (Just targetX) (Just targetY) (Just targetZ) (Just hand)
+        1 -> do
+          return $ SBUseEntity target t Nothing Nothing Nothing Nothing
+        2 -> do
+          targetX <- decodeFloatBE
+          targetY <- decodeFloatBE
+          targetZ <- decodeFloatBE
+          hand <- decodeVarInt
+          return $ SBUseEntity target t (Just targetX) (Just targetY) (Just targetZ) (Just hand)
+
+    0x0B -> do
+      keepAliveID <- decodeVarInt
+      return $ SBKeepAlive keepAliveID
+
+    0x0C -> do
+      x <- decodeDoubleBE
+      feetY <- decodeDoubleBE
+      z <- decodeDoubleBE
+      onGround <- fmap (toEnum . fromEnum) Decode.anyWord8
+      return $ SBPlayerPosition x feetY z onGround
+
+    0x0D -> do
+      x <- decodeDoubleBE
+      feetY <- decodeDoubleBE
+      z <- decodeDoubleBE
+      yaw <- decodeFloatBE
+      pitch <- decodeFloatBE
+      onGround <- fmap (toEnum . fromEnum) Decode.anyWord8
+      return $ SBPlayerPositionAndLook x feetY z yaw pitch onGround
+
+    0x0E -> do
+      yaw <- decodeFloatBE
+      pitch <- decodeFloatBE
+      onGround <- fmap (toEnum . fromEnum) Decode.anyWord8
+      return $ SBPlayerLook yaw pitch onGround
+
+    0x0F -> do
+      onGround <- fmap (toEnum . fromEnum) Decode.anyWord8
+      return $ SBPlayer onGround
+
+    0x10 -> do
+      x <- decodeDoubleBE
+      y <- decodeDoubleBE
+      z <- decodeDoubleBE
+      yaw <- decodeFloatBE
+      pitch <- decodeFloatBE
+      return $ SBVehicleMove x y z yaw pitch
+
+    0x11 -> do
+      rightPaddle <- fmap (toEnum . fromEnum) Decode.anyWord8
+      leftPaddle <- fmap (toEnum . fromEnum) Decode.anyWord8
+      return $ SBSteerBoat rightPaddle leftPaddle
+
+    0x12 -> do
+      flags <- decodeInt8
+      flyingSpeed <- decodeFloatBE
+      walkingSpeed <- decodeFloatBE
+      return $ SBPlayerAbilities flags flyingSpeed walkingSpeed
+
+    0x13 -> do
+      status <- decodeVarInt
+      location <- decodePosition
+      face <- decodeInt8
+      return $ SBPlayerDigging status location face
+
+    0x14 -> do
+      entityID <- decodeVarInt
+      actionID <- decodeVarInt
+      jumpBoost <- decodeVarInt
+      return $ SBEntityAction entityID actionID jumpBoost
+
+    0x15 -> do
+      sideways <- decodeFloatBE
+      forward <- decodeFloatBE
+      flags <- Decode.anyWord8
+      return $ SBSteerVehicle sideways forward flags
+
+    0x16 -> do
+      result <- decodeVarInt
+      return $ SBResourcePackStatus result
+
+    0x17 -> do
+      slot <- decodeInt16BE
+      return $ SBHeldItemChange slot
+
+    0x18 -> do
+      slot <- decodeInt16BE
+      clickedItem <- decodeNBT
+      return $ SBCreativeInventoryAction slot clickedItem
+
+    0x19 -> do
+      location <- decodePosition
+      line1 <- decodeText
+      line2 <- decodeText
+      line3 <- decodeText
+      line4 <- decodeText
+      return $ SBUpdateSign location line1 line2 line3 line4
+
+    0x1A -> do
+      hand <- decodeVarInt
+      return $ SBAnimation hand
+
+    0x1B -> do
+      targetPlayer <- decodeUUID
+      return $ SBSpectate targetPlayer
+
+    0x1C -> do
+      location <- decodePosition
+      face <- decodeVarInt
+      hand <- decodeVarInt
+      cursorPosX <- Decode.anyWord8
+      cursorPosY <- Decode.anyWord8
+      cursorPosZ <- Decode.anyWord8
+      return $ SBPlayerBlockPlacement location face hand cursorPosX cursorPosY cursorPosZ
+
+    0x1D -> do
+      hand <- decodeVarInt
+      return $ SBUseItem hand
+
+    _ -> undefined

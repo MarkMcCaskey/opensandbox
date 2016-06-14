@@ -6,6 +6,7 @@ import qualified  Data.ByteString.Lazy as BL
 import qualified  Data.ByteString.Builder as BB
 import            Data.Either
 import            Data.Int
+import            Data.NBT
 import            Data.Serialize
 import qualified  Data.Text as T
 import            Data.Text.Encoding
@@ -109,6 +110,14 @@ instance Arbitrary B.ByteString where
   arbitrary = fmap B.pack arbitrary
 
 
+instance Arbitrary EntityMetadataEntry where
+  arbitrary = undefined
+
+
+instance Arbitrary NBT where
+  arbitrary = undefined
+
+
 instance Arbitrary SBHandshaking where
   arbitrary = do
     v <- arbitrary
@@ -151,7 +160,7 @@ instance Arbitrary CBStatus where
 
 instance Arbitrary CBLogin where
   arbitrary = do
-    packetID <- elements [0..3] :: Gen Int
+    packetID <- choose (0x00,0x03) :: Gen Word8
     case packetID of
 
       0 -> do
@@ -176,7 +185,7 @@ instance Arbitrary CBLogin where
 
 instance Arbitrary SBLogin where
   arbitrary = do
-    packetID <- choose (0,1) :: Gen Int
+    packetID <- choose (0x00,0x01) :: Gen Word8
     case packetID of
 
       0 -> do
@@ -187,6 +196,240 @@ instance Arbitrary SBLogin where
         a <- fmap B.pack arbitrary
         b <- fmap B.pack arbitrary
         return $ SBEncryptionResponse a b
+
+
+instance Arbitrary CBPlay where
+  arbitrary = do
+    packetID <- choose (0x00,0x4B) :: Gen Word8
+    case packetID of
+      0x00 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        f <- arbitrary
+        g <- arbitrary
+        h <- arbitrary
+        i <- arbitrary
+        j <- arbitrary
+        k <- arbitrary
+        l <- arbitrary
+        return $ CBSpawnObject a b c d e f g h i j k l
+
+      0x01 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        return $ CBSpawnExperienceOrb a b c d e
+
+      0x02 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        return $ CBSpawnGlobalEntity a b c d e
+
+      0x03 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        f <- arbitrary
+        g <- arbitrary
+        h <- arbitrary
+        i <- arbitrary
+        j <- arbitrary
+        k <- arbitrary
+        l <- arbitrary
+        m <- arbitrary
+        return $ CBSpawnMob a b c d e f g h i j k l m
+
+      _ -> undefined
+
+
+instance Arbitrary SBPlay where
+  arbitrary = do
+    packetID <- choose (0x00,0x1D) :: Gen Word8
+    case packetID of
+      0x00 -> do
+        a <- arbitrary
+        return $ SBTeleportConfirm a
+
+      0x01 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        return $ SBTabComplete a b c d
+
+      0x02 -> do
+        a <- arbitrary
+        return $ SBChatMessage a
+
+      0x03 -> do
+        a <- arbitrary
+        return $ SBClientStatus a
+
+      0x04 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        f <- arbitrary
+        return $ SBClientSettings a b c d e f
+
+      0x05 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        return $ SBConfirmTransaction a b c
+
+      0x06 -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ SBEnchantItem a b
+
+      0x07 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        f <- arbitrary
+        return $ SBClickWindow a b c d e f
+
+      0x08 -> do
+        a <- arbitrary
+        return $ SBCloseWindow a
+
+      0x09 -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ SBPluginMessage a b
+
+      0x0A -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        f <- arbitrary
+        return $ SBUseEntity a b c d e f
+
+      0x0B -> do
+        a <- arbitrary
+        return $ SBKeepAlive a
+
+      0x0C -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        return $ SBPlayerPosition a b c d
+
+      0x0D -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        f <- arbitrary
+        return $ SBPlayerPositionAndLook a b c d e f
+
+      0x0E -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        return $ SBPlayerLook a b c
+
+      0x0F -> do
+        a <- arbitrary
+        return $ SBPlayer a
+
+      0x10 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        return $ SBVehicleMove a b c d e
+
+      0x11 -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ SBSteerBoat a b
+
+      0x12 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        return $ SBPlayerAbilities a b c
+
+      0x13 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        return $ SBPlayerDigging a b c
+
+      0x14 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        return $ SBEntityAction a b c
+
+      0x15 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        return $ SBSteerVehicle a b c
+
+      0x16 -> do
+        a <- arbitrary
+        return $ SBResourcePackStatus a
+
+      0x17 -> do
+        a <- arbitrary
+        return $ SBHeldItemChange a
+
+      0x18 -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ SBCreativeInventoryAction a b
+
+      0x19 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        return $ SBUpdateSign a b c d e
+
+      0x1A -> do
+        a <- arbitrary
+        return $ SBAnimation a
+
+      0x1B -> do
+        a <- arbitrary
+        return $ SBSpectate a
+
+      0x1C -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        f <- arbitrary
+        return $ SBPlayerBlockPlacement a b c d e f
+
+      0x1D -> do
+        a <- arbitrary
+        return $ SBUseItem a
 
 
 prop_SBHandshakingEq :: [SBHandshaking] -> Bool
@@ -224,6 +467,20 @@ prop_SBLoginEq lst = do
   lst == (rights decoded)
 
 
+prop_CBPlayEq :: [CBPlay] -> Bool
+prop_CBPlayEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeCBPlay x)) lst
+  let decoded = fmap (parseOnly decodeCBPlay) encoded :: [Either String CBPlay]
+  lst == (rights decoded)
+
+
+prop_SBPlayEq :: [SBPlay] -> Bool
+prop_SBPlayEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeSBPlay x)) lst
+  let decoded = fmap (parseOnly decodeSBPlay) encoded :: [Either String SBPlay]
+  lst == (rights decoded)
+
+
 main :: IO ()
 main = hspec $ do
   describe "Minecraft Protocol" $ do
@@ -237,3 +494,7 @@ main = hspec $ do
       it "Identity" $ property prop_CBLoginEq
     context "Server bound login packets:" $ do
       it "Identity" $ property prop_SBLoginEq
+    context "Client bound play packets:" $ do
+      it "Identity" $ property prop_CBPlayEq
+    context "Server bound play packets:" $ do
+      it "Identity" $ property prop_SBPlayEq
