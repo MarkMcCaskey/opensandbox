@@ -674,7 +674,7 @@ encodeCBPlay (CBAnimation entityID animation) =
 
 encodeCBPlay (CBStatistics statistics) =
   Encode.word8 0x07
-  <> (encodeVarInt . toEnum . V.length $ statistics)
+  <> (encodeVarInt . V.length $ statistics)
   <> (V.foldl1' (<>) (fmap encodeStatistic statistics))
 
 encodeCBPlay (CBBlockBreakAnimation entityID location destroyStage) =
@@ -717,8 +717,8 @@ encodeCBPlay (CBBossBar uuid bossBarAction) =
         encodeVarInt 0
         <> encodeText title
         <> Encode.floatBE health
-        <> (encodeVarInt . toEnum $ color)
-        <> (encodeVarInt . toEnum $ division)
+        <> encodeVarInt color
+        <> encodeVarInt division
         <> Encode.word8 flags
 
       BossBarRemove -> do
@@ -748,7 +748,7 @@ encodeCBPlay (CBServerDifficulty difficulty) =
 
 encodeCBPlay (CBTabComplete matches) =
   Encode.word8 0x0E
-  <> (encodeVarInt . toEnum . V.length $ matches)
+  <> (encodeVarInt . V.length $ matches)
   <> V.foldl1' (<>) (fmap encodeText matches)
 
 encodeCBPlay (CBChatMessage jsonData position) =
@@ -760,7 +760,7 @@ encodeCBPlay (CBMultiBlockChange chunkX chunkZ records) =
   Encode.word8 0x10
   <> Encode.int32BE chunkX
   <> Encode.int32BE chunkZ
-  <> (encodeVarInt . toEnum . V.length $ records)
+  <> (encodeVarInt . V.length $ records)
   <> V.foldl1' (<>) (fmap encodeRecord records)
 
 encodeCBPlay (CBConfirmTransaction windowID actionNumber accepted) =
@@ -862,13 +862,13 @@ encodeCBPlay (CBChunkData chunkX chunkZ groundUpCont primaryBitMask dat biomes b
   <> Encode.int32BE chunkZ
   <> (Encode.word8 . toEnum . fromEnum $ groundUpCont)
   <> encodeVarInt primaryBitMask
-  <> (encodeVarInt . toEnum . V.length $ dat)
+  <> (encodeVarInt . V.length $ dat)
   <> V.foldl1' (<>) (fmap encodeChunkSection dat)
   <> (case (groundUpCont,biomes) of
       (True,Just b)   -> Encode.byteString b
       _               -> mempty
     )
-  <> (encodeVarInt . toEnum . V.length $ blockEntities)
+  <> (encodeVarInt . V.length $ blockEntities)
   <> V.foldl1' (<>) (fmap encodeNBT blockEntities)
 
 -- (NOTE) Should be better typed to Effect IDs that actually exist
@@ -908,7 +908,7 @@ encodeCBPlay (CBMap itemDamage scale trackingPosition icons columns rows x z dat
   <> encodeVarInt itemDamage
   <> Encode.int8 scale
   <> (Encode.word8 . toEnum . fromEnum $ trackingPosition)
-  <> (encodeVarInt . toEnum . V.length $ icons)
+  <> (encodeVarInt . V.length $ icons)
   <> V.foldl1' (<>) (fmap encodeIcon icons)
   <> Encode.int8 columns
   <> case (columns,rows,x,z,dat) of
@@ -917,7 +917,7 @@ encodeCBPlay (CBMap itemDamage scale trackingPosition icons columns rows x z dat
           then Encode.int8 rows'
                 <> Encode.int8 x'
                 <> Encode.int8 z'
-                <> (encodeVarInt . toEnum . B.length $ dat')
+                <> (encodeVarInt . B.length $ dat')
                 <> Encode.byteString dat'
           else mempty
       _ -> undefined
@@ -977,11 +977,11 @@ encodeCBPlay (CBCombatEvent combatEvent) =
         encodeVarInt 0
       EndCombat duration entityID ->  do
         encodeVarInt 1
-        <> (encodeVarInt . toEnum $ duration)
+        <> encodeVarInt duration
         <> Encode.int32BE entityID
       EntityDead playerID entityID message -> do
         encodeVarInt 2
-        <> (encodeVarInt . toEnum $ playerID)
+        <> encodeVarInt playerID
         <> Encode.int32BE entityID
         <> encodeText message
     )
@@ -989,7 +989,7 @@ encodeCBPlay (CBCombatEvent combatEvent) =
 encodeCBPlay (CBPlayerListItem players) =
   Encode.word8 0x2D
   <> encodeVarInt 0
-  <> (encodeVarInt . toEnum . V.length $ players)
+  <> (encodeVarInt . V.length $ players)
   <> V.foldl1' (<>) (fmap encodePlayer players)
 
 -- flags should be better typed
@@ -1010,7 +1010,7 @@ encodeCBPlay (CBUseBed entityID location) =
 
 encodeCBPlay (CBDestroyEntities entityIDs) =
   Encode.word8 0x30
-  <> (encodeVarInt . toEnum . V.length $ entityIDs)
+  <> (encodeVarInt . V.length $ entityIDs)
   <> V.foldl1' (<>) (fmap encodeVarInt entityIDs)
 
 encodeCBPlay (CBRemoveEntityEffect entityID effectID) =
@@ -1057,9 +1057,9 @@ encodeCBPlay (CBWorldBorder worldBorderAction) =
         <> Encode.doubleBE oldDiameter
         <> Encode.doubleBE newDiameter
         <> encodeVarLong speed
-        <> (encodeVarInt . toEnum $ portalBoundary)
-        <> (encodeVarInt . toEnum $ warningTime)
-        <> (encodeVarInt . toEnum $ warningBlocks)
+        <> encodeVarInt portalBoundary
+        <> encodeVarInt warningTime
+        <> encodeVarInt warningBlocks
       SetWarningTime warningTime -> do
         encodeVarInt 4
         <> (encodeVarInt . toEnum $ warningTime)
@@ -1133,7 +1133,7 @@ encodeCBPlay (CBScoreboardObjective objectiveName mode objectiveValue t) =
 encodeCBPlay (CBSetPassengers entityID passengers) =
   Encode.word8 0x40
   <> encodeVarInt entityID
-  <> (encodeVarInt . toEnum . V.length $ passengers)
+  <> (encodeVarInt . V.length $ passengers)
   <> V.foldl1' (<>) (fmap encodeVarInt passengers)
 
 encodeCBPlay (CBTeams teamName mode) =
@@ -1149,7 +1149,7 @@ encodeCBPlay (CBTeams teamName mode) =
         <> encodeText tagVisibility
         <> encodeText collision
         <> Encode.int8 color
-        <> (encodeVarInt . toEnum . V.length $ players)
+        <> (encodeVarInt . V.length $ players)
         <> V.foldl1' (<>) (fmap encodeText players)
       RemoveTeam -> do
         Encode.int8 1
@@ -1164,11 +1164,11 @@ encodeCBPlay (CBTeams teamName mode) =
         <> Encode.int8 color
       AddPlayers players -> do
         Encode.int8 3
-        <> (encodeVarInt . toEnum . V.length $ players)
+        <> (encodeVarInt . V.length $ players)
         <> V.foldl1' (<>) (fmap encodeText players)
       RemovePlayers players -> do
         Encode.int8 4
-        <> (encodeVarInt . toEnum . V.length $ players)
+        <> (encodeVarInt . V.length $ players)
         <> V.foldl1' (<>) (fmap encodeText players)
     )
 
@@ -1243,7 +1243,7 @@ encodeCBPlay (CBEntityTeleport entityID x y z yaw pitch onGround) =
 encodeCBPlay (CBEntityProperties entityID properties) =
   Encode.word8 0x4A
   <> encodeVarInt entityID
-  <> (encodeVarInt . toEnum . V.length $ properties)
+  <> (encodeVarInt . V.length $ properties)
   <> V.foldl1' (<>) (fmap encodeEntityProperty properties)
 
 encodeCBPlay (CBEntityEffect entityID effectID amplifier duration hideParticles) =
