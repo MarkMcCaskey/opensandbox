@@ -7,7 +7,6 @@ import qualified  Data.ByteString.Builder as BB
 import            Data.Either
 import            Data.Int
 import            Data.NBT
-import            Data.Serialize
 import qualified  Data.Text as T
 import            Data.Text.Encoding
 import            Data.UUID

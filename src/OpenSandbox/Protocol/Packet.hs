@@ -36,21 +36,16 @@ module OpenSandbox.Protocol.Packet
   , decodeSBPlay
   ) where
 
-import            Debug.Trace
 import            Prelude hiding (max)
 import qualified  Data.Aeson as Aeson
 import qualified  Data.Attoparsec.ByteString as Decode
 import qualified  Data.ByteString as B
-import qualified  Data.ByteString.Char8 as BC
 import qualified  Data.ByteString.Lazy as BL
 import qualified  Data.ByteString.Builder as Encode
 import            Data.Int
---import            Data.Maybe
 import            Data.Monoid
 import            Data.NBT
 import qualified  Data.Text as T
---import            Data.Text.Encoding
---import            Data.Serialize
 import            Data.UUID
 import qualified  Data.Vector as V
 import            Data.Word
@@ -97,7 +92,7 @@ decodeSBHandshaking = do
       0x01  -> do
         payload <- Decode.anyWord8
         return $! SBLegacyServerListPing payload
-      _ -> fail ("Couldn't match packetID: " ++ show packetID)
+      _ -> fail $ "Unrecognized packetID: " ++ show packetID
 
 data CBStatus
   = CBResponse T.Text Word8 Word8 Word8 T.Text
@@ -138,6 +133,7 @@ decodeCBStatus = do
       0x01  -> do
         payload <- decodeInt64BE
         return $ CBPong payload
+      _ -> fail $ "Unrecognized packetID: " ++ show packetID
 
 
 data SBStatus
@@ -163,6 +159,7 @@ decodeSBStatus = do
       0x01  -> do
         payload <- decodeInt64BE
         return $ SBPing payload
+      _ -> fail $ "Unrecognized packetID: " ++ show packetID
 
 
 data CBLogin
@@ -214,6 +211,7 @@ decodeCBLogin = do
       0x03  -> do
         threshold <- decodeVarInt
         return $ CBSetCompression threshold
+      _ -> fail $ "Unrecognized packetID: " ++ show packetID
 
 
 data SBLogin
@@ -247,6 +245,7 @@ decodeSBLogin = do
         verifyTokenLn <- fmap fromEnum decodeVarInt
         verifyToken <- Decode.take verifyTokenLn
         return $ SBEncryptionResponse sharedSecret verifyToken
+      _ -> fail $ "Unrecognized packetID: " ++ show packetID
 
 
 data CBPlay
@@ -1182,6 +1181,7 @@ encodeCBPlay (CBUpdateScore scoreName action objectiveName value) =
   <> case (action,value) of
       (0x01,Nothing)  -> mempty
       (_,Just v')     -> encodeVarInt v'
+      _               -> undefined
 
 encodeCBPlay (CBSpawnPosition location) =
   Encode.word8 0x43
@@ -1362,6 +1362,7 @@ decodeCBPlay = do
                                   (toEnum . fromEnum $ byte2)
                           54 -> ChestBlockAction
                                   byte2
+                          _ -> undefined
       return $ CBBlockAction location blockAction blockType
 
     0x0B -> do
@@ -1944,7 +1945,7 @@ decodeCBPlay = do
       hideParticles <- fmap (toEnum . fromEnum) Decode.anyWord8
       return $ CBEntityEffect entityID effectID amplifier duration hideParticles
 
-    _ -> undefined
+    _ -> fail $ "Unrecognized packetID: " ++ show packetID
 
 data SBPlay
   -- | __Teleport Confirm:__
@@ -2299,8 +2300,6 @@ encodeSBPlay (SBUseItem hand) =
   Encode.word8 0x1D
   <> encodeVarInt hand
 
-encodeSBPlay _ = undefined
-
 
 decodeSBPlay :: Decode.Parser SBPlay
 decodeSBPlay = do
@@ -2395,6 +2394,7 @@ decodeSBPlay = do
           targetZ <- decodeFloatBE
           hand <- decodeVarInt
           return $ SBUseEntity target t (Just targetX) (Just targetY) (Just targetZ) (Just hand)
+        _ -> undefined
 
     0x0B -> do
       keepAliveID <- decodeVarInt
@@ -2505,4 +2505,5 @@ decodeSBPlay = do
       hand <- decodeVarInt
       return $ SBUseItem hand
 
-    _ -> undefined
+    _ -> fail $ "Unrecognized packetID: " ++ show packetID
+

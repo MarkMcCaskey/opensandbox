@@ -99,14 +99,10 @@ import qualified  Data.Attoparsec.ByteString as Decode
 import            Data.Bits
 import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Unsafe as B
-import qualified  Data.ByteString.Lazy as BL
 import qualified  Data.ByteString.Builder as BB
 import            Data.Int
-import            Data.List
-import            Data.Maybe
 import            Data.Monoid
 import            Data.NBT
-import            Data.Serialize
 import qualified  Data.Text as T
 import            Data.Text.Encoding
 import            Data.UUID

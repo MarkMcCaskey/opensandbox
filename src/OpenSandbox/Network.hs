@@ -21,16 +21,10 @@ import            Control.Monad.Trans.State.Lazy
 import            Data.Attoparsec.ByteString
 import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Lazy as BL
-import qualified  Data.ByteString.Char8 as BC
 import qualified  Data.ByteString.Builder as Encode
 import            Data.Conduit
-import            Data.Conduit.Attoparsec
-import            Data.Conduit.ByteString.Builder
-import            Data.Conduit.Cereal
 import            Data.Conduit.Network
-import qualified  Data.Serialize as S
 import            Data.UUID.V4
-import qualified  Data.Vector as V
 
 import            OpenSandbox.Config
 import            OpenSandbox.Logger
