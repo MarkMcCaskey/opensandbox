@@ -1348,6 +1348,602 @@ decodeCBPlay = do
       nbtData <- decodeNBT
       return $ CBUpdateBlockEntity location action nbtData
 
+    0x0A -> do
+      location <- decodePosition
+      byte1 <- Decode.anyWord8
+      byte2 <- Decode.anyWord8
+      blockType <- decodeVarInt
+      let blockAction = case blockType of
+                          25 -> NoteBlockAction
+                                  (toEnum . fromEnum $ byte1)
+                                  (toEnum . fromEnum $ byte2)
+                          33 -> PistonBlockAction
+                                  (toEnum . fromEnum $ byte1)
+                                  (toEnum . fromEnum $ byte2)
+                          54 -> ChestBlockAction
+                                  byte2
+      return $ CBBlockAction location blockAction blockType
+
+    0x0B -> do
+      location <- decodePosition
+      blockID <- decodeVarInt
+      return $ CBBlockChange location blockID
+
+    0x0C -> do
+      uuid <- decodeUUID
+      action <- decodeVarInt
+      case action of
+        0 -> do
+          title <- decodeText
+          health <- decodeFloatBE
+          color <- decodeVarInt
+          division <- decodeVarInt
+          flags <- Decode.anyWord8
+          return $ CBBossBar uuid (BossBarAdd title health color division flags)
+        1 -> do
+          return $ CBBossBar uuid BossBarRemove
+        2 -> do
+          health <- decodeFloatBE
+          return $ CBBossBar uuid (BossBarUpdateHealth health)
+        3 -> do
+          title <- decodeText
+          return $ CBBossBar uuid (BossBarUpdateTitle title)
+        4 -> do
+          color <- decodeVarInt
+          dividers <- decodeVarInt
+          return $ CBBossBar uuid (BossBarUpdateStyle color dividers)
+        5 -> do
+          flags <- Decode.anyWord8
+          return $ CBBossBar uuid (BossBarUpdateFlags flags)
+
+        _ -> undefined
+
+    0x0D -> do
+      difficulty <- fmap (toEnum . fromEnum) Decode.anyWord8
+      return $ CBServerDifficulty difficulty
+
+    0x0E -> do
+      count <- decodeVarInt
+      matches <- V.replicateM count decodeText
+      return $ CBTabComplete matches
+
+    0x0F -> do
+      jsonData <- decodeText
+      position <- decodeInt8
+      return $ CBChatMessage jsonData position
+
+    0x10 -> do
+      chunkX <- decodeInt32BE
+      chunkZ <- decodeInt32BE
+      recordCount <- decodeVarInt
+      records <- V.replicateM recordCount decodeRecord
+      return $ CBMultiBlockChange chunkX chunkZ records
+
+    0x11 -> do
+      windowID <- decodeInt8
+      actionNumber <- decodeInt16BE
+      accepted <- fmap (toEnum . fromEnum) Decode.anyWord8
+      return $ CBConfirmTransaction windowID actionNumber accepted
+
+    0x12 -> do
+      windowID <- Decode.anyWord8
+      return $ CBCloseWindow windowID
+
+    0x13 -> do
+      windowID <- Decode.anyWord8
+      windowType <- decodeText
+      windowTitle <- decodeText
+      numberOfSlots <- Decode.anyWord8
+      case windowType of
+        "EntityHorse" -> do
+          entityID <- decodeInt32BE
+          return $ CBOpenWindow windowID windowType windowTitle numberOfSlots (Just entityID)
+        _ -> do
+          return $ CBOpenWindow windowID windowType windowTitle numberOfSlots Nothing
+
+    0x14 -> do
+      windowID <- Decode.anyWord8
+      count <- fmap fromEnum decodeInt16BE
+      slotData <- V.replicateM count decodeSlot
+      return $ CBWindowItems windowID slotData
+
+    0x15 -> do
+      windowID <- Decode.anyWord8
+      property <- decodeInt16BE
+      value <- decodeInt16BE
+      return $ CBWindowProperty windowID property value
+
+    0x16 -> do
+      windowID <- decodeInt8
+      slot <- decodeInt16BE
+      dat <- decodeSlot
+      return $ CBSetSlot windowID slot dat
+
+    0x17 -> do
+      itemID <- decodeVarInt
+      cooldownTicks <- decodeVarInt
+      return $ CBSetCooldown itemID cooldownTicks
+
+    0x18 -> do
+      channel <- decodeText
+      dat <- Decode.takeByteString
+      return $ CBPluginMessage channel dat
+
+    0x19 -> do
+      soundName <- decodeText
+      soundCategory <- decodeVarInt
+      effectPosX <- decodeInt32BE
+      effectPosY <- decodeInt32BE
+      effectPosZ <- decodeInt32BE
+      volume <- decodeFloatBE
+      pitch <- decodeFloatBE
+      return $ CBNamedSoundEffect soundName soundCategory effectPosX effectPosY effectPosZ volume pitch
+
+    0x1A -> do
+      reason <- decodeText
+      return $ CBPlayDisconnect reason
+
+    0x1B -> do
+      entityID <- decodeInt32BE
+      entityStatus <- fmap (toEnum . fromEnum) decodeInt8
+      return $ CBEntityStatus entityID entityStatus
+
+    0x1C -> do
+      x <- decodeFloatBE
+      y <- decodeFloatBE
+      z <- decodeFloatBE
+      radius <- decodeFloatBE
+      count <- fmap fromEnum decodeInt32BE
+      records <- V.replicateM count (do a <- decodeInt8
+                                        b <- decodeInt8
+                                        c <- decodeInt8
+                                        return (a,b,c))
+      pMotionX <- decodeFloatBE
+      pMotionY <- decodeFloatBE
+      pMotionZ <- decodeFloatBE
+      return $ CBExplosion x y z radius records pMotionX pMotionY pMotionZ
+
+    0x1D -> do
+      chunkX <- decodeInt32BE
+      chunkZ <- decodeInt32BE
+      return $ CBUnloadChunk chunkX chunkZ
+
+    0x1E -> do
+      reason <- fmap (toEnum . fromEnum) Decode.anyWord8
+      value <- decodeFloatBE
+      return $ CBChangeGameState reason value
+
+    0x1F -> do
+      keepAliveID <- decodeVarInt
+      return $ CBKeepAlive keepAliveID
+
+    0x20 -> do
+      chunkX <- decodeInt32BE
+      chunkZ <- decodeInt32BE
+      groundUp <- fmap (toEnum . fromEnum) Decode.anyWord8
+      primaryBitMask <- decodeVarInt
+      if groundUp
+        then do
+          size <- decodeVarInt
+          bs <- Decode.take (size - 256)
+          let dat = Decode.parseOnly
+                      ((fmap V.fromList (Decode.many' decodeChunkSection)) <* Decode.endOfInput)
+                      bs
+          biomes <- Decode.take 256
+          count <- decodeVarInt
+          blockEntities <- V.replicateM count decodeNBT
+          case dat of
+            Left err -> fail err
+            Right dat' -> return $
+                            CBChunkData
+                              chunkX
+                              chunkZ
+                              groundUp
+                              primaryBitMask
+                              dat'
+                              (Just biomes)
+                              blockEntities
+        else do
+          size <- decodeVarInt
+          bs <- Decode.take size
+          let dat = Decode.parseOnly
+                      ((fmap V.fromList (Decode.many' decodeChunkSection)) <* Decode.endOfInput)
+                      bs
+          count <- decodeVarInt
+          blockEntities <- V.replicateM count decodeNBT
+          case dat of
+            Left err -> fail err
+            Right dat' -> return $
+                            CBChunkData
+                              chunkX
+                              chunkZ
+                              groundUp
+                              primaryBitMask
+                              dat'
+                              Nothing
+                              blockEntities
+
+    0x21 -> do
+      effectID <- decodeInt32BE
+      location <- decodePosition
+      dat <- decodeInt32BE
+      disableRelativeVolume <- fmap (toEnum . fromEnum) Decode.anyWord8
+      return $ CBEffect effectID location dat disableRelativeVolume
+
+    0x22 -> do
+      particleID <- decodeInt32BE
+      longDistance <- fmap (toEnum . fromEnum) Decode.anyWord8
+      x <- decodeFloatBE
+      y <- decodeFloatBE
+      z <- decodeFloatBE
+      offsetX <- decodeFloatBE
+      offsetY <- decodeFloatBE
+      offsetZ <- decodeFloatBE
+      particleData <- decodeFloatBE
+      particleFloat <- decodeInt32BE
+      dat <- fmap V.fromList (Decode.many' decodeVarInt)
+      return $ CBParticle particleID longDistance x y z offsetX offsetY offsetZ particleData particleFloat dat
+
+    0x23 -> do
+      entityID <- decodeInt32BE
+      gameMode <- fmap (toEnum . fromEnum) Decode.anyWord8
+      dimension <- fmap (toEnum . fromEnum) decodeInt32BE
+      difficulty <- fmap (toEnum . fromEnum) Decode.anyWord8
+      maxPlayers <- Decode.anyWord8
+      levelType <- decodeText
+      reducedDebugInfo <- fmap (toEnum . fromEnum) Decode.anyWord8
+      return $ CBJoinGame entityID gameMode dimension difficulty maxPlayers levelType reducedDebugInfo
+
+    0x24 -> do
+      itemDamage <- decodeVarInt
+      scale <- decodeInt8
+      trackingPositon <- fmap (toEnum . fromEnum) Decode.anyWord8
+      count <- decodeVarInt
+      icons <- V.replicateM count decodeIcon
+      columns <- decodeInt8
+      if columns > 0
+        then do
+          rows <- decodeInt8
+          x <- decodeInt8
+          z <- decodeInt8
+          ln <- decodeVarInt
+          dat <- Decode.takeByteString
+          return $ CBMap itemDamage scale trackingPositon icons columns (Just rows) (Just x) (Just z) (Just dat)
+        else return $ CBMap itemDamage scale trackingPositon icons columns Nothing Nothing Nothing Nothing
+
+
+    0x25 -> do
+      entityID <- decodeVarInt
+      dX <- decodeInt16BE
+      dY <- decodeInt16BE
+      dZ <- decodeInt16BE
+      onGround <- fmap (toEnum . fromEnum) Decode.anyWord8
+      return $ CBEntityRelativeMove entityID dX dY dZ onGround
+
+    0x26 -> do
+      entityID <- decodeVarInt
+      dX <- decodeInt16BE
+      dY <- decodeInt16BE
+      dZ <- decodeInt16BE
+      yaw <- decodeAngle
+      pitch <- decodeAngle
+      onGround <- fmap (toEnum . fromEnum) Decode.anyWord8
+      return $ CBEntityLookAndRelativeMove entityID dX dY dZ yaw pitch onGround
+
+    0x27 -> do
+      entityID <- decodeVarInt
+      yaw <- decodeAngle
+      pitch <- decodeAngle
+      onGround <- fmap (toEnum . fromEnum) Decode.anyWord8
+      return $ CBEntityLook entityID yaw pitch onGround
+
+    0x28 -> do
+      entityID <- decodeVarInt
+      return $ CBEntity entityID
+
+    0x29 -> do
+      x <- decodeDoubleBE
+      y <- decodeDoubleBE
+      z <- decodeDoubleBE
+      yaw <- decodeFloatBE
+      pitch <- decodeFloatBE
+      return $ CBVehicleMove x y z yaw pitch
+
+    0x2A -> do
+      location <- decodePosition
+      return $ CBOpenSignEditor location
+
+    0x2B -> do
+      flags <- decodeInt8
+      flyingSpeed <- decodeFloatBE
+      fieldOfViewModifier <- decodeFloatBE
+      return $ CBPlayerAbilities flags flyingSpeed fieldOfViewModifier
+
+    0x2C -> do
+      event <- decodeVarInt
+      case event of
+        0 -> do
+          return $ CBCombatEvent EnterCombat
+        1 -> do
+          duration <- decodeVarInt
+          entityID <- decodeInt32BE
+          return $ CBCombatEvent (EndCombat duration entityID)
+        2 -> do
+          playerID <- decodeVarInt
+          entityID <- decodeInt32BE
+          message <- decodeText
+          return $ CBCombatEvent (EntityDead playerID entityID message)
+        _ -> fail "Unrecognized combat event!"
+
+
+    0x2D -> do
+      action <- decodeVarInt
+      numberOfPlayers <- decodeVarInt
+      players <- V.replicateM numberOfPlayers decodePlayer
+      return $ CBPlayerListItem players
+
+    0x2E -> do
+      x <- decodeDoubleBE
+      y <- decodeDoubleBE
+      z <- decodeDoubleBE
+      yaw <- decodeFloatBE
+      pitch <- decodeFloatBE
+      flags <- decodeInt8
+      teleportID <- decodeVarInt
+      return $ CBPlayerPositionAndLook x y z yaw pitch flags teleportID
+
+    0x2F -> do
+      entityID <- decodeVarInt
+      location <- decodePosition
+      return $ CBUseBed entityID location
+
+    0x30 -> do
+      count <- decodeVarInt
+      entityIDs <- V.replicateM count decodeVarInt
+      return $ CBDestroyEntities entityIDs
+
+    0x31 -> do
+      entityID <- decodeVarInt
+      effectID <- decodeInt8
+      return $ CBRemoveEntityEffect entityID effectID
+
+    0x32 -> do
+      url <- decodeText
+      hash <- decodeText
+      return $ CBResourcePackSend url hash
+
+    0x33 -> do
+      dimension <- fmap (toEnum . fromEnum) decodeInt32BE
+      difficulty <- fmap (toEnum . fromEnum) Decode.anyWord8
+      gameMode <- fmap (toEnum . fromEnum) Decode.anyWord8
+      levelType <- decodeText
+      return $ CBRespawn dimension difficulty gameMode levelType
+
+    0x34 -> do
+      entityID <- decodeVarInt
+      headYaw <- decodeAngle
+      return $ CBEntityHeadLook entityID headYaw
+
+    0x35 -> do
+      action <- decodeVarInt
+      case action of
+        0 -> do
+          diameter <- decodeDoubleBE
+          return $ CBWorldBorder (SetSize diameter)
+        1 -> do
+          oldDiameter <- decodeDoubleBE
+          newDiameter <- decodeDoubleBE
+          speed <- decodeVarLong
+          return $ CBWorldBorder (LerpSize oldDiameter newDiameter speed)
+        2 -> do
+          x <- decodeDoubleBE
+          z <- decodeDoubleBE
+          return $ CBWorldBorder (SetCenter x z)
+        3 -> do
+          x <- decodeDoubleBE
+          z <- decodeDoubleBE
+          oldDiameter <- decodeDoubleBE
+          newDiameter <- decodeDoubleBE
+          speed <- decodeVarLong
+          portalBoundary <- decodeVarInt
+          warningTime <- decodeVarInt
+          warningBlocks <- decodeVarInt
+          return $ CBWorldBorder (Initialize x z oldDiameter newDiameter speed portalBoundary warningTime warningBlocks)
+        4 -> do
+          warningTime <- decodeVarInt
+          return $ CBWorldBorder (SetWarningTime warningTime)
+        5 -> do
+          warningBlocks <- decodeVarInt
+          return $ CBWorldBorder (SetWarningBlocks warningBlocks)
+        _ -> fail "Unrecognized world border action!"
+
+
+    0x36 -> do
+      cameraID <- decodeVarInt
+      return $ CBCamera cameraID
+
+    0x37 -> do
+      slot <- decodeInt8
+      return $ CBHeldItemChange slot
+
+    0x38 -> do
+      position <- decodeInt8
+      scoreName <- decodeText
+      return $ CBDisplayScoreboard position scoreName
+
+    0x39 -> do
+      entityID <- decodeVarInt
+      metadata <- decodeEntityMetadata
+      return $ CBEntityMetadata entityID metadata
+
+    0x3A -> do
+      attachedEntityID <- decodeInt32BE
+      holdingEntityID <- decodeInt32BE
+      return $ CBAttachEntity attachedEntityID holdingEntityID
+
+    0x3B -> do
+      entityID <- decodeVarInt
+      vX <- decodeInt16BE
+      vY <- decodeInt16BE
+      vZ <- decodeInt16BE
+      return $ CBEntityVelocity entityID vX vY vZ
+
+    0x3C -> do
+      entityID <- decodeVarInt
+      slot <- decodeVarInt
+      item <- decodeSlot
+      return $ CBEntityEquipment entityID slot item
+
+    0x3D -> do
+      experienceBar <- decodeFloatBE
+      level <- decodeVarInt
+      totalExperience <- decodeVarInt
+      return $ CBSetExperience experienceBar level totalExperience
+
+    0x3E -> do
+      health <- decodeFloatBE
+      food <- decodeVarInt
+      foodSaturation <- decodeFloatBE
+      return $ CBUpdateHealth health food foodSaturation
+
+    0x3F -> do
+      objectiveName <- decodeText
+      mode <- decodeInt8
+      case mode of
+        0 -> do
+          objectiveValue <- decodeText
+          t <- decodeText
+          return $ CBScoreboardObjective objectiveName mode (Just objectiveValue) (Just t)
+        2 -> do
+          objectiveValue <- decodeText
+          t <- decodeText
+          return $ CBScoreboardObjective objectiveName mode (Just objectiveValue) (Just t)
+        _ -> return $ CBScoreboardObjective objectiveName mode Nothing Nothing
+
+    0x40 -> do
+      entityID <- decodeVarInt
+      count <- decodeVarInt
+      passengers <- V.replicateM count decodeVarInt
+      return $ CBSetPassengers entityID passengers
+
+    0x41 -> do
+      teamName <- decodeText
+      mode <- decodeInt8
+      case mode of
+        0 -> do
+          displayName <- decodeText
+          prefix <- decodeText
+          suffix <- decodeText
+          flags <- decodeInt8
+          tagVisibility <- decodeText
+          collision <- decodeText
+          color <- decodeInt8
+          count <- decodeVarInt
+          players <- V.replicateM count decodeText
+          return $ CBTeams teamName (CreateTeam displayName prefix suffix flags tagVisibility collision color players)
+        1 -> do
+          return $ CBTeams teamName RemoveTeam
+        2 -> do
+          displayName <- decodeText
+          prefix <- decodeText
+          suffix <- decodeText
+          flags <- decodeInt8
+          tagVisibility <- decodeText
+          collision <- decodeText
+          color <- decodeInt8
+          return $ CBTeams teamName (UpdateTeamInfo displayName prefix suffix flags tagVisibility collision color)
+        3 -> do
+          count <- decodeVarInt
+          players <- V.replicateM count decodeText
+          return $ CBTeams teamName (AddPlayers players)
+        4 -> do
+          count <- decodeVarInt
+          players <- V.replicateM count decodeText
+          return $ CBTeams teamName (RemovePlayers players)
+        _ -> fail "Unrecognized team mode!"
+
+    0x42 -> do
+      scoreName <- decodeText
+      action <- decodeInt8
+      objectiveName <- decodeText
+      if action /= 1
+        then do
+          value <- decodeVarInt
+          return $ CBUpdateScore scoreName action objectiveName (Just value)
+        else do
+          return $ CBUpdateScore scoreName action objectiveName Nothing
+
+    0x43 -> do
+      location <- decodePosition
+      return $ CBSpawnPosition location
+
+    0x44 -> do
+      worldAge <- decodeInt64BE
+      timeOfDay <- decodeInt64BE
+      return $ CBTimeUpdate worldAge timeOfDay
+
+    0x45 -> do
+      action <- decodeVarInt
+      case action of
+        0 -> do
+          titleText <- decodeText
+          return $ CBTitle (SetTitle titleText)
+        1 -> do
+          subtitleText <- decodeText
+          return $ CBTitle (SetTitle subtitleText)
+        2 -> do
+          fadeIn <- decodeInt32BE
+          stay <- decodeInt32BE
+          fadeOut <- decodeInt32BE
+          return $ CBTitle (SetTimesAndDisplay fadeIn stay fadeOut)
+        3 -> return $ CBTitle Hide
+        4 -> return $ CBTitle Reset
+        _ -> fail "Unrecognized title action!"
+
+    0x46 -> do
+      soundID <- decodeVarInt
+      soundCategory <- decodeVarInt
+      effectPosX <- decodeInt32BE
+      effectPosY <- decodeInt32BE
+      effectPosZ <- decodeInt32BE
+      volume <- decodeFloatBE
+      pitch <- decodeFloatBE
+      return $ CBSoundEffect soundID soundCategory effectPosX effectPosY effectPosZ volume pitch
+
+    0x47 -> do
+      header <- decodeText
+      footer <- decodeText
+      return $ CBPlayerListHeaderAndFooter header footer
+
+    0x48 -> do
+      collectedEntityID <- decodeVarInt
+      collectorEntityID <- decodeVarInt
+      return $ CBCollectItem collectedEntityID collectorEntityID
+
+    0x49 -> do
+      entityID <- decodeVarInt
+      x <- decodeDoubleBE
+      y <- decodeDoubleBE
+      z <- decodeDoubleBE
+      yaw <- decodeAngle
+      pitch <- decodeAngle
+      onGround <- fmap (toEnum . fromEnum) Decode.anyWord8
+      return $ CBEntityTeleport entityID x y z yaw pitch onGround
+
+    0x4A -> do
+      entityID <- decodeVarInt
+      count <- fmap fromEnum decodeInt32BE
+      properties <- V.replicateM count decodeEntityProperty
+      return $ CBEntityProperties entityID properties
+
+    0x4B -> do
+      entityID <- decodeVarInt
+      effectID <- decodeInt8
+      amplifier <- decodeInt8
+      duration <- decodeVarInt
+      hideParticles <- fmap (toEnum . fromEnum) Decode.anyWord8
+      return $ CBEntityEffect entityID effectID amplifier duration hideParticles
+
     _ -> undefined
 
 data SBPlay
