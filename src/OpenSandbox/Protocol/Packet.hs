@@ -89,7 +89,7 @@ decodeSBHandshaking = do
         --bs <- Decode.takeByteString
         --traceShowM bs
         return $! SBHandshake protocolVersion srvAddress srvPort nextState
-      0x01  -> do
+      0xfe  -> do
         payload <- Decode.anyWord8
         return $! SBLegacyServerListPing payload
       _ -> fail $ "Unrecognized packetID: " ++ show packetID
@@ -199,9 +199,9 @@ decodeCBLogin = do
         return $ CBLoginDisconnect reason
       0x01  -> do
         srvID <- decodeText
-        publicKeyLn <- fmap fromEnum decodeVarInt
+        publicKeyLn <- decodeVarInt
         publicKey <- Decode.take publicKeyLn
-        verifyTokenLn <- fmap fromEnum decodeVarInt
+        verifyTokenLn <- decodeVarInt
         verifyToken <- Decode.take verifyTokenLn
         return $ CBEncryptionRequest srvID publicKey verifyToken
       0x02  -> do
@@ -226,11 +226,10 @@ encodeSBLogin (SBLoginStart name) =
   <> encodeText name
 encodeSBLogin (SBEncryptionResponse sharedSecret verifyToken) =
   Encode.word8 0x01
-  <> (encodeVarInt . toEnum . B.length $ sharedSecret)
+  <> (encodeVarInt . B.length $ sharedSecret)
   <> Encode.byteString sharedSecret
-  <> (encodeVarInt . toEnum . B.length $ verifyToken)
+  <> (encodeVarInt . B.length $ verifyToken)
   <> Encode.byteString verifyToken
-
 
 decodeSBLogin :: Decode.Parser SBLogin
 decodeSBLogin = do
@@ -240,9 +239,9 @@ decodeSBLogin = do
         name <- decodeText
         return $ SBLoginStart name
       0x01  -> do
-        sharedSecretLn <- fmap fromEnum decodeVarInt
+        sharedSecretLn <- decodeVarInt
         sharedSecret <- Decode.take sharedSecretLn
-        verifyTokenLn <- fmap fromEnum decodeVarInt
+        verifyTokenLn <- decodeVarInt
         verifyToken <- Decode.take verifyTokenLn
         return $ SBEncryptionResponse sharedSecret verifyToken
       _ -> fail $ "Unrecognized packetID: " ++ show packetID
@@ -1946,6 +1945,7 @@ decodeCBPlay = do
       return $ CBEntityEffect entityID effectID amplifier duration hideParticles
 
     _ -> fail $ "Unrecognized packetID: " ++ show packetID
+
 
 data SBPlay
   -- | __Teleport Confirm:__

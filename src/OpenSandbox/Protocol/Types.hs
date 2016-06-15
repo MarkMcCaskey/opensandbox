@@ -3,6 +3,7 @@
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# OPTIONS_GHC -fno-warn-unused-binds #-}
 {-# OPTIONS_GHC -fno-warn-unused-matches #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.Protocol.Types
@@ -109,6 +110,7 @@ import            Data.UUID
 import qualified  Data.Vector as V
 import            Data.Word
 import            GHC.Generics
+import            Data.Data
 
 import OpenSandbox.Types
 
@@ -132,7 +134,7 @@ type VarLong = Int64
 
 
 data NextState = ProtocolStatus | ProtocolLogin
-  deriving (Show,Eq)
+  deriving (Show,Eq,Data)
 
 
 instance Enum NextState where

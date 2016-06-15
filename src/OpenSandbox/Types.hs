@@ -30,7 +30,6 @@ import qualified  Data.ByteString as B
 import qualified  Data.Text as T
 import            GHC.Generics
 
-
 data ProtocolState = Handshake | Status | Login | Play deriving (Show,Eq)
 
 
@@ -64,7 +63,7 @@ data Drop = Drop
 
 
 data Dimension = Overworld | Nether | End
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 
 instance Enum Dimension where

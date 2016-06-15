@@ -15,6 +15,7 @@ import            Data.Word
 import            OpenSandbox
 import            Test.Hspec
 import            Test.QuickCheck
+import            GHC.Generics
 
 instance Arbitrary a => Arbitrary (V.Vector a) where
   arbitrary = fmap V.fromList $ listOf arbitrary
@@ -27,6 +28,46 @@ instance Arbitrary UUID where
     c <- arbitrary
     d <- arbitrary
     return $ fromWords a b c d
+
+
+instance Arbitrary TeamMode where
+  arbitrary = undefined
+
+
+instance Arbitrary TitleAction where
+  arbitrary = undefined
+
+
+instance Arbitrary EntityProperty where
+  arbitrary = undefined
+
+
+instance Arbitrary WorldBorderAction where
+  arbitrary = undefined
+
+
+instance Arbitrary Icon where
+  arbitrary = undefined
+
+
+instance Arbitrary CombatEvent where
+  arbitrary = undefined
+
+
+instance Arbitrary EntityStatus where
+  arbitrary = undefined
+
+
+instance Arbitrary BlockChange where
+  arbitrary = undefined
+
+
+instance Arbitrary GameChangeReason where
+  arbitrary = undefined
+
+
+instance Arbitrary ChunkSection where
+  arbitrary = undefined
 
 
 instance Arbitrary Difficulty where
@@ -116,6 +157,42 @@ instance Arbitrary EntityMetadataEntry where
 instance Arbitrary NBT where
   arbitrary = undefined
 
+
+instance Arbitrary Animation where
+  arbitrary = undefined
+
+
+instance Arbitrary UpdateBlockEntityAction where
+  arbitrary = undefined
+
+
+instance Arbitrary BlockAction where
+  arbitrary = undefined
+
+
+instance Arbitrary BossBarAction where
+  arbitrary = undefined
+
+{-
+instance Arbitrary SBHandshaking where
+  arbitrary = sized $ generatorPWith [positiveWords]
+
+instance Arbitrary CBStatus where
+  arbitrary = sized $ generatorPWith [positiveWords]
+
+instance Arbitrary SBStatus where
+  arbitrary = sized $ generatorPWith [positiveWords]
+
+instance Arbitrary CBLogin where
+  arbitrary = sized $ generatorPWith [positiveWords]
+
+instance Arbitrary SBLogin where
+  arbitrary = sized $ generatorPWith [positiveWords]
+
+positiveWords :: Alias Gen
+positiveWords =
+  alias $ \() -> fmap getPositive arbitrary :: Gen Word8
+-}
 
 instance Arbitrary SBHandshaking where
   arbitrary = do
@@ -248,7 +325,450 @@ instance Arbitrary CBPlay where
         m <- arbitrary
         return $ CBSpawnMob a b c d e f g h i j k l m
 
-      _ -> undefined
+      0x04 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        return $ CBSpawnPainting a b c d e
+
+      0x05 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        f <- arbitrary
+        g <- arbitrary
+        h <- arbitrary
+        return $ CBSpawnPlayer a b c d e f g h
+
+      0x06 -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBAnimation a b
+
+      0x07 -> do
+        a <- arbitrary
+        return $ CBStatistics a
+
+      0x08 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        return $ CBBlockBreakAnimation a b c
+
+      0x09 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        return $ CBUpdateBlockEntity a b c
+
+      0x0A -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        return $ CBBlockAction a b c
+
+      0x0B -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBBlockChange a b
+
+      0x0C -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBBossBar a b
+
+      0x0D -> do
+        a <- arbitrary
+        return $ CBServerDifficulty a
+
+      0x0E -> do
+        a <- arbitrary
+        return $ CBTabComplete a
+
+      0x0F -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBChatMessage a b
+
+      0x10 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        return $ CBMultiBlockChange a b c
+
+      0x11 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        return $ CBConfirmTransaction a b c
+
+      0x12 -> do
+        a <- arbitrary
+        return $ CBCloseWindow a
+
+      0x13 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        return $ CBOpenWindow a b c d e
+
+      0x14 -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBWindowItems a b
+
+      0x15 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        return $ CBWindowProperty a b c
+
+      0x16 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        return $ CBSetSlot a b c
+
+      0x17 -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBSetCooldown a b
+
+      0x18 -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBPluginMessage a b
+
+      0x19 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        f <- arbitrary
+        g <- arbitrary
+        return $ CBNamedSoundEffect a b c d e f g
+
+      0x1A -> do
+        a <- arbitrary
+        return $ CBPlayDisconnect a
+
+      0x1B -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBEntityStatus a b
+
+      0x1C -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        f <- arbitrary
+        g <- arbitrary
+        h <- arbitrary
+        return $ CBExplosion a b c d e f g h
+
+      0x1D -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBUnloadChunk a b
+
+      0x1E -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBChangeGameState a b
+
+      0x1F -> do
+        a <- arbitrary
+        return $ CBKeepAlive a
+
+      0x20 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        f <- arbitrary
+        g <- arbitrary
+        return $ CBChunkData a b c d e f g
+
+      0x21 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        return $ CBEffect a b c d
+
+      0x22 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        f <- arbitrary
+        g <- arbitrary
+        h <- arbitrary
+        i <- arbitrary
+        j <- arbitrary
+        k <- arbitrary
+        return $ CBParticle a b c d e f g h i j k
+
+      0x23 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        f <- arbitrary
+        g <- arbitrary
+        return $ CBJoinGame a b c d e f g
+
+      0x24 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        f <- arbitrary
+        g <- arbitrary
+        h <- arbitrary
+        i <- arbitrary
+        return $ CBMap a b c d e f g h i
+
+      0x25 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        return $ CBEntityRelativeMove a b c d e
+
+      0x26 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        f <- arbitrary
+        g <- arbitrary
+        return $ CBEntityLookAndRelativeMove a b c d e f g
+
+      0x27 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        return $ CBEntityLook a b c d
+
+      0x28 -> do
+        a <- arbitrary
+        return $ CBEntity a
+
+      0x29 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        return $ CBVehicleMove a b c d e
+
+      0x2A -> do
+        a <- arbitrary
+        return $ CBOpenSignEditor a
+
+      0x2B -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        return $ CBPlayerAbilities a b c
+
+      0x2C -> do
+        a <- arbitrary
+        return $ CBCombatEvent a
+
+      0x2D -> do
+        a <- arbitrary
+        return $ CBPlayerListItem a
+
+      0x2E -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        f <- arbitrary
+        g <- arbitrary
+        return $ CBPlayerPositionAndLook a b c d e f g
+
+      0x2F -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBUseBed a b
+
+      0x30 -> do
+        a <- arbitrary
+        return $ CBDestroyEntities a
+
+      0x31 -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBRemoveEntityEffect a b
+
+      0x32 -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBResourcePackSend a b
+
+      0x33 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        return $ CBRespawn a b c d
+
+      0x34 -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBEntityHeadLook a b
+
+      0x35 -> do
+        a <- arbitrary
+        return $ CBWorldBorder a
+
+      0x36 -> do
+        a <- arbitrary
+        return $ CBCamera a
+
+      0x37 -> do
+        a <- arbitrary
+        return $ CBHeldItemChange a
+
+      0x38 -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBDisplayScoreboard a b
+
+      0x39 -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBEntityMetadata a b
+
+      0x3A -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBAttachEntity a b
+
+      0x3B -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        return $ CBEntityVelocity a b c d
+
+      0x3C -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        return $ CBEntityEquipment a b c
+
+      0x3D -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        return $ CBSetExperience a b c
+
+      0x3E -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        return $ CBUpdateHealth a b c
+
+      0x3F -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        return $ CBScoreboardObjective a b c d
+
+      0x40 -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBSetPassengers a b
+
+      0x41 -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBTeams a b
+
+      0x42 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        return $ CBUpdateScore a b c d
+
+      0x43 -> do
+        a <- arbitrary
+        return $ CBSpawnPosition a
+
+      0x44 -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBTimeUpdate a b
+
+      0x45 -> do
+        a <- arbitrary
+        return $ CBTitle a
+
+      0x46 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        f <- arbitrary
+        g <- arbitrary
+        return $ CBSoundEffect a b c d e f g
+
+      0x47 -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBPlayerListHeaderAndFooter a b
+
+      0x48 -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBCollectItem a b
+
+      0x49 -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        f <- arbitrary
+        g <- arbitrary
+        return $ CBEntityTeleport a b c d e f g
+
+      0x4A -> do
+        a <- arbitrary
+        b <- arbitrary
+        return $ CBEntityProperties a b
+
+      0x4B -> do
+        a <- arbitrary
+        b <- arbitrary
+        c <- arbitrary
+        d <- arbitrary
+        e <- arbitrary
+        return $ CBEntityEffect a b c d e
 
 
 instance Arbitrary SBPlay where
@@ -432,6 +952,7 @@ instance Arbitrary SBPlay where
 
 
 prop_SBHandshakingEq :: [SBHandshaking] -> Bool
+prop_SBHandshakingEq [] = True
 prop_SBHandshakingEq lst = do
   let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeSBHandshaking x)) lst
   let decoded = fmap (parseOnly decodeSBHandshaking) encoded :: [Either String SBHandshaking]
@@ -453,6 +974,7 @@ prop_SBStatusEq lst = do
 
 
 prop_CBLoginEq :: [CBLogin] -> Bool
+prop_CBLoginEq [] = True
 prop_CBLoginEq lst = do
   let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeCBLogin x)) lst
   let decoded = fmap (parseOnly decodeCBLogin) encoded :: [Either String CBLogin]
@@ -474,6 +996,7 @@ prop_CBPlayEq lst = do
 
 
 prop_SBPlayEq :: [SBPlay] -> Bool
+prop_SBPlayEq [] = True
 prop_SBPlayEq lst = do
   let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeSBPlay x)) lst
   let decoded = fmap (parseOnly decodeSBPlay) encoded :: [Either String SBPlay]
@@ -493,9 +1016,7 @@ main = hspec $ do
       it "Identity" $ property prop_CBLoginEq
     context "Server bound login packets:" $ do
       it "Identity" $ property prop_SBLoginEq
-{-
     context "Client bound play packets:" $ do
       it "Identity" $ property prop_CBPlayEq
     context "Server bound play packets:" $ do
       it "Identity" $ property prop_SBPlayEq
--}

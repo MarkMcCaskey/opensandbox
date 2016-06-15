@@ -221,7 +221,6 @@ handleLogin logger = do
           liftIO $ writeTo logger Debug $ "Got an encryption request!"
           return ()
 
-
 handlePlay  :: Config -> Logger -> Conduit SBPlay (StateT ProtocolState IO) CBPlay
 handlePlay config logger = do
   someUUID <- liftIO $ nextRandom
