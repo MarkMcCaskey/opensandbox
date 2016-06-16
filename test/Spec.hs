@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 import            Control.Monad
+import qualified  Data.Array.IArray as IA
+import            Data.Array.Unboxed (listArray)
 import            Data.Attoparsec.ByteString
 import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Lazy as BL
@@ -30,48 +32,98 @@ instance Arbitrary UUID where
     return $ fromWords a b c d
 
 
-instance Arbitrary TeamMode where
-  arbitrary = undefined
-
-
 instance Arbitrary TitleAction where
-  arbitrary = undefined
+  arbitrary = do
+    k <- choose (1,5) :: Gen Int
+    case k of
+      1 -> SetTitle <$> arbitrary
+      2 -> SetSubtitle <$> arbitrary
+      3 -> SetTimesAndDisplay <$> arbitrary <*> arbitrary <*> arbitrary
+      4 -> return Hide
+      5 -> return Reset
+
+
+instance Arbitrary TeamMode where
+  arbitrary = do
+    k <- choose (1,5) :: Gen Int
+    case k of
+      1 -> CreateTeam
+              <$> arbitrary
+              <*> arbitrary
+              <*> arbitrary
+              <*> arbitrary
+              <*> arbitrary
+              <*> arbitrary
+              <*> arbitrary
+              <*> arbitrary
+      2 -> return $ RemoveTeam
+      3 -> UpdateTeamInfo
+              <$> arbitrary
+              <*> arbitrary
+              <*> arbitrary
+              <*> arbitrary
+              <*> arbitrary
+              <*> arbitrary
+              <*> arbitrary
+      4 -> AddPlayers <$> arbitrary
+      5 -> RemovePlayers <$> arbitrary
 
 
 instance Arbitrary EntityProperty where
-  arbitrary = undefined
+  arbitrary = EntityProperty <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 
 instance Arbitrary WorldBorderAction where
-  arbitrary = undefined
+  arbitrary = do
+    k <- choose (1,6) :: Gen Int
+    case k of
+      1 -> SetSize <$> arbitrary
+      2 -> LerpSize <$> arbitrary <*> arbitrary <*> arbitrary
+      3 -> SetCenter <$> arbitrary <*> arbitrary
+      4 -> Initialize
+            <$> arbitrary
+            <*> arbitrary
+            <*> arbitrary
+            <*> arbitrary
+            <*> arbitrary
+            <*> arbitrary
+            <*> arbitrary
+            <*> arbitrary
+      5 -> SetWarningTime <$> arbitrary
+      6 -> SetWarningBlocks <$> arbitrary
 
 
 instance Arbitrary Icon where
-  arbitrary = undefined
+  arbitrary = Icon <$> arbitrary <*> arbitrary <*> arbitrary
 
 
 instance Arbitrary CombatEvent where
-  arbitrary = undefined
+  arbitrary = do
+    k <- choose (1,3) :: Gen Int
+    case k of
+      1 -> return $ EnterCombat
+      2 -> EndCombat <$> arbitrary <*> arbitrary
+      3 -> EntityDead <$> arbitrary <*> arbitrary <*> arbitrary
 
 
 instance Arbitrary EntityStatus where
-  arbitrary = undefined
+  arbitrary = fmap toEnum (choose (0,34) :: Gen Int)
 
 
 instance Arbitrary BlockChange where
-  arbitrary = undefined
+  arbitrary = BlockChange <$> arbitrary <*> arbitrary <*> arbitrary
 
 
 instance Arbitrary GameChangeReason where
-  arbitrary = undefined
+  arbitrary = fmap toEnum (choose (0,10) :: Gen Int)
 
 
 instance Arbitrary ChunkSection where
-  arbitrary = undefined
+  arbitrary = ChunkSection <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 
 instance Arbitrary Difficulty where
-  arbitrary = elements [Peaceful,Easy,Normal,Hard]
+  arbitrary = fmap toEnum (choose (0,3) :: Gen Int)
 
 
 instance Arbitrary GameMode where
@@ -151,48 +203,94 @@ instance Arbitrary B.ByteString where
 
 
 instance Arbitrary EntityMetadataEntry where
-  arbitrary = undefined
+  arbitrary = Entry <$> arbitrary <*> arbitrary <*> arbitrary
 
 
 instance Arbitrary NBT where
-  arbitrary = undefined
+  arbitrary = arbitrary >>= \(ty, nm) -> NBT (T.pack nm) <$> mkArb ty
+    where
+      mkArb ty =
+        case ty of
+          EndType    -> error "can't make end-type"
+          ByteType   -> ByteTag   <$> arbitrary
+          ShortType  -> ShortTag  <$> arbitrary
+          IntType    -> IntTag    <$> arbitrary
+          LongType   -> LongTag   <$> arbitrary
+          FloatType  -> FloatTag  <$> arbitrary
+          DoubleType -> DoubleTag <$> arbitrary
+          ByteArrayType -> do
+            len  <- choose (0, 100)
+            ws   <- replicateM len arbitrary
+            let a = listArray (0, fromIntegral len - 1) ws
+            return (ByteArrayTag a)
+          StringType -> do
+            len <- choose (0, 100)
+            str <- T.pack <$> replicateM len arbitrary
+            return (StringTag str)
+          ListType -> do
+            len   <- choose (0, 10) -- list types nest, don't get too big
+            subTy <- arbitrary
+            ts    <- replicateM len (mkArb subTy)
+            let a  = IA.listArray (0, fromIntegral len - 1) ts
+            return (ListTag a)
+          CompoundType -> do
+            len <- choose (0, 10) -- compound types nest, don't get too big
+            ts  <- replicateM len arbitrary
+            return (CompoundTag ts)
+          IntArrayType -> do
+            len  <- choose (0, 100)
+            v    <- vector len
+            let a = listArray (0, fromIntegral len - 1) v
+            return (IntArrayTag a)
+
+instance Arbitrary TagType where
+    arbitrary = toEnum <$> choose (1, 11)
 
 
 instance Arbitrary Animation where
-  arbitrary = undefined
+  arbitrary = fmap toEnum (choose (0,5) :: Gen Int)
 
 
 instance Arbitrary UpdateBlockEntityAction where
-  arbitrary = undefined
+  arbitrary = fmap toEnum (choose (0,8) :: Gen Int)
 
 
 instance Arbitrary BlockAction where
-  arbitrary = undefined
+  arbitrary = do
+    k <- choose (0,2) :: Gen Int
+    case k of
+      0 -> NoteBlockAction <$> arbitrary <*> arbitrary
+      1 -> PistonBlockAction <$> arbitrary <*> arbitrary
+      2 -> ChestBlockAction <$> arbitrary
+
+
+instance Arbitrary InstrumentType where
+  arbitrary = fmap toEnum (choose (0,4) :: Gen Int)
+
+
+instance Arbitrary NotePitch where
+  arbitrary = fmap toEnum (choose (0,24) :: Gen Int)
+
+
+instance Arbitrary PistonState where
+  arbitrary = fmap toEnum (choose (0,1) :: Gen Int)
+
+
+instance Arbitrary PistonDirection where
+  arbitrary = fmap toEnum (choose (0,5) :: Gen Int)
 
 
 instance Arbitrary BossBarAction where
-  arbitrary = undefined
+  arbitrary = do
+    k <- choose (0,5) :: Gen Int
+    case k of
+      0 -> BossBarAdd <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+      1 -> return BossBarRemove
+      2 -> BossBarUpdateHealth <$> arbitrary
+      3 -> BossBarUpdateTitle <$> arbitrary
+      4 -> BossBarUpdateStyle <$> arbitrary <*> arbitrary
+      5 -> BossBarUpdateFlags <$> arbitrary
 
-{-
-instance Arbitrary SBHandshaking where
-  arbitrary = sized $ generatorPWith [positiveWords]
-
-instance Arbitrary CBStatus where
-  arbitrary = sized $ generatorPWith [positiveWords]
-
-instance Arbitrary SBStatus where
-  arbitrary = sized $ generatorPWith [positiveWords]
-
-instance Arbitrary CBLogin where
-  arbitrary = sized $ generatorPWith [positiveWords]
-
-instance Arbitrary SBLogin where
-  arbitrary = sized $ generatorPWith [positiveWords]
-
-positiveWords :: Alias Gen
-positiveWords =
-  alias $ \() -> fmap getPositive arbitrary :: Gen Word8
--}
 
 instance Arbitrary SBHandshaking where
   arbitrary = do

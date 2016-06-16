@@ -1,9 +1,9 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# OPTIONS_GHC -fno-warn-unused-binds #-}
 {-# OPTIONS_GHC -fno-warn-unused-matches #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.Protocol.Types
@@ -22,6 +22,10 @@ module OpenSandbox.Protocol.Types
   , NextState (..)
   , Animation (..)
   , BlockAction (..)
+  , InstrumentType (..)
+  , NotePitch (..)
+  , PistonState (..)
+  , PistonDirection (..)
   , BossBarAction (..)
   , EntityMetadataEntry (..)
   , ValueField (..)
@@ -97,6 +101,9 @@ module OpenSandbox.Protocol.Types
 import            Prelude hiding (max)
 import qualified  Data.Aeson as Aeson
 import qualified  Data.Attoparsec.ByteString as Decode
+import            Data.Array.MArray (MArray,readArray,newArray)
+import            Data.Array.ST
+import            Data.Array.Unsafe (castSTUArray)
 import            Data.Bits
 import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Unsafe as B
@@ -109,8 +116,8 @@ import            Data.Text.Encoding
 import            Data.UUID
 import qualified  Data.Vector as V
 import            Data.Word
+import            Control.Monad.ST (runST,ST)
 import            GHC.Generics
-import            Data.Data
 
 import OpenSandbox.Types
 
@@ -134,7 +141,7 @@ type VarLong = Int64
 
 
 data NextState = ProtocolStatus | ProtocolLogin
-  deriving (Show,Eq,Data)
+  deriving (Show,Eq)
 
 
 instance Enum NextState where
@@ -675,11 +682,24 @@ decodeVarLong = undefined
 
 
 decodeFloatBE :: Decode.Parser Float
-decodeFloatBE = undefined
+decodeFloatBE = wordToFloat <$> decodeWord32BE
+
+
+wordToFloat :: Word32 -> Float
+wordToFloat x = runST (cast x)
 
 
 decodeDoubleBE :: Decode.Parser Double
-decodeDoubleBE = undefined
+decodeDoubleBE = wordToDouble <$> decodeWord64BE
+
+
+wordToDouble :: Word64 -> Double
+wordToDouble x = runST (cast x)
+
+
+cast :: (MArray (STUArray s) a (ST s),
+         MArray (STUArray s) b (ST s)) => a -> ST s b
+cast x = newArray (0 :: Int, 0) x >>= castSTUArray >>= flip readArray 0
 
 
 encodeText :: T.Text -> BB.Builder
@@ -719,10 +739,23 @@ decodeWord16BE = undefined
 decodeWord32BE :: Decode.Parser Word32
 decodeWord32BE = undefined
 
-
 decodeWord64BE :: Decode.Parser Word64
 decodeWord64BE = undefined
 
+{-
+decodeWord64BE :: Decode.Parser Word64
+decodeWord64BE = do
+    bs <- Decode.take 8
+    return $!
+      (fromIntegral (bs `B.unsafeIndex` 0) `shiftL_W64` 56) .|.
+      (fromIntegral (bs `B.unsafeIndex` 1) `shiftL_W64` 48) .|.
+      (fromIntegral (bs `B.unsafeIndex` 2) `shiftL_W64` 40) .|.
+      (fromIntegral (bs `B.unsafeIndex` 3) `shiftL_W64` 32) .|.
+      (fromIntegral (bs `B.unsafeIndex` 4) `shiftL_W64` 24) .|.
+      (fromIntegral (bs `B.unsafeIndex` 5) `shiftL_W64` 16) .|.
+      (fromIntegral (bs `B.unsafeIndex` 6) `shiftL_W64`  8) .|.
+      (fromIntegral (bs `B.unsafeIndex` 7))
+-}
 
 decodeInt8 :: Decode.Parser Int8
 decodeInt8 = do
@@ -779,11 +812,11 @@ decodeEntityMetadata = undefined
 
 
 encodePosition :: Position -> BB.Builder
-encodePosition p = undefined
-
+encodePosition = BB.word64BE
+  where
 
 decodePosition :: Decode.Parser Position
-decodePosition = undefined
+decodePosition = decodeWord64BE
 
 
 encodeStatistic :: Statistic -> BB.Builder
