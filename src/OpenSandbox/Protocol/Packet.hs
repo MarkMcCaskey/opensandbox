@@ -94,6 +94,7 @@ decodeSBHandshaking = do
         return $! SBLegacyServerListPing payload
       _ -> fail $ "Unrecognized packetID: " ++ show packetID
 
+
 data CBStatus
   = CBResponse T.Text Word8 Word8 Word8 T.Text
   | CBPong Int64
@@ -230,6 +231,7 @@ encodeSBLogin (SBEncryptionResponse sharedSecret verifyToken) =
   <> Encode.byteString sharedSecret
   <> (encodeVarInt . B.length $ verifyToken)
   <> Encode.byteString verifyToken
+
 
 decodeSBLogin :: Decode.Parser SBLogin
 decodeSBLogin = do
@@ -2113,6 +2115,7 @@ data SBPlay
   -- Sent when pressing the Use Item key (default: right click) with an item in hand.
   | SBUseItem VarInt
   deriving (Show,Eq)
+
 
 encodeSBPlay :: SBPlay -> Encode.Builder
 encodeSBPlay (SBTeleportConfirm teleportID) =

@@ -733,34 +733,57 @@ decodeUUID = do
 
 
 decodeWord16BE :: Decode.Parser Word16
-decodeWord16BE = undefined
+decodeWord16BE = do
+    bs <- Decode.take 2
+    return $!
+      (fromIntegral (bs `B.unsafeIndex` 0) `shiftL` 8) .|.
+      (fromIntegral (bs `B.unsafeIndex` 1))
+{-# INLINE decodeWord16BE #-}
 
 
 decodeWord32BE :: Decode.Parser Word32
-decodeWord32BE = undefined
+decodeWord32BE = do
+    bs <- Decode.take 4
+    return $!
+      (fromIntegral (bs `B.unsafeIndex` 0) `shiftL` 24) .|.
+      (fromIntegral (bs `B.unsafeIndex` 1) `shiftL` 16) .|.
+      (fromIntegral (bs `B.unsafeIndex` 2) `shiftL` 8) .|.
+      (fromIntegral (bs `B.unsafeIndex` 3))
+{-# INLINE decodeWord32BE #-}
 
-decodeWord64BE :: Decode.Parser Word64
-decodeWord64BE = undefined
 
-{-
 decodeWord64BE :: Decode.Parser Word64
 decodeWord64BE = do
     bs <- Decode.take 8
     return $!
-      (fromIntegral (bs `B.unsafeIndex` 0) `shiftL_W64` 56) .|.
-      (fromIntegral (bs `B.unsafeIndex` 1) `shiftL_W64` 48) .|.
-      (fromIntegral (bs `B.unsafeIndex` 2) `shiftL_W64` 40) .|.
-      (fromIntegral (bs `B.unsafeIndex` 3) `shiftL_W64` 32) .|.
-      (fromIntegral (bs `B.unsafeIndex` 4) `shiftL_W64` 24) .|.
-      (fromIntegral (bs `B.unsafeIndex` 5) `shiftL_W64` 16) .|.
-      (fromIntegral (bs `B.unsafeIndex` 6) `shiftL_W64`  8) .|.
+      (fromIntegral (bs `B.unsafeIndex` 0) `shiftL` 56) .|.
+      (fromIntegral (bs `B.unsafeIndex` 1) `shiftL` 48) .|.
+      (fromIntegral (bs `B.unsafeIndex` 2) `shiftL` 40) .|.
+      (fromIntegral (bs `B.unsafeIndex` 3) `shiftL` 32) .|.
+      (fromIntegral (bs `B.unsafeIndex` 4) `shiftL` 24) .|.
+      (fromIntegral (bs `B.unsafeIndex` 5) `shiftL` 16) .|.
+      (fromIntegral (bs `B.unsafeIndex` 6) `shiftL`  8) .|.
       (fromIntegral (bs `B.unsafeIndex` 7))
+{-# INLINE decodeWord64BE #-}
+
+{-
+shiftl_W16 :: Word16 -> Int -> Word16
+shiftl_W16 (W16# w) (I# i) = W16# (w `uncheckedShiftL#` i)
+
+
+shiftl_W32 :: Word32 -> Int -> Word32
+shiftl_W32 (W32# w) (I# i) = W32# (w `uncheckedShiftL#` i)
+
+
+shiftl_W64 :: Word64 -> Int -> Word64
+shiftl_W64 (W64# w) (I# i) = W64# (w `uncheckedShiftL#` i)
 -}
 
 decodeInt8 :: Decode.Parser Int8
 decodeInt8 = do
   bs <- Decode.take 1
   return $! fromIntegral (B.unsafeHead bs)
+{-# INLINE decodeInt8 #-}
 
 
 decodeInt16BE :: Decode.Parser Int16
@@ -768,6 +791,7 @@ decodeInt16BE = do
     bs <- Decode.take 2
     return $! (fromIntegral (bs `B.unsafeIndex` 0) `shiftL` 8) .|.
               (fromIntegral (bs `B.unsafeIndex` 1))
+{-# INLINE decodeInt16BE #-}
 
 
 decodeInt32BE :: Decode.Parser Int32
@@ -778,7 +802,7 @@ decodeInt32BE = do
       (fromIntegral (bs `B.unsafeIndex` 1) `shiftL` 16) .|.
       (fromIntegral (bs `B.unsafeIndex` 2) `shiftL`  8) .|.
       (fromIntegral (bs `B.unsafeIndex` 3))
-
+{-# INLINE decodeInt32BE #-}
 
 
 decodeInt64BE :: Decode.Parser Int64
@@ -793,6 +817,7 @@ decodeInt64BE = do
       (fromIntegral (bs `B.unsafeIndex` 5) `shiftL` 16) .|.
       (fromIntegral (bs `B.unsafeIndex` 6) `shiftL`  8) .|.
       (fromIntegral (bs `B.unsafeIndex` 7))
+{-# INLINE decodeInt64BE #-}
 
 
 encodeAngle :: Angle -> BB.Builder
@@ -871,11 +896,14 @@ decodeChunkSection = undefined
 
 
 encodeIcon :: Icon -> BB.Builder
-encodeIcon i = undefined
+encodeIcon i =
+  BB.word8 (directionAndType i)
+  <> BB.word8 (x i)
+  <> BB.word8 (z i)
 
 
 decodeIcon :: Decode.Parser Icon
-decodeIcon = undefined
+decodeIcon = Icon <$> Decode.anyWord8 <*> Decode.anyWord8 <*> Decode.anyWord8
 
 
 encodePlayer :: Player -> BB.Builder
