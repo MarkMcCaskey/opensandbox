@@ -33,7 +33,7 @@ module OpenSandbox.Protocol.Types
   , PlayerProperty (..)
   , PlayerListAction (..)
   , Statistic (..)
-  , Player (..)
+  , PlayerListEntry (..)
   , StatusPayload (..)
   , Players (..)
   , Version (..)
@@ -68,6 +68,8 @@ module OpenSandbox.Protocol.Types
   , decodeVarLong
   , encodeText
   , decodeText
+  , encodeBool
+  , decodeBool
   , encodeUUID
   , decodeUUID
   , encodeAngle
@@ -90,8 +92,8 @@ module OpenSandbox.Protocol.Types
   , decodeChunkSection
   , encodeIcon
   , decodeIcon
-  , encodePlayer
-  , decodePlayer
+  , encodePlayerListEntry
+  , decodePlayerListEntry
   , encodeEntityProperty
   , decodeEntityProperty
   , encodeByteString
@@ -570,7 +572,7 @@ data ChunkSection = ChunkSection
 data Statistic = Statistic T.Text VarInt deriving (Show,Eq)
 
 
-data Player = Player
+data PlayerListEntry = PlayerListEntry
   { playerUUID        :: UUID
   , playerListAction  :: PlayerListAction
   } deriving (Show,Eq)
@@ -588,7 +590,6 @@ data PlayerListAction
 data PlayerProperty = PlayerProperty
   { playerName    :: !T.Text
   , playerValue   :: !T.Text
-  , isSigned      :: !Bool
   , playerSig     :: !(Maybe T.Text)
   } deriving (Show,Eq)
 
@@ -906,12 +907,63 @@ decodeIcon :: Decode.Parser Icon
 decodeIcon = Icon <$> Decode.anyWord8 <*> Decode.anyWord8 <*> Decode.anyWord8
 
 
-encodePlayer :: Player -> BB.Builder
-encodePlayer p = undefined
+encodePlayerListEntry :: Int -> PlayerListEntry -> BB.Builder
+encodePlayerListEntry  i p = undefined
 
 
-decodePlayer :: Decode.Parser Player
-decodePlayer = undefined
+decodePlayerListEntry :: Int -> Decode.Parser PlayerListEntry
+decodePlayerListEntry a = PlayerListEntry <$> decodeUUID <*> decodePlayerListAction a
+
+
+decodePlayerListAction :: Int -> Decode.Parser PlayerListAction
+decodePlayerListAction action =
+  case action of
+    0 -> do
+      name <- decodeText
+      count <- decodeVarInt
+      properties <- V.replicateM count decodePlayerProperty
+      gameMode <- fmap toEnum decodeVarInt
+      ping <- decodeVarInt
+      hasDisplayName <- decodeBool
+      if hasDisplayName
+        then do
+          displayName <- decodeText
+          return $ PlayerListAdd name properties gameMode ping (Just displayName)
+        else do
+          return $ PlayerListAdd name properties gameMode ping Nothing
+    1 -> PlayerListUpdateGameMode <$> (fmap toEnum decodeVarInt)
+    2 -> PlayerListUpdateLatency <$> decodeVarInt
+    3 -> do
+      hasDisplayName <- decodeBool
+      if hasDisplayName
+        then do
+          displayName <- decodeText
+          return $ PlayerListUpdateDisplayName hasDisplayName (Just displayName)
+        else do
+          return $ PlayerListUpdateDisplayName hasDisplayName Nothing
+    4 -> return PlayerListRemovePlayer
+    _ -> undefined
+
+
+decodePlayerProperty :: Decode.Parser PlayerProperty
+decodePlayerProperty = do
+  name <- decodeText
+  value <- decodeText
+  isSigned <- decodeBool
+  if isSigned
+    then do
+      sig <- decodeText
+      return $ PlayerProperty name value (Just sig)
+    else do
+      return $ PlayerProperty name value Nothing
+
+
+encodeBool :: Bool -> BB.Builder
+encodeBool b = BB.word8 (toEnum . fromEnum $ b)
+
+
+decodeBool :: Decode.Parser Bool
+decodeBool = fmap (toEnum . fromEnum) Decode.anyWord8
 
 
 encodeEntityProperty :: EntityProperty -> BB.Builder
@@ -921,10 +973,12 @@ encodeEntityProperty e = undefined
 decodeEntityProperty :: Decode.Parser EntityProperty
 decodeEntityProperty = undefined
 
+
 encodeByteString :: B.ByteString -> BB.Builder
 encodeByteString b =
   (encodeVarInt . toEnum . B.length $ b)
   <> BB.byteString b
+
 
 decodeByteString :: Decode.Parser B.ByteString
 decodeByteString = do

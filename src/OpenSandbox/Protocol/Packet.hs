@@ -470,7 +470,7 @@ data CBPlay
 
   -- | __Player List Item:__
   -- Sent by the server to update the user list (<tab> in the client).
-  | CBPlayerListItem (V.Vector Player)
+  | CBPlayerListItem Int (V.Vector PlayerListEntry)
 
   -- | __Player Position And Look (clientbound):__
   -- Updates the player's position on the server. This packet will also close the “Downloading Terrain” screen when joining/respawning.
@@ -988,11 +988,11 @@ encodeCBPlay (CBCombatEvent combatEvent) =
         <> encodeText message
     )
 
-encodeCBPlay (CBPlayerListItem players) =
+encodeCBPlay (CBPlayerListItem action players) =
   Encode.word8 0x2D
-  <> encodeVarInt 0
+  <> encodeVarInt action
   <> (encodeVarInt . V.length $ players)
-  <> V.foldl1' (<>) (fmap encodePlayer players)
+  <> V.foldl1' (<>) (fmap (encodePlayerListEntry action) players)
 
 -- flags should be better typed
 encodeCBPlay (CBPlayerPositionAndLook x y z yaw pitch flags teleportID) =
@@ -1681,8 +1681,8 @@ decodeCBPlay = do
     0x2D -> do
       action <- decodeVarInt
       numberOfPlayers <- decodeVarInt
-      players <- V.replicateM numberOfPlayers decodePlayer
-      return $ CBPlayerListItem players
+      players <- V.replicateM numberOfPlayers (decodePlayerListEntry action)
+      return $ CBPlayerListItem action players
 
     0x2E -> do
       x <- decodeDoubleBE
