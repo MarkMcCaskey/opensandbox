@@ -44,7 +44,7 @@ module OpenSandbox.Protocol.Types
   , WorldBorderAction (..)
   , TeamMode (..)
   , TitleAction (..)
-  , Slot
+  , Slot (..)
   , EntityProperty (..)
   , ChunkSection (..)
   , VarInt
@@ -53,6 +53,10 @@ module OpenSandbox.Protocol.Types
   , EntityStatus (..)
   , GameChangeReason (..)
   , WindowProperty (..)
+  , NBT (..)
+  , NamelessNBT (..)
+  , NBTList (..)
+  , TagType (..)
   , decodeWord16BE
   , decodeWord32BE
   , decodeWord64BE
@@ -112,7 +116,10 @@ import qualified  Data.ByteString.Unsafe as B
 import qualified  Data.ByteString.Builder as BB
 import            Data.Int
 import            Data.Monoid
-import            Data.NBT
+import            Data.NBT.Encode (encodeNBT)
+import            Data.NBT.Decode (decodeNBT)
+import            Data.NBT.Types (NBT (..), NamelessNBT (..),NBTList (..),TagType(..))
+import            Data.Serialize (encode,decode)
 import qualified  Data.Text as T
 import            Data.Text.Encoding
 import            Data.UUID
@@ -636,7 +643,12 @@ data TitleAction
   deriving (Show,Eq)
 
 
-type Slot = NBT
+data Slot = Slot
+  { blockID     :: !Int16
+  , itemCount   :: !(Maybe Int8)
+  , itemDamage  :: !(Maybe Int16)
+  , nbt         :: !(Maybe NBT)
+  } deriving (Show,Eq)
 
 
 data EntityProperty = EntityProperty
@@ -853,14 +865,6 @@ decodeStatistic :: Decode.Parser Statistic
 decodeStatistic = undefined
 
 
-encodeNBT :: NBT -> BB.Builder
-encodeNBT n = undefined
-
-
-decodeNBT :: Decode.Parser NBT
-decodeNBT = undefined
-
-
 encodeVector :: V.Vector a -> BB.Builder
 encodeVector v = undefined
 
@@ -881,11 +885,27 @@ decodeRecord = undefined
 
 
 encodeSlot :: Slot -> BB.Builder
-encodeSlot s = undefined
+encodeSlot (Slot blockID itemCount itemDamage nbt) =
+  BB.int16BE blockID
+  <> case (blockID,itemCount,itemDamage,nbt) of
+      (-1,_,_,_) -> mempty
+      (_,Just iC,Just iD, Just nbt')  -> do
+        BB.int8 iC
+        <> BB.int16BE iD
+        <> (encodeNBT nbt')
+      (_,_,_,_) -> undefined
 
 
 decodeSlot :: Decode.Parser Slot
-decodeSlot = undefined
+decodeSlot = do
+  blockID <- decodeInt16BE
+  case blockID of
+    -1 -> return $ Slot blockID Nothing Nothing Nothing
+    _ -> do
+      itemCount <- decodeInt8
+      itemDamage <- decodeInt16BE
+      nbt <- decodeNBT
+      return $ Slot blockID (Just itemCount) (Just itemDamage) (Just nbt)
 
 
 encodeChunkSection :: ChunkSection -> BB.Builder
@@ -908,7 +928,7 @@ decodeIcon = Icon <$> Decode.anyWord8 <*> Decode.anyWord8 <*> Decode.anyWord8
 
 
 encodePlayerListEntry :: Int -> PlayerListEntry -> BB.Builder
-encodePlayerListEntry  i p = undefined
+encodePlayerListEntry  a p = undefined
 
 
 decodePlayerListEntry :: Int -> Decode.Parser PlayerListEntry

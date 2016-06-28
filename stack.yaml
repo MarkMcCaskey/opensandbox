@@ -1,5 +1,8 @@
 flags: {}
 packages:
 - '.'
-extra-deps: [nbt-0.6,thyme-0.3.5.5]
+- location:
+    git: git@github.com:oldmanmike/hs-minecraft-nbt
+    commit: ef6daed63f01f3942a51aa96c5290995d6d5cc6a
+extra-deps: [thyme-0.3.5.5]
 resolver: nightly-2016-06-10

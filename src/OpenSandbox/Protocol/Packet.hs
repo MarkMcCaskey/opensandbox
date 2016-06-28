@@ -2476,7 +2476,7 @@ decodeSBPlay = do
 
     0x18 -> do
       slot <- decodeInt16BE
-      clickedItem <- decodeNBT
+      clickedItem <- decodeSlot
       return $ SBCreativeInventoryAction slot clickedItem
 
     0x19 -> do
