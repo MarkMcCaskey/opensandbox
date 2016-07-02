@@ -174,16 +174,16 @@ instance Arbitrary ChunkSection where
   arbitrary = ChunkSection <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 
-instance Arbitrary Difficulty where
+instance Arbitrary DifficultyField where
   arbitrary = fmap toEnum (choose (0,3) :: Gen Int)
 
 
-instance Arbitrary GameMode where
-  arbitrary = elements [Survival,Creative,Adventure,Spectator]
+instance Arbitrary GameModeField where
+  arbitrary = elements [SurvivalField,CreativeField,AdventureField,SpectatorField]
 
 
-instance Arbitrary Dimension where
-  arbitrary = elements [Overworld,Nether,End]
+instance Arbitrary DimensionField where
+  arbitrary = elements [OverworldField,NetherField,EndField]
 
 
 instance Arbitrary WorldType where
@@ -303,13 +303,7 @@ instance Arbitrary BossBarAction where
 
 
 instance Arbitrary Slot where
-  arbitrary = do
-    a <- arbitrary
-    b <- arbitrary
-    c <- arbitrary
-    d <- arbitrary
-    return $ Slot a b c d
-
+  arbitrary = mkSlot <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary SBHandshaking where
   arbitrary = do

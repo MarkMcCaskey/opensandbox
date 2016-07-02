@@ -40,18 +40,16 @@ import            Prelude hiding (max)
 import qualified  Data.Aeson as Aeson
 import qualified  Data.Attoparsec.ByteString as Decode
 import qualified  Data.ByteString as B
-import qualified  Data.ByteString.Lazy as BL
 import qualified  Data.ByteString.Builder as Encode
 import            Data.Int
 import            Data.Monoid
-import            Data.NBT
 import qualified  Data.Text as T
 import            Data.UUID
 import qualified  Data.Vector as V
 import            Data.Word
 
-import            OpenSandbox.Types
 import            OpenSandbox.Protocol.Types
+
 
 
 data SBHandshaking
@@ -86,8 +84,6 @@ decodeSBHandshaking = do
         srvAddress <- decodeText
         srvPort <- decodeInt16BE
         nextState <- (fmap (toEnum . fromEnum) decodeVarInt)
-        --bs <- Decode.takeByteString
-        --traceShowM bs
         return $! SBHandshake protocolVersion srvAddress srvPort nextState
       0xfe  -> do
         payload <- Decode.anyWord8
@@ -104,12 +100,7 @@ data CBStatus
 encodeCBStatus :: CBStatus -> Encode.Builder
 encodeCBStatus (CBResponse mcVersion versionID currentPlayers maxPlayers motd) =
     Encode.word8 0x00
-    <> (encodeByteString
-        $ BL.toStrict . Aeson.encode $
-            StatusPayload (Version mcVersion versionID)
-                          (Players maxPlayers currentPlayers)
-                          (Description motd)
-        )
+    <> (encodeStatusPayload mcVersion versionID currentPlayers maxPlayers motd)
 encodeCBStatus (CBPong payload) =
     Encode.word8 0x01
     <> Encode.int64BE payload
@@ -327,7 +318,7 @@ data CBPlay
 
   -- | __Server Difficulty:__
   -- Changes the difficulty setting in the client's option menu.
-  | CBServerDifficulty Difficulty
+  | CBServerDifficulty DifficultyField
 
   -- | __Tab-Complete:__
   -- The server responds with a list of auto-completions of the
@@ -501,7 +492,7 @@ data CBPlay
 
   -- | __Respawn:__
   -- To change the player's dimension (overworld/nether/end), send them a respawn packet with the appropriate dimension, followed by prechunks/chunks for the new dimension, and finally a position and look packet. You do not need to unload chunks, the client will do it automatically.
-  | CBRespawn Dimension Difficulty GameMode T.Text
+  | CBRespawn DimensionField DifficultyField GameModeField T.Text
 
   -- | __Entity Head Look:__
   -- Changes the direction an entity's head is facing.
@@ -677,7 +668,7 @@ encodeCBPlay (CBAnimation entityID animation) =
 encodeCBPlay (CBStatistics statistics) =
   Encode.word8 0x07
   <> (encodeVarInt . V.length $ statistics)
-  <> (V.foldl1' (<>) (fmap encodeStatistic statistics))
+  <> (V.foldl' (<>) mempty (fmap encodeStatistic statistics))
 
 encodeCBPlay (CBBlockBreakAnimation entityID location destroyStage) =
   Encode.word8 0x08
@@ -751,7 +742,7 @@ encodeCBPlay (CBServerDifficulty difficulty) =
 encodeCBPlay (CBTabComplete matches) =
   Encode.word8 0x0E
   <> (encodeVarInt . V.length $ matches)
-  <> V.foldl1' (<>) (fmap encodeText matches)
+  <> V.foldl' (<>) mempty (fmap encodeText matches)
 
 encodeCBPlay (CBChatMessage jsonData position) =
   Encode.word8 0x0F
@@ -763,7 +754,7 @@ encodeCBPlay (CBMultiBlockChange chunkX chunkZ records) =
   <> Encode.int32BE chunkX
   <> Encode.int32BE chunkZ
   <> (encodeVarInt . V.length $ records)
-  <> V.foldl1' (<>) (fmap encodeRecord records)
+  <> V.foldl' (<>) mempty (fmap encodeRecord records)
 
 encodeCBPlay (CBConfirmTransaction windowID actionNumber accepted) =
   Encode.word8 0x11
@@ -789,7 +780,7 @@ encodeCBPlay (CBWindowItems windowID slotData) =
   Encode.word8 0x14
   <> Encode.word8 windowID
   <> (Encode.int16BE . toEnum . V.length $ slotData)
-  <> V.foldl1' (<>) (fmap encodeSlot slotData)
+  <> V.foldl' (<>) mempty (fmap encodeSlot slotData)
 
 encodeCBPlay (CBWindowProperty windowID property value) =
   Encode.word8 0x15
@@ -839,7 +830,7 @@ encodeCBPlay (CBExplosion x y z radius records pMotionX pMotionY pMotionZ) =
   <> Encode.floatBE z
   <> Encode.floatBE radius
   <> (Encode.int32BE . toEnum . V.length $ records)
-  <> V.foldl1' (<>) (fmap (\(a,b,c) -> Encode.int8 a <> Encode.int8 b <> Encode.int8 c) records)
+  <> V.foldl' (<>) mempty (fmap (\(a,b,c) -> Encode.int8 a <> Encode.int8 b <> Encode.int8 c) records)
   <> Encode.floatBE pMotionX
   <> Encode.floatBE pMotionY
   <> Encode.floatBE pMotionZ
@@ -865,13 +856,13 @@ encodeCBPlay (CBChunkData chunkX chunkZ groundUpCont primaryBitMask dat biomes b
   <> (Encode.word8 . toEnum . fromEnum $ groundUpCont)
   <> encodeVarInt primaryBitMask
   <> (encodeVarInt . V.length $ dat)
-  <> V.foldl1' (<>) (fmap encodeChunkSection dat)
+  <> V.foldl' (<>) mempty (fmap encodeChunkSection dat)
   <> (case (groundUpCont,biomes) of
       (True,Just b)   -> Encode.byteString b
       _               -> mempty
     )
   <> (encodeVarInt . V.length $ blockEntities)
-  <> V.foldl1' (<>) (fmap encodeNBT blockEntities)
+  <> V.foldl' (<>) mempty (fmap encodeNBT blockEntities)
 
 -- (NOTE) Should be better typed to Effect IDs that actually exist
 encodeCBPlay (CBEffect effectID location dat disableRelativeVolume) =
@@ -893,7 +884,7 @@ encodeCBPlay (CBParticle particleID longDistance x y z offsetX offsetY offsetZ p
   <> Encode.floatBE offsetZ
   <> Encode.floatBE particleData
   <> Encode.int32BE particleCount
-  <> V.foldl1' (<>) (fmap encodeVarInt dat)
+  <> V.foldl' (<>) mempty (fmap encodeVarInt dat)
 
 encodeCBPlay (CBJoinGame entityID gameMode dimension difficulty maxPlayers levelType reduceDebug) =
   Encode.word8 0x23
@@ -911,7 +902,7 @@ encodeCBPlay (CBMap itemDamage scale trackingPosition icons columns rows x z dat
   <> Encode.int8 scale
   <> (Encode.word8 . toEnum . fromEnum $ trackingPosition)
   <> (encodeVarInt . V.length $ icons)
-  <> V.foldl1' (<>) (fmap encodeIcon icons)
+  <> V.foldl' (<>) mempty (fmap encodeIcon icons)
   <> Encode.int8 columns
   <> case (columns,rows,x,z,dat) of
       (columns,Just rows',Just x',Just z', Just dat') -> do
@@ -992,7 +983,7 @@ encodeCBPlay (CBPlayerListItem action players) =
   Encode.word8 0x2D
   <> encodeVarInt action
   <> (encodeVarInt . V.length $ players)
-  <> V.foldl1' (<>) (fmap (encodePlayerListEntry action) players)
+  <> V.foldl' (<>) mempty (fmap (encodePlayerListEntry action) players)
 
 -- flags should be better typed
 encodeCBPlay (CBPlayerPositionAndLook x y z yaw pitch flags teleportID) =
@@ -1013,7 +1004,7 @@ encodeCBPlay (CBUseBed entityID location) =
 encodeCBPlay (CBDestroyEntities entityIDs) =
   Encode.word8 0x30
   <> (encodeVarInt . V.length $ entityIDs)
-  <> V.foldl1' (<>) (fmap encodeVarInt entityIDs)
+  <> V.foldl' (<>) mempty (fmap encodeVarInt entityIDs)
 
 encodeCBPlay (CBRemoveEntityEffect entityID effectID) =
   Encode.word8 0x31
@@ -1136,7 +1127,7 @@ encodeCBPlay (CBSetPassengers entityID passengers) =
   Encode.word8 0x40
   <> encodeVarInt entityID
   <> (encodeVarInt . V.length $ passengers)
-  <> V.foldl1' (<>) (fmap encodeVarInt passengers)
+  <> V.foldl' (<>) mempty (fmap encodeVarInt passengers)
 
 encodeCBPlay (CBTeams teamName mode) =
   Encode.word8 0x41
@@ -1152,7 +1143,7 @@ encodeCBPlay (CBTeams teamName mode) =
         <> encodeText collision
         <> Encode.int8 color
         <> (encodeVarInt . V.length $ players)
-        <> V.foldl1' (<>) (fmap encodeText players)
+        <> V.foldl' (<>) mempty (fmap encodeText players)
       RemoveTeam -> do
         Encode.int8 1
       UpdateTeamInfo displayName prefix suffix flags tagVisibility collision color -> do
@@ -1167,11 +1158,11 @@ encodeCBPlay (CBTeams teamName mode) =
       AddPlayers players -> do
         Encode.int8 3
         <> (encodeVarInt . V.length $ players)
-        <> V.foldl1' (<>) (fmap encodeText players)
+        <> V.foldl' (<>) mempty (fmap encodeText players)
       RemovePlayers players -> do
         Encode.int8 4
         <> (encodeVarInt . V.length $ players)
-        <> V.foldl1' (<>) (fmap encodeText players)
+        <> V.foldl' (<>) mempty (fmap encodeText players)
     )
 
 encodeCBPlay (CBUpdateScore scoreName action objectiveName value) =
@@ -1247,7 +1238,7 @@ encodeCBPlay (CBEntityProperties entityID properties) =
   Encode.word8 0x4A
   <> encodeVarInt entityID
   <> (encodeVarInt . V.length $ properties)
-  <> V.foldl1' (<>) (fmap encodeEntityProperty properties)
+  <> V.foldl' (<>) mempty (fmap encodeEntityProperty properties)
 
 encodeCBPlay (CBEntityEffect entityID effectID amplifier duration hideParticles) =
   Encode.word8 0x4B
@@ -2397,7 +2388,7 @@ decodeSBPlay = do
           targetZ <- decodeFloatBE
           hand <- decodeVarInt
           return $ SBUseEntity target t (Just targetX) (Just targetY) (Just targetZ) (Just hand)
-        _ -> undefined
+        _ -> fail "Error: Invalid type!"
 
     0x0B -> do
       keepAliveID <- decodeVarInt

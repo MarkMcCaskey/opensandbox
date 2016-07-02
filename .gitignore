@@ -17,6 +17,7 @@ cabal.sandbox.config
 *.hp
 highlight.js
 style.css
+*.eventlog
 
 # OpenSandbox Runtime directories
 cache/

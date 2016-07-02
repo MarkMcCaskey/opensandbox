@@ -19,6 +19,7 @@ import            Control.Monad.IO.Class
 import            Control.Monad.Trans.Class
 import            Control.Monad.Trans.State.Lazy
 import            Data.Attoparsec.ByteString
+import            Data.Bits
 import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Lazy as BL
 import qualified  Data.ByteString.Builder as Encode
