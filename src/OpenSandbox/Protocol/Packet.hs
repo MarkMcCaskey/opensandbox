@@ -34,12 +34,14 @@ module OpenSandbox.Protocol.Packet
   , decodeCBPlay
   , encodeSBPlay
   , decodeSBPlay
+  , debugNetCode
   ) where
 
 import            Prelude hiding (max)
 import qualified  Data.Aeson as Aeson
 import qualified  Data.Attoparsec.ByteString as Decode
 import qualified  Data.ByteString as B
+import qualified  Data.ByteString.Lazy as BL
 import qualified  Data.ByteString.Builder as Encode
 import            Data.Int
 import            Data.Monoid
@@ -50,7 +52,22 @@ import            Data.Word
 
 import            OpenSandbox.Protocol.Types
 
-
+debugNetCode :: SBPlay -> IO ()
+debugNetCode packet = do
+  let encoded = BL.toStrict . Encode.toLazyByteString $ encodeSBPlay packet
+  let decoded = Decode.parseOnly decodeSBPlay encoded :: Either String SBPlay
+  putStrLn "==================================================================="
+  putStrLn $ "Packet: " ++ show packet
+  putStrLn "-------------------------------------------------------------------"
+  putStrLn $ "Encoded:"
+  putStrLn $ show encoded
+  putStrLn "-------------------------------------------------------------------"
+  putStrLn $ "Decoded:"
+  putStrLn $ show decoded
+  putStrLn "-------------------------------------------------------------------"
+  putStrLn $ "Should be:"
+  putStrLn $ show (Right packet :: Either String SBPlay)
+  putStrLn "==================================================================="
 
 data SBHandshaking
   -- | __Handshake:__
@@ -423,7 +440,7 @@ data CBPlay
 
   -- | __Map:__
   -- Updates a rectangular area on a map item.
-  | CBMap VarInt Int8 Bool (V.Vector Icon) Int8 (Maybe Int8) (Maybe Int8) (Maybe Int8) (Maybe B.ByteString)
+  | CBMap VarInt Int8 Bool (V.Vector Icon) UpdatedColumns
 
   -- | __Entity Relative Move:__
   -- This packet is sent by the server when an entity moves less then 8 blocks; if an entity moves more than 8 blocks Entity Teleport (Play, 0x4A, clientbound) should be sent instead.
@@ -554,7 +571,7 @@ data CBPlay
 
   -- | __Update Score:__
   -- This is sent to the client when it should update a scoreboard item.
-  | CBUpdateScore T.Text Int8 T.Text (Maybe VarInt)
+  | CBUpdateScore UpdateScoreAction
 
   -- | __Spawn Position:__
   -- Sent by the server after login to specify the coordinates of the spawn point (the point at which players spawn at, and which the compass points to). It can be sent at any time to update the point compasses point at.
@@ -896,24 +913,24 @@ encodeCBPlay (CBJoinGame entityID gameMode dimension difficulty maxPlayers level
   <> encodeText levelType
   <> (Encode.word8 . toEnum . fromEnum $ reduceDebug)
 
-encodeCBPlay (CBMap itemDamage scale trackingPosition icons columns rows x z dat) =
+encodeCBPlay (CBMap itemDamage scale trackingPosition icons updatedColumns) =
   Encode.word8 0x24
   <> encodeVarInt itemDamage
   <> Encode.int8 scale
   <> (Encode.word8 . toEnum . fromEnum $ trackingPosition)
   <> (encodeVarInt . V.length $ icons)
   <> V.foldl' (<>) mempty (fmap encodeIcon icons)
-  <> Encode.int8 columns
-  <> case (columns,rows,x,z,dat) of
-      (columns,Just rows',Just x',Just z', Just dat') -> do
-        if columns > 0
-          then Encode.int8 rows'
-                <> Encode.int8 x'
-                <> Encode.int8 z'
-                <> (encodeVarInt . B.length $ dat')
-                <> Encode.byteString dat'
-          else mempty
-      _ -> undefined
+  <> case updatedColumns of
+      NoUpdatedColumns -> do
+        Encode.int8 0
+      (UpdatedColumns col rows x z dat) -> do
+        Encode.int8 col
+        <> Encode.int8 rows
+        <> Encode.int8 x
+        <> Encode.int8 x
+        <> Encode.int8 z
+        <> (encodeVarInt . B.length $ dat)
+        <> Encode.byteString dat
 
 encodeCBPlay (CBEntityRelativeMove entityID dX dY dZ onGround) =
   Encode.word8 0x25
@@ -1132,7 +1149,7 @@ encodeCBPlay (CBSetPassengers entityID passengers) =
 encodeCBPlay (CBTeams teamName mode) =
   Encode.word8 0x41
   <> encodeText teamName
-  <> (case mode of
+  <> case mode of
       CreateTeam displayName prefix suffix flags tagVisibility collision color players -> do
         Encode.int8 0
         <> encodeText displayName
@@ -1163,17 +1180,19 @@ encodeCBPlay (CBTeams teamName mode) =
         Encode.int8 4
         <> (encodeVarInt . V.length $ players)
         <> V.foldl' (<>) mempty (fmap encodeText players)
-    )
 
-encodeCBPlay (CBUpdateScore scoreName action objectiveName value) =
+encodeCBPlay (CBUpdateScore action) =
   Encode.word8 0x42
-  <> encodeText scoreName
-  <> Encode.int8 action
-  <> encodeText objectiveName
-  <> case (action,value) of
-      (0x01,Nothing)  -> mempty
-      (_,Just v')     -> encodeVarInt v'
-      _               -> undefined
+  <> case action of
+      (CreateOrUpdateScoreItem scoreName objectiveName val) -> do
+        encodeText scoreName
+        <> Encode.int8 0
+        <> encodeText objectiveName
+        <> encodeVarInt val
+      (RemoveScoreItem scoreName objectiveName) -> do
+        encodeText scoreName
+        <> Encode.int8 1
+        <> encodeText objectiveName
 
 encodeCBPlay (CBSpawnPosition location) =
   Encode.word8 0x43
@@ -1345,17 +1364,20 @@ decodeCBPlay = do
       byte1 <- Decode.anyWord8
       byte2 <- Decode.anyWord8
       blockType <- decodeVarInt
-      let blockAction = case blockType of
-                          25 -> NoteBlockAction
-                                  (toEnum . fromEnum $ byte1)
-                                  (toEnum . fromEnum $ byte2)
-                          33 -> PistonBlockAction
-                                  (toEnum . fromEnum $ byte1)
-                                  (toEnum . fromEnum $ byte2)
-                          54 -> ChestBlockAction
-                                  byte2
-                          _ -> undefined
-      return $ CBBlockAction location blockAction blockType
+      case blockType of
+        25 -> do
+          return $ CBBlockAction
+            location
+            (NoteBlockAction (toEnum . fromEnum $ byte1) (toEnum . fromEnum $ byte2))
+            blockType
+        33 -> do
+          return $ CBBlockAction
+            location
+            (PistonBlockAction (toEnum . fromEnum $ byte1) (toEnum . fromEnum $ byte2))
+            blockType
+        54 -> do
+            return $ CBBlockAction location (ChestBlockAction byte2) blockType
+        _ -> fail "Error: invalid BlockAction type!"
 
     0x0B -> do
       location <- decodePosition
@@ -1389,7 +1411,7 @@ decodeCBPlay = do
           flags <- Decode.anyWord8
           return $ CBBossBar uuid (BossBarUpdateFlags flags)
 
-        _ -> undefined
+        _ -> fail "Error: Invalid BossBar action byte!"
 
     0x0D -> do
       difficulty <- fmap (toEnum . fromEnum) Decode.anyWord8
@@ -1520,7 +1542,7 @@ decodeCBPlay = do
           size <- decodeVarInt
           bs <- Decode.take (size - 256)
           let dat = Decode.parseOnly
-                      ((fmap V.fromList (Decode.many' decodeChunkSection)) <* Decode.endOfInput)
+                      ((fmap V.fromList (Decode.many' (decodeChunkSection primaryBitMask))) <* Decode.endOfInput)
                       bs
           biomes <- Decode.take 256
           count <- decodeVarInt
@@ -1540,7 +1562,7 @@ decodeCBPlay = do
           size <- decodeVarInt
           bs <- Decode.take size
           let dat = Decode.parseOnly
-                      ((fmap V.fromList (Decode.many' decodeChunkSection)) <* Decode.endOfInput)
+                      ((fmap V.fromList (Decode.many' (decodeChunkSection primaryBitMask))) <* Decode.endOfInput)
                       bs
           count <- decodeVarInt
           blockEntities <- V.replicateM count decodeNBT
@@ -1601,8 +1623,8 @@ decodeCBPlay = do
           z <- decodeInt8
           ln <- decodeVarInt
           dat <- Decode.takeByteString
-          return $ CBMap itemDamage scale trackingPositon icons columns (Just rows) (Just x) (Just z) (Just dat)
-        else return $ CBMap itemDamage scale trackingPositon icons columns Nothing Nothing Nothing Nothing
+          return $ CBMap itemDamage scale trackingPositon icons (UpdatedColumns columns rows x z dat)
+        else return $ CBMap itemDamage scale trackingPositon icons NoUpdatedColumns
 
 
     0x25 -> do
@@ -1859,12 +1881,13 @@ decodeCBPlay = do
       scoreName <- decodeText
       action <- decodeInt8
       objectiveName <- decodeText
-      if action /= 1
-        then do
+      case action of
+        0 -> do
           value <- decodeVarInt
-          return $ CBUpdateScore scoreName action objectiveName (Just value)
-        else do
-          return $ CBUpdateScore scoreName action objectiveName Nothing
+          return $ CBUpdateScore (CreateOrUpdateScoreItem scoreName objectiveName value)
+        1 -> do
+          return $ CBUpdateScore (RemoveScoreItem scoreName objectiveName)
+        _ -> fail "Error: Invalid UpdateScoreAction byte!"
 
     0x43 -> do
       location <- decodePosition
@@ -1947,7 +1970,7 @@ data SBPlay
 
   -- | __Tab-Complete (serverbound):__
   -- Sent when the user presses tab while writing text.
-  | SBTabComplete T.Text Bool Bool (Maybe Position)
+  | SBTabComplete T.Text Bool (Maybe Position)
 
   -- | __Chat Message (serverbound):__
   -- Used to send a chat message to the server. The message may not be longer than 100 characters or else the server will kick the client.
@@ -1994,7 +2017,7 @@ data SBPlay
   -- A Notchian server only accepts this packet if the entity being attacked/used is visible without obstruction and within a 4-unit radius of the player's position.
   --
   -- Note that middle-click in creative mode is interpreted by the client and sent as a Creative Inventory Action packet instead.
-  | SBUseEntity VarInt VarInt (Maybe Float) (Maybe Float) (Maybe Float) (Maybe VarInt)
+  | SBUseEntity VarInt UseEntityType
 
   -- | __Keep Alive (serverbound):__
   -- The server will frequently send out a keep-alive, each containing a random ID. The client must respond with the same packet.
@@ -2113,14 +2136,16 @@ encodeSBPlay (SBTeleportConfirm teleportID) =
   Encode.word8 0x00
   <> encodeVarInt teleportID
 
-encodeSBPlay (SBTabComplete text assumeCommand hasPosition lookedAtBlock) =
+encodeSBPlay (SBTabComplete text assumeCommand lookedAtBlock) =
   Encode.word8 0x01
   <> encodeText text
-  <> (Encode.word8 . toEnum . fromEnum $ assumeCommand)
-  <> (Encode.word8 . toEnum . fromEnum $ hasPosition)
-  <> case (hasPosition,lookedAtBlock) of
-      (True,Just lookedAtBlock') -> encodePosition lookedAtBlock'
-      _ -> mempty
+  <> encodeBool assumeCommand
+  <> case lookedAtBlock of
+      Just lookedAtBlock' -> do
+        encodeBool True
+        <> encodePosition lookedAtBlock'
+      Nothing -> do
+        encodeBool False
 
 encodeSBPlay (SBChatMessage message) =
   Encode.word8 0x02
@@ -2168,22 +2193,21 @@ encodeSBPlay (SBPluginMessage channel dat) =
   <> encodeText channel
   <> Encode.byteString dat
 
-encodeSBPlay (SBUseEntity target t tX tY tZ hand) =
+encodeSBPlay (SBUseEntity target t) =
   Encode.word8 0x0A
   <> encodeVarInt target
-  <> encodeVarInt t
-  <> case (t,tX,tY,tZ) of
-      (2,Just tX',Just tY',Just tZ') -> do
-        Encode.floatBE tX'
-        <> Encode.floatBE tY'
-        <> Encode.floatBE tZ'
-      _ -> mempty
-  <> case (t,hand) of
-      (0,Just 0) -> encodeVarInt 0
-      (0,Just 2) -> encodeVarInt 2
-      (2,Just 0) -> encodeVarInt 0
-      (2,Just 2) -> encodeVarInt 2
-      _ -> mempty
+  <> case t of
+      (InteractWithEntity h) -> do
+        encodeVarInt 0
+        <> encodeVarInt (fromEnum h)
+      AttackEntity -> do
+        encodeVarInt 1
+      (InteractAtEntity tX tY tZ h) -> do
+        encodeVarInt 2
+        <> Encode.floatBE tX
+        <> Encode.floatBE tY
+        <> Encode.floatBE tZ
+        <> encodeVarInt (fromEnum h)
 
 encodeSBPlay (SBKeepAlive keepAliveID) =
   Encode.word8 0x0B
@@ -2305,15 +2329,14 @@ decodeSBPlay = do
 
     0x01 -> do
       text <- decodeText
-      assumeCommand <- fmap (toEnum . fromEnum) Decode.anyWord8
-      hasPosition <- fmap (toEnum . fromEnum) Decode.anyWord8
+      assumeCommand <- decodeBool
+      hasPosition <- decodeBool
       case hasPosition of
         False -> do
           return $
             SBTabComplete
               text
               assumeCommand
-              hasPosition
               Nothing
         True -> do
           lookedAtBlock <- decodePosition
@@ -2321,7 +2344,6 @@ decodeSBPlay = do
             SBTabComplete
               text
               assumeCommand
-              hasPosition
               (Just lookedAtBlock)
 
     0x02 -> do
@@ -2375,20 +2397,17 @@ decodeSBPlay = do
       t <- decodeVarInt
       case t of
         0 -> do
-          targetX <- decodeFloatBE
-          targetY <- decodeFloatBE
-          targetZ <- decodeFloatBE
           hand <- decodeVarInt
-          return $ SBUseEntity target t (Just targetX) (Just targetY) (Just targetZ) (Just hand)
+          return $ SBUseEntity target (InteractWithEntity hand)
         1 -> do
-          return $ SBUseEntity target t Nothing Nothing Nothing Nothing
+          return $ SBUseEntity target AttackEntity
         2 -> do
           targetX <- decodeFloatBE
           targetY <- decodeFloatBE
           targetZ <- decodeFloatBE
-          hand <- decodeVarInt
-          return $ SBUseEntity target t (Just targetX) (Just targetY) (Just targetZ) (Just hand)
-        _ -> fail "Error: Invalid type!"
+          hand <- fmap toEnum decodeVarInt
+          return $ SBUseEntity target (InteractAtEntity targetX targetY targetZ hand)
+        _ -> fail $ "Error: Could not decode SBUseEntity type: " ++ show t
 
     0x0B -> do
       keepAliveID <- decodeVarInt

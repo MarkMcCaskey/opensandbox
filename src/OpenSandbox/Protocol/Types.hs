@@ -61,6 +61,10 @@ module OpenSandbox.Protocol.Types
   , NamelessNBT (..)
   , NBTList (..)
   , TagType (..)
+  , UpdatedColumns (..)
+  , UpdateScoreAction (..)
+  , UseEntityType (..)
+  , EntityHand (..)
   , mkSlot
   , decodeWord16BE
   , decodeWord32BE
@@ -160,7 +164,9 @@ decodeInt8 = do
 
 
 -- Short
-decodeInt16BE :: Decode.Parser Int16
+type Short = Int16
+
+decodeInt16BE :: Decode.Parser Short
 decodeInt16BE = do
     bs <- Decode.take 2
     return $! (fromIntegral (bs `B.unsafeIndex` 0) `shiftL` 8) .|.
@@ -226,7 +232,7 @@ decodeText = do
     else return ""
 
 -- Chat
--- TODO
+type Chat = T.Text
 
 -- VarInt ---------------------------------------------------------------------
 type VarInt = Int
@@ -280,7 +286,8 @@ decodeVarLong = do
         then go (n+7) (val .|. ((fromIntegral (w' .&. 0x7F)) `shiftL` n))
         else return (val .|. ((fromIntegral w') `shiftL` n))
 
--- Chunk Section
+-- Chunk Section: 16x16x16 area
+-- Chunk Column: 16 chunks aligned vertically
 data ChunkSection = ChunkSection
   { bitsPerBlock  :: !Word8
   , palette       :: !(V.Vector Int)
@@ -293,31 +300,34 @@ encodeChunkSection :: ChunkSection -> Encode.Builder
 encodeChunkSection (ChunkSection a b c d e) =
   Encode.word8 a
   <> encodeVarInt (V.length b)
-  <> (V.foldl1' (<>) (fmap encodeVarInt b))
+  <> (V.foldl' (<>) mempty (fmap encodeVarInt b))
   <> encodeVarInt (V.length c)
-  <> (V.foldl1' (<>) (fmap Encode.int64BE c))
+  <> (V.foldl' (<>) mempty (fmap Encode.int64BE c))
   <> Encode.byteString d
   <> (case e of
       Just bs -> Encode.byteString bs
       Nothing -> mempty
     )
 
-decodeChunkSection :: Decode.Parser ChunkSection
-decodeChunkSection = undefined -- do
-{-
+decodeChunkSection :: Int -> Decode.Parser ChunkSection
+decodeChunkSection bitmask = do
   bitsPerBlock <- Decode.anyWord8
   paletteCount <- decodeVarInt
-  palette <- V.replicateM paletteCount decodeInt32BE
+  palette <- V.replicateM paletteCount decodeVarInt
   dataCount <- decodeVarInt
   dataArray <- V.replicateM dataCount decodeInt64BE
-  blockLight
--}
+  blockLight <- Decode.take 256
+  if bitmask > 255
+    then do
+      skyLight <- Decode.take 256
+      return $ ChunkSection bitsPerBlock palette dataArray blockLight (Just skyLight)
+    else return $ ChunkSection bitsPerBlock palette dataArray blockLight Nothing
 
 -- Entity Metadata
 type EntityMetadata = V.Vector EntityMetadataEntry
 
 encodeEntityMetadata :: EntityMetadata -> Encode.Builder
-encodeEntityMetadata e = V.foldl1' (<>) (fmap encodeEntityMetadataEntry e)
+encodeEntityMetadata e = V.foldl' (<>) mempty (fmap encodeEntityMetadataEntry e)
 
 decodeEntityMetadata :: Decode.Parser EntityMetadata
 decodeEntityMetadata = do
@@ -440,8 +450,7 @@ decodeByteString = do
 -- | Protocol Enums
 -------------------------------------------------------------------------------
 
--- Animation ------------------------------------------------------------------
-
+-- Animation
 data Animation
   = SwingArm
   | TakeDamage
@@ -451,10 +460,7 @@ data Animation
   | MagicCriticalEffect
   deriving (Show,Eq,Enum)
 
--------------------------------------------------------------------------------
 -- BlockAction
--------------------------------------------------------------------------------
-
 data BlockAction
   = NoteBlockAction InstrumentType NotePitch
   | PistonBlockAction PistonState PistonDirection
@@ -511,10 +517,7 @@ data PistonDirection
   | PistonEast
   deriving (Show,Eq,Enum)
 
--------------------------------------------------------------------------------
 -- BlockChange
--------------------------------------------------------------------------------
-
 data BlockChange = BlockChange
   { hPosition     :: !Word8
   , yCoord        :: !Word8
@@ -534,10 +537,7 @@ decodeRecord = do
   bid <- decodeVarInt
   return $ BlockChange hp yc bid
 
--------------------------------------------------------------------------------
 -- BossBarAction
--------------------------------------------------------------------------------
-
 data BossBarAction
   = BossBarAdd Chat Float Int Int Word8
   | BossBarRemove
@@ -547,24 +547,14 @@ data BossBarAction
   | BossBarUpdateFlags Word8
   deriving (Show,Eq)
 
-
-
-type Chat = T.Text
-
--------------------------------------------------------------------------------
 -- DifficultyField
--------------------------------------------------------------------------------
-
 data DifficultyField = PeacefulField | EasyField | NormalField | HardField
   deriving (Show,Enum,Eq,Generic)
 
 instance FromJSON DifficultyField
 instance ToJSON DifficultyField
 
--------------------------------------------------------------------------------
 -- DimensionField
--------------------------------------------------------------------------------
-
 data DimensionField = OverworldField | NetherField | EndField
   deriving (Show,Eq,Generic)
 
@@ -575,18 +565,17 @@ instance Enum DimensionField where
     toEnum 0 = OverworldField
     toEnum (-1) = NetherField
     toEnum 1 = EndField
-    toEnum _ = undefined
 
+-- GameModeField
 data GameModeField = SurvivalField | CreativeField | AdventureField | SpectatorField
   deriving (Show,Enum,Eq,Generic)
 
 instance FromJSON GameModeField
 instance ToJSON GameModeField
 
+-- NextState
 data NextState = ProtocolHandshake | ProtocolStatus | ProtocolLogin | ProtocolPlay
   deriving (Show,Eq,Enum)
-
-type Short = Int16
 
 data UpdateBlockEntityAction
   = SetSpawnPotentials
@@ -620,7 +609,6 @@ instance Enum UpdateBlockEntityAction where
   toEnum 7 = SetStuctureTileEntity
   toEnum 8 = SetGateway
   toEnum 9 = SetSign
-  toEnum _ = undefined
 
 data WindowProperty
   = WindowFurnace FurnaceProperty
@@ -862,7 +850,9 @@ data PlayerListEntry = PlayerListEntry
   } deriving (Show,Eq)
 
 encodePlayerListEntry :: Int -> PlayerListEntry -> Encode.Builder
-encodePlayerListEntry  a p = undefined
+encodePlayerListEntry  a (PlayerListEntry u pla) =
+  encodeUUID u
+  <> encodePlayerListAction pla
 
 decodePlayerListEntry :: Int -> Decode.Parser PlayerListEntry
 decodePlayerListEntry a = PlayerListEntry <$> decodeUUID <*> decodePlayerListAction a
@@ -871,15 +861,85 @@ data PlayerListAction
   = PlayerListAdd T.Text (V.Vector PlayerProperty) GameModeField Int (Maybe T.Text)
   | PlayerListUpdateGameMode GameModeField
   | PlayerListUpdateLatency Int
-  | PlayerListUpdateDisplayName Bool (Maybe T.Text)
+  | PlayerListUpdateDisplayName (Maybe T.Text)
   | PlayerListRemovePlayer
   deriving (Show,Eq)
+
+encodePlayerListAction :: PlayerListAction -> Encode.Builder
+encodePlayerListAction (PlayerListAdd name properties gameMode ping maybeDisplayName) =
+  encodeText name
+  <> (encodeVarInt . V.length $ properties)
+  <> (V.foldl' (<>) mempty (fmap encodePlayerProperty properties))
+  <> encodeVarInt (fromEnum gameMode)
+  <> encodeVarInt ping
+  <> case maybeDisplayName of
+      Just displayName -> encodeBool True <> encodeText displayName
+      Nothing -> encodeBool False
+encodePlayerListAction (PlayerListUpdateGameMode gameMode) =
+  encodeVarInt (fromEnum gameMode)
+encodePlayerListAction (PlayerListUpdateLatency ping) =
+  encodeVarInt ping
+encodePlayerListAction (PlayerListUpdateDisplayName maybeDisplayName) =
+  case maybeDisplayName of
+    Nothing -> encodeBool False
+    Just displayName -> encodeBool True <> encodeText displayName
+encodePlayerListAction PlayerListRemovePlayer =
+  mempty
+
+decodePlayerListAction :: Int -> Decode.Parser PlayerListAction
+decodePlayerListAction action =
+  case action of
+    0 -> do
+      name <- decodeText
+      count <- decodeVarInt
+      properties <- V.replicateM count decodePlayerProperty
+      gameMode <- fmap toEnum decodeVarInt
+      ping <- decodeVarInt
+      hasDisplayName <- decodeBool
+      if hasDisplayName
+        then do
+          displayName <- decodeText
+          return $ PlayerListAdd name properties gameMode ping (Just displayName)
+        else do
+          return $ PlayerListAdd name properties gameMode ping Nothing
+    1 -> PlayerListUpdateGameMode <$> (fmap toEnum decodeVarInt)
+    2 -> PlayerListUpdateLatency <$> decodeVarInt
+    3 -> do
+      hasDisplayName <- decodeBool
+      if hasDisplayName
+        then do
+          displayName <- decodeText
+          return $ PlayerListUpdateDisplayName (Just displayName)
+        else do
+          return $ PlayerListUpdateDisplayName Nothing
+    4 -> return PlayerListRemovePlayer
+    _ -> fail "Error: Invalid PlayerListAction int!"
 
 data PlayerProperty = PlayerProperty
   { playerName    :: !T.Text
   , playerValue   :: !T.Text
   , playerSig     :: !(Maybe T.Text)
   } deriving (Show,Eq)
+
+encodePlayerProperty :: PlayerProperty -> Encode.Builder
+encodePlayerProperty (PlayerProperty name val maybeSig) =
+  encodeText name
+  <> encodeText val
+  <> case maybeSig of
+      Nothing -> encodeBool False
+      Just sig -> encodeBool True <> encodeText sig
+
+decodePlayerProperty :: Decode.Parser PlayerProperty
+decodePlayerProperty = do
+  name <- decodeText
+  value <- decodeText
+  isSigned <- decodeBool
+  if isSigned
+    then do
+      sig <- decodeText
+      return $ PlayerProperty name value (Just sig)
+    else do
+      return $ PlayerProperty name value Nothing
 
 data Icon = Icon
   { directionAndType  :: !Word8
@@ -975,50 +1035,27 @@ decodeWord64BE = do
       (fromIntegral (bs `B.unsafeIndex` 6) `shiftL`  8) .|.
       (fromIntegral (bs `B.unsafeIndex` 7))
 
-decodePlayerListAction :: Int -> Decode.Parser PlayerListAction
-decodePlayerListAction action =
-  case action of
-    0 -> do
-      name <- decodeText
-      count <- decodeVarInt
-      properties <- V.replicateM count decodePlayerProperty
-      gameMode <- fmap toEnum decodeVarInt
-      ping <- decodeVarInt
-      hasDisplayName <- decodeBool
-      if hasDisplayName
-        then do
-          displayName <- decodeText
-          return $ PlayerListAdd name properties gameMode ping (Just displayName)
-        else do
-          return $ PlayerListAdd name properties gameMode ping Nothing
-    1 -> PlayerListUpdateGameMode <$> (fmap toEnum decodeVarInt)
-    2 -> PlayerListUpdateLatency <$> decodeVarInt
-    3 -> do
-      hasDisplayName <- decodeBool
-      if hasDisplayName
-        then do
-          displayName <- decodeText
-          return $ PlayerListUpdateDisplayName hasDisplayName (Just displayName)
-        else do
-          return $ PlayerListUpdateDisplayName hasDisplayName Nothing
-    4 -> return PlayerListRemovePlayer
-    _ -> undefined
-
-decodePlayerProperty :: Decode.Parser PlayerProperty
-decodePlayerProperty = do
-  name <- decodeText
-  value <- decodeText
-  isSigned <- decodeBool
-  if isSigned
-    then do
-      sig <- decodeText
-      return $ PlayerProperty name value (Just sig)
-    else do
-      return $ PlayerProperty name value Nothing
-
 encodeStatusPayload :: T.Text -> Word8 -> Word8 -> Word8 -> T.Text -> Encode.Builder
 encodeStatusPayload mcVersion versionID currentPlayers maxPlayers motd =
   encodeByteString . BL.toStrict . Aeson.encode $
     StatusPayload (Version mcVersion versionID)
                   (Players maxPlayers currentPlayers)
                   (Description motd)
+
+data UpdatedColumns
+  = NoUpdatedColumns
+  | UpdatedColumns Int8 Int8 Int8 Int8 B.ByteString
+  deriving (Show,Eq)
+
+data UpdateScoreAction
+  = CreateOrUpdateScoreItem T.Text T.Text VarInt
+  | RemoveScoreItem T.Text T.Text
+  deriving (Show,Eq)
+
+data UseEntityType
+  = InteractWithEntity VarInt
+  | AttackEntity
+  | InteractAtEntity Float Float Float EntityHand
+  deriving (Show,Eq)
+
+data EntityHand = MainHand | OffHand deriving (Show,Eq,Enum)

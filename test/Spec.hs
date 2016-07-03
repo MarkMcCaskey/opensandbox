@@ -33,6 +33,20 @@ instance Arbitrary (U.Vector Int8) where
     e <- vectorOf (fromEnum ln) arbitrary
     return $ U.fromList e
 
+instance Arbitrary UpdatedColumns where
+  arbitrary = do
+    columns <- (arbitrary :: Gen Int8)
+    case columns of
+      0 -> return NoUpdatedColumns
+      _ -> UpdatedColumns <$> return columns <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary UpdateScoreAction where
+  arbitrary = do
+    action <- arbitrary :: Gen Bool
+    if action
+      then CreateOrUpdateScoreItem <$> arbitrary <*> arbitrary <*> arbitrary
+      else RemoveScoreItem <$> arbitrary <*> arbitrary
+
 instance Arbitrary NBT where
   arbitrary = sized nbt'
     where nbt' 0 = return $ TagByte "" 5
@@ -231,8 +245,7 @@ instance Arbitrary PlayerListAction where
         return $ PlayerListUpdateLatency a
       3 -> do
         a <- arbitrary
-        b <- arbitrary
-        return $ PlayerListUpdateDisplayName a b
+        return $ PlayerListUpdateDisplayName a
       4 -> do
         return $ PlayerListRemovePlayer
 
@@ -304,6 +317,17 @@ instance Arbitrary BossBarAction where
 
 instance Arbitrary Slot where
   arbitrary = mkSlot <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary UseEntityType where
+  arbitrary = do
+    t <- (choose (0,2) :: Gen Int)
+    case t of
+      0 -> InteractWithEntity <$> arbitrary
+      1 -> return $ AttackEntity
+      2 -> InteractAtEntity <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary EntityHand where
+  arbitrary = fmap toEnum (choose (0,1) :: Gen Int)
 
 instance Arbitrary SBHandshaking where
   arbitrary = do
@@ -647,11 +671,7 @@ instance Arbitrary CBPlay where
         c <- arbitrary
         d <- arbitrary
         e <- arbitrary
-        f <- arbitrary
-        g <- arbitrary
-        h <- arbitrary
-        i <- arbitrary
-        return $ CBMap a b c d e f g h i
+        return $ CBMap a b c d e
 
       0x25 -> do
         a <- arbitrary
@@ -822,10 +842,7 @@ instance Arbitrary CBPlay where
 
       0x42 -> do
         a <- arbitrary
-        b <- arbitrary
-        c <- arbitrary
-        d <- arbitrary
-        return $ CBUpdateScore a b c d
+        return $ CBUpdateScore a
 
       0x43 -> do
         a <- arbitrary
@@ -896,8 +913,7 @@ instance Arbitrary SBPlay where
         a <- arbitrary
         b <- arbitrary
         c <- arbitrary
-        d <- arbitrary
-        return $ SBTabComplete a b c d
+        return $ SBTabComplete a b c
 
       0x02 -> do
         a <- arbitrary
@@ -948,11 +964,7 @@ instance Arbitrary SBPlay where
       0x0A -> do
         a <- arbitrary
         b <- arbitrary
-        c <- arbitrary
-        d <- arbitrary
-        e <- arbitrary
-        f <- arbitrary
-        return $ SBUseEntity a b c d e f
+        return $ SBUseEntity a b
 
       0x0B -> do
         a <- arbitrary
