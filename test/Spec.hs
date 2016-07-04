@@ -36,9 +36,9 @@ instance Arbitrary (U.Vector Int8) where
 instance Arbitrary UpdatedColumns where
   arbitrary = do
     columns <- (arbitrary :: Gen Int8)
-    case columns of
-      0 -> return NoUpdatedColumns
-      _ -> UpdatedColumns <$> return columns <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+    if columns > 0
+      then UpdatedColumns <$> return columns <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+      else return NoUpdatedColumns
 
 instance Arbitrary UpdateScoreAction where
   arbitrary = do
@@ -181,7 +181,7 @@ instance Arbitrary BlockChange where
 
 
 instance Arbitrary GameChangeReason where
-  arbitrary = fmap toEnum (choose (0,10) :: Gen Int)
+  arbitrary = fmap toEnum (choose (0,9) :: Gen Int)
 
 
 instance Arbitrary ChunkSection where
@@ -267,15 +267,22 @@ instance Arbitrary B.ByteString where
 
 
 instance Arbitrary EntityMetadataEntry where
-  arbitrary = Entry <$> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = do
+    k <- arbitrary :: Gen Bool
+    w <- choose (0,254) :: Gen Word8
+    if k
+      then return MetadataEnd
+      else Entry <$> return w <*> arbitrary <*> arbitrary
 
+instance Arbitrary MetadataType where
+  arbitrary = fmap toEnum (choose (0,12) :: Gen Int)
 
 instance Arbitrary Animation where
   arbitrary = fmap toEnum (choose (0,5) :: Gen Int)
 
 
 instance Arbitrary UpdateBlockEntityAction where
-  arbitrary = fmap toEnum (choose (0,8) :: Gen Int)
+  arbitrary = fmap toEnum (choose (1,9) :: Gen Int)
 
 
 instance Arbitrary BlockAction where
@@ -323,11 +330,19 @@ instance Arbitrary UseEntityType where
     t <- (choose (0,2) :: Gen Int)
     case t of
       0 -> InteractWithEntity <$> arbitrary
-      1 -> return $ AttackEntity
+      1 -> return AttackEntity
       2 -> InteractAtEntity <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary EntityHand where
   arbitrary = fmap toEnum (choose (0,1) :: Gen Int)
+
+instance Arbitrary ScoreboardMode where
+  arbitrary = do
+    k <- choose (0,2) :: Gen Int
+    case k of
+      0 -> CreateScoreboard <$> arbitrary <*> arbitrary
+      1 -> return RemoveScoreboard
+      2 -> UpdateDisplayText <$> arbitrary <*> arbitrary
 
 instance Arbitrary SBHandshaking where
   arbitrary = do
@@ -503,8 +518,7 @@ instance Arbitrary CBPlay where
       0x0A -> do
         a <- arbitrary
         b <- arbitrary
-        c <- arbitrary
-        return $ CBBlockAction a b c
+        return $ CBBlockAction a b
 
       0x0B -> do
         a <- arbitrary
@@ -550,8 +564,7 @@ instance Arbitrary CBPlay where
         b <- arbitrary
         c <- arbitrary
         d <- arbitrary
-        e <- arbitrary
-        return $ CBOpenWindow a b c d e
+        return $ CBOpenWindow a b c d
 
       0x14 -> do
         a <- arbitrary
@@ -826,9 +839,7 @@ instance Arbitrary CBPlay where
       0x3F -> do
         a <- arbitrary
         b <- arbitrary
-        c <- arbitrary
-        d <- arbitrary
-        return $ CBScoreboardObjective a b c d
+        return $ CBScoreboardObjective a b
 
       0x40 -> do
         a <- arbitrary
@@ -1076,6 +1087,126 @@ instance Arbitrary SBPlay where
         return $ SBUseItem a
 
 
+prop_varLongEq :: [VarLong] -> Bool
+prop_varLongEq [] = True
+prop_varLongEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeVarLong x)) lst
+  let decoded = fmap (parseOnly decodeVarLong) encoded :: [Either String VarLong]
+  lst == (rights decoded)
+
+
+prop_textEq :: [T.Text] -> Bool
+prop_textEq [] = True
+prop_textEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeText x)) lst
+  let decoded = fmap (parseOnly decodeText) encoded :: [Either String T.Text]
+  lst == (rights decoded)
+
+
+prop_entityMetadataEq :: [EntityMetadata] -> Bool
+prop_entityMetadataEq [] = True
+prop_entityMetadataEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeEntityMetadata x)) lst
+  let decoded = fmap (parseOnly decodeEntityMetadata) encoded :: [Either String EntityMetadata]
+  lst == (rights decoded)
+
+
+prop_slotEq :: [Slot] -> Bool
+prop_slotEq [] = True
+prop_slotEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeSlot x)) lst
+  let decoded = fmap (parseOnly decodeSlot) encoded :: [Either String Slot]
+  lst == (rights decoded)
+
+
+prop_chunkSectionEq :: [(Int,ChunkSection)] -> Bool
+prop_chunkSectionEq [] = True
+prop_chunkSectionEq lst = do
+  let encoded = fmap (\(i,x) -> (i,BL.toStrict . BB.toLazyByteString $ (encodeChunkSection i x))) lst
+  let decoded = fmap (\(i,x) -> parseOnly (decodeChunkSection i) x) encoded :: [Either String ChunkSection]
+  (fmap snd lst) == (rights decoded)
+
+
+prop_positionEq :: [Position] -> Bool
+prop_positionEq [] = True
+prop_positionEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodePosition x)) lst
+  let decoded = fmap (parseOnly decodePosition) encoded :: [Either String Position]
+  lst == (rights decoded)
+
+
+prop_angleEq :: [Angle] -> Bool
+prop_angleEq [] = True
+prop_angleEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeAngle x)) lst
+  let decoded = fmap (parseOnly decodeAngle) encoded :: [Either String Angle]
+  lst == (rights decoded)
+
+
+prop_uuidEq :: [UUID] -> Bool
+prop_uuidEq [] = True
+prop_uuidEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeUUID x)) lst
+  let decoded = fmap (parseOnly decodeUUID) encoded :: [Either String UUID]
+  lst == (rights decoded)
+
+
+prop_byteStringEq :: [B.ByteString] -> Bool
+prop_byteStringEq [] = True
+prop_byteStringEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeByteString x)) lst
+  let decoded = fmap (parseOnly decodeByteString) encoded :: [Either String B.ByteString]
+  lst == (rights decoded)
+
+
+prop_statisticEq :: [Statistic] -> Bool
+prop_statisticEq [] = True
+prop_statisticEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeStatistic x)) lst
+  let decoded = fmap (parseOnly decodeStatistic) encoded :: [Either String Statistic]
+  lst == (rights decoded)
+
+
+prop_playerPropertyEq :: [PlayerProperty] -> Bool
+prop_playerPropertyEq [] = True
+prop_playerPropertyEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodePlayerProperty x)) lst
+  let decoded = fmap (parseOnly decodePlayerProperty) encoded :: [Either String PlayerProperty]
+  lst == (rights decoded)
+
+{-
+prop_playerListActionEq :: Int -> [PlayerListAction] -> Bool
+prop_playerListActionEq _ [] = True
+prop_playerListActionEq i lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodePlayerListAction x)) lst
+  let decoded = fmap (parseOnly decodePlayerListAction) encoded :: [Either String PlayerListAction]
+  lst == (rights decoded)
+
+
+prop_playerListEntryEq :: Int -> [PlayerListEntry] -> Bool
+prop_playerListEntryEq [] = True
+prop_playerListEntryEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodePlayerListEntry x)) lst
+  let decoded = fmap (parseOnly decodePlayerListEntry) encoded :: [Either String PlayerListEntry]
+  lst == (rights decoded)
+-}
+
+prop_iconEq :: [Icon] -> Bool
+prop_iconEq [] = True
+prop_iconEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeIcon x)) lst
+  let decoded = fmap (parseOnly decodeIcon) encoded :: [Either String Icon]
+  lst == (rights decoded)
+
+
+prop_entityPropertyEq :: [EntityProperty] -> Bool
+prop_entityPropertyEq [] = True
+prop_entityPropertyEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeEntityProperty x)) lst
+  let decoded = fmap (parseOnly decodeEntityProperty) encoded :: [Either String EntityProperty]
+  lst == (rights decoded)
+
+
 prop_SBHandshakingEq :: [SBHandshaking] -> Bool
 prop_SBHandshakingEq [] = True
 prop_SBHandshakingEq lst = do
@@ -1130,7 +1261,40 @@ prop_SBPlayEq lst = do
 
 main :: IO ()
 main = hspec $ do
-  describe "Minecraft Protocol" $ do
+
+  describe "Minecraft Protocol Core Types" $ do
+    context "String:" $ do
+      it "Identity" $ property prop_textEq
+    context "EntityMetadata:" $ do
+      it "Identity" $ property prop_entityMetadataEq
+    context "Slot:" $ do
+      it "Identity" $ property prop_slotEq
+    context "ChunkSection:" $ do
+      it "Identity" $ property prop_chunkSectionEq
+    context "Position:" $ do
+      it "Identity" $ property prop_positionEq
+    context "Angle:" $ do
+      it "Identity" $ property prop_angleEq
+    context "UUID:" $ do
+      it "Identity" $ property prop_uuidEq
+    context "ByteArray:" $ do
+      it "Identity" $ property prop_byteStringEq
+
+  describe "Minecraft Protocol Custom Records" $ do
+    context "Statistic:" $ do
+      it "Identity" $ property prop_statisticEq
+    context "PlayerProperty:" $ do
+      it "Identity" $ property prop_playerPropertyEq
+    --context "PlayerListAction:" $ do
+      --it "Identity" $ property prop_playerListActionEq
+    --context "PlayerListEntry:" $ do
+      --it "Identity" $ property prop_playerListEntryEq
+    context "Icon:" $ do
+      it "Identity" $ property prop_iconEq
+    context "EntityProperty:" $ do
+      it "Identity" $ property prop_entityPropertyEq
+
+  describe "Minecraft Protocol Packets" $ do
     context "Server bound handshaking packets:" $ do
       it "Identity" $ property prop_SBHandshakingEq
     context "Client bound status packets:" $ do

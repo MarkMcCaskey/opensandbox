@@ -33,6 +33,7 @@ module OpenSandbox.Protocol.Types
   , EntityMetadataEntry (..)
   , ValueField (..)
   , EntityMetadata
+  , MetadataType (..)
   , PlayerProperty (..)
   , PlayerListAction (..)
   , Statistic (..)
@@ -65,6 +66,7 @@ module OpenSandbox.Protocol.Types
   , UpdateScoreAction (..)
   , UseEntityType (..)
   , EntityHand (..)
+  , ScoreboardMode (..)
   , mkSlot
   , decodeWord16BE
   , decodeWord32BE
@@ -105,11 +107,17 @@ module OpenSandbox.Protocol.Types
   , decodeIcon
   , encodePlayerListEntry
   , decodePlayerListEntry
+  , encodePlayerListAction
+  , decodePlayerListAction
+  , encodePlayerProperty
+  , decodePlayerProperty
   , encodeEntityProperty
   , decodeEntityProperty
   , encodeByteString
   , decodeByteString
   , encodeStatusPayload
+  , encodeScoreboardMode
+  , debugNetCodeType
   ) where
 
 import            Prelude hiding (max)
@@ -139,6 +147,24 @@ import            Data.Word
 import            GHC.Generics
 import            OpenSandbox.Types
 import            Prelude hiding (max)
+
+
+debugNetCodeType :: VarLong -> IO ()
+debugNetCodeType packet = do
+  let encoded = BL.toStrict . Encode.toLazyByteString $ encodeVarLong packet
+  let decoded = Decode.parseOnly decodeVarLong encoded :: Either String VarLong
+  putStrLn "==================================================================="
+  putStrLn $ "Packet: " ++ show packet
+  putStrLn "-------------------------------------------------------------------"
+  putStrLn $ "Encoded:"
+  putStrLn $ show encoded
+  putStrLn "-------------------------------------------------------------------"
+  putStrLn $ "Decoded:"
+  putStrLn $ show decoded
+  putStrLn "-------------------------------------------------------------------"
+  putStrLn $ "Should be:"
+  putStrLn $ show (Right packet :: Either String VarLong)
+  putStrLn "==================================================================="
 
 
 -------------------------------------------------------------------------------
@@ -293,21 +319,21 @@ data ChunkSection = ChunkSection
   , palette       :: !(V.Vector Int)
   , dataArray     :: !(V.Vector Int64)
   , blockLight    :: !B.ByteString
-  , skyLight      :: !(Maybe B.ByteString)
+  , skyLight      :: !B.ByteString
   } deriving (Show,Eq)
 
-encodeChunkSection :: ChunkSection -> Encode.Builder
-encodeChunkSection (ChunkSection a b c d e) =
-  Encode.word8 a
-  <> encodeVarInt (V.length b)
-  <> (V.foldl' (<>) mempty (fmap encodeVarInt b))
-  <> encodeVarInt (V.length c)
-  <> (V.foldl' (<>) mempty (fmap Encode.int64BE c))
-  <> Encode.byteString d
-  <> (case e of
-      Just bs -> Encode.byteString bs
-      Nothing -> mempty
-    )
+encodeChunkSection :: Int -> ChunkSection -> Encode.Builder
+encodeChunkSection bitmask (ChunkSection bpb pal datArr bLight sLight) =
+  Encode.word8 bpb
+  <> encodeVarInt (V.length pal)
+  <> (V.foldl' (<>) mempty (fmap encodeVarInt pal))
+  <> encodeVarInt (V.length datArr)
+  <> (V.foldl' (<>) mempty (fmap Encode.int64BE datArr))
+  <> (encodeVarInt . B.length $ bLight)
+  <> Encode.byteString bLight
+  <> if bitmask > 255
+      then (encodeVarInt . B.length $ sLight) <> Encode.byteString sLight
+      else mempty
 
 decodeChunkSection :: Int -> Decode.Parser ChunkSection
 decodeChunkSection bitmask = do
@@ -316,53 +342,67 @@ decodeChunkSection bitmask = do
   palette <- V.replicateM paletteCount decodeVarInt
   dataCount <- decodeVarInt
   dataArray <- V.replicateM dataCount decodeInt64BE
-  blockLight <- Decode.take 256
+  blockLightLn <- decodeVarInt
+  blockLight <- Decode.take blockLightLn
   if bitmask > 255
     then do
-      skyLight <- Decode.take 256
-      return $ ChunkSection bitsPerBlock palette dataArray blockLight (Just skyLight)
-    else return $ ChunkSection bitsPerBlock palette dataArray blockLight Nothing
+      skyLightLn <- decodeVarInt
+      skyLight <- Decode.take skyLightLn
+      return $ ChunkSection bitsPerBlock palette dataArray blockLight skyLight
+    else return $ ChunkSection bitsPerBlock palette dataArray blockLight B.empty
 
 -- Entity Metadata
 type EntityMetadata = V.Vector EntityMetadataEntry
 
 encodeEntityMetadata :: EntityMetadata -> Encode.Builder
-encodeEntityMetadata e = V.foldl' (<>) mempty (fmap encodeEntityMetadataEntry e)
+encodeEntityMetadata e =
+  (encodeVarInt . V.length $ e)
+  <> V.foldl' (<>) mempty (fmap encodeEntityMetadataEntry e)
 
 decodeEntityMetadata :: Decode.Parser EntityMetadata
 decodeEntityMetadata = do
   count <- decodeVarInt
   V.replicateM count decodeEntityMetadataEntry
 
-data EntityMetadataEntry = Entry
-  { entryIndex  :: Word8
-  , entryType   :: Maybe Word8
-  , entryValue  :: Maybe Word8
-  } deriving (Show,Eq)
+data EntityMetadataEntry
+  = MetadataEnd
+  | Entry !Word8 !Int8 !MetadataType
+  deriving (Show,Eq)
 
-mkEntityMetadataEntry :: Word8 -> Word8 -> Word8 -> EntityMetadataEntry
-mkEntityMetadataEntry i t v =
-  case i of
-    0xff -> Entry i Nothing Nothing
-    _   -> Entry i (Just t) (Just v)
+data MetadataType
+  = MetadataByte
+  | MetadataVarInt
+  | MetadataFloat
+  | MetadataString
+  | MetadataChat
+  | MetadataSlot
+  | MetadataBool
+  | MetadataRotation
+  | MetadataPosition
+  | MetadataOptPosition
+  | MetadataDirection
+  | MetadataOptUUID
+  | MetadataBlockID
+  deriving (Show,Eq,Enum)
+
 
 encodeEntityMetadataEntry :: EntityMetadataEntry -> Encode.Builder
-encodeEntityMetadataEntry e =
-  Encode.word8 (entryIndex e)
-  <> case (entryIndex e) of
-      0xff -> mempty
-      _   -> Encode.word8 (fromJust . entryType $ e)
-              <> Encode.word8 (fromJust . entryValue $ e)
+encodeEntityMetadataEntry MetadataEnd =
+  Encode.word8 0xff
+encodeEntityMetadataEntry (Entry i t v) =
+  Encode.word8 i
+  <> Encode.int8 t
+  <> (Encode.word8 . toEnum . fromEnum $ v)
 
 decodeEntityMetadataEntry :: Decode.Parser EntityMetadataEntry
 decodeEntityMetadataEntry = do
   i <- Decode.anyWord8
   case i of
-    0xff -> return $ Entry i Nothing Nothing
+    0xff -> return $ MetadataEnd
     _ -> do
-      t <- Decode.anyWord8
-      v <- Decode.anyWord8
-      return $ Entry i (Just t) (Just v)
+      t <- decodeInt8
+      v <- fmap (toEnum . fromEnum) Decode.anyWord8
+      return $ Entry i t v
 
 -- Slot
 data Slot = Slot
@@ -462,9 +502,9 @@ data Animation
 
 -- BlockAction
 data BlockAction
-  = NoteBlockAction InstrumentType NotePitch
-  | PistonBlockAction PistonState PistonDirection
-  | ChestBlockAction Word8
+  = NoteBlockAction !InstrumentType !NotePitch
+  | PistonBlockAction !PistonState !PistonDirection
+  | ChestBlockAction !Word8
   deriving (Show,Eq)
 
 data InstrumentType
@@ -539,12 +579,12 @@ decodeRecord = do
 
 -- BossBarAction
 data BossBarAction
-  = BossBarAdd Chat Float Int Int Word8
+  = BossBarAdd !Chat !Float !Int !Int !Word8
   | BossBarRemove
-  | BossBarUpdateHealth Float
-  | BossBarUpdateTitle Chat
-  | BossBarUpdateStyle Int Int
-  | BossBarUpdateFlags Word8
+  | BossBarUpdateHealth !Float
+  | BossBarUpdateTitle !Chat
+  | BossBarUpdateStyle !Int !Int
+  | BossBarUpdateFlags !Word8
   deriving (Show,Eq)
 
 -- DifficultyField
@@ -800,38 +840,38 @@ data ValueField
   deriving (Show,Eq,Enum)
 
 data StatusPayload = StatusPayload
-  { version       :: Version
-  , players       :: Players
-  , description   :: Description
+  { version       :: !Version
+  , players       :: !Players
+  , description   :: !Description
   } deriving (Generic,Show,Eq,Read)
 
 instance ToJSON StatusPayload
 instance FromJSON StatusPayload
 
 data Version = Version
-  { name      :: T.Text
-  , protocol  :: Word8
+  { name      :: !T.Text
+  , protocol  :: !Word8
   } deriving (Generic,Eq,Show,Read)
 
 instance ToJSON Version
 instance FromJSON Version
 
 data Players = Players
-  { max     :: Word8
-  , online  :: Word8
+  { max     :: !Word8
+  , online  :: !Word8
   } deriving (Generic,Eq,Show,Read)
 
 instance ToJSON Players
 instance FromJSON Players
 
 data Description = Description
-  { text    :: T.Text
+  { text    :: !T.Text
   } deriving (Generic,Eq,Show,Read)
 
 instance ToJSON Description
 instance FromJSON Description
 
-data Statistic = Statistic T.Text VarInt deriving (Show,Eq)
+data Statistic = Statistic !T.Text !VarInt deriving (Show,Eq)
 
 encodeStatistic :: Statistic -> Encode.Builder
 encodeStatistic (Statistic t val) =
@@ -845,8 +885,8 @@ decodeStatistic = do
   return $ Statistic t v
 
 data PlayerListEntry = PlayerListEntry
-  { playerUUID        :: UUID
-  , playerListAction  :: PlayerListAction
+  { playerUUID        :: !UUID
+  , playerListAction  :: !PlayerListAction
   } deriving (Show,Eq)
 
 encodePlayerListEntry :: Int -> PlayerListEntry -> Encode.Builder
@@ -858,10 +898,10 @@ decodePlayerListEntry :: Int -> Decode.Parser PlayerListEntry
 decodePlayerListEntry a = PlayerListEntry <$> decodeUUID <*> decodePlayerListAction a
 
 data PlayerListAction
-  = PlayerListAdd T.Text (V.Vector PlayerProperty) GameModeField Int (Maybe T.Text)
-  | PlayerListUpdateGameMode GameModeField
-  | PlayerListUpdateLatency Int
-  | PlayerListUpdateDisplayName (Maybe T.Text)
+  = PlayerListAdd !T.Text !(V.Vector PlayerProperty) !GameModeField !Int !(Maybe T.Text)
+  | PlayerListUpdateGameMode !GameModeField
+  | PlayerListUpdateLatency !Int
+  | PlayerListUpdateDisplayName !(Maybe T.Text)
   | PlayerListRemovePlayer
   deriving (Show,Eq)
 
@@ -883,8 +923,7 @@ encodePlayerListAction (PlayerListUpdateDisplayName maybeDisplayName) =
   case maybeDisplayName of
     Nothing -> encodeBool False
     Just displayName -> encodeBool True <> encodeText displayName
-encodePlayerListAction PlayerListRemovePlayer =
-  mempty
+encodePlayerListAction PlayerListRemovePlayer = mempty
 
 decodePlayerListAction :: Int -> Decode.Parser PlayerListAction
 decodePlayerListAction action =
@@ -958,31 +997,31 @@ decodeIcon = Icon <$> Decode.anyWord8 <*> Decode.anyWord8 <*> Decode.anyWord8
 
 data CombatEvent
   = EnterCombat
-  | EndCombat Int Int32
-  | EntityDead Int Int32 Chat
+  | EndCombat !Int !Int32
+  | EntityDead !Int !Int32 !Chat
   deriving (Show,Eq)
 
 data WorldBorderAction
-  = SetSize Double
-  | LerpSize Double Double Int64
-  | SetCenter Double Double
-  | Initialize Double Double Double Double Int64 Int Int Int
-  | SetWarningTime Int
-  | SetWarningBlocks Int
+  = SetSize !Double
+  | LerpSize !Double !Double !Int64
+  | SetCenter !Double !Double
+  | Initialize !Double !Double !Double !Double !Int64 !Int !Int !Int
+  | SetWarningTime !Int
+  | SetWarningBlocks !Int
   deriving (Show,Eq)
 
 data TeamMode
-  = CreateTeam T.Text T.Text T.Text Int8 T.Text T.Text Int8 (V.Vector T.Text)
+  = CreateTeam !T.Text !T.Text !T.Text !Int8 !T.Text !T.Text !Int8 !(V.Vector T.Text)
   | RemoveTeam
-  | UpdateTeamInfo T.Text T.Text T.Text Int8 T.Text T.Text Int8
-  | AddPlayers (V.Vector T.Text)
-  | RemovePlayers (V.Vector T.Text)
+  | UpdateTeamInfo !T.Text !T.Text !T.Text !Int8 !T.Text !T.Text !Int8
+  | AddPlayers !(V.Vector T.Text)
+  | RemovePlayers !(V.Vector T.Text)
   deriving (Show,Eq)
 
 data TitleAction
-  = SetTitle Chat
-  | SetSubtitle Chat
-  | SetTimesAndDisplay Int32 Int32 Int32
+  = SetTitle !Chat
+  | SetSubtitle !Chat
+  | SetTimesAndDisplay !Int32 !Int32 !Int32
   | Hide
   | Reset
   deriving (Show,Eq)
@@ -1044,18 +1083,29 @@ encodeStatusPayload mcVersion versionID currentPlayers maxPlayers motd =
 
 data UpdatedColumns
   = NoUpdatedColumns
-  | UpdatedColumns Int8 Int8 Int8 Int8 B.ByteString
+  | UpdatedColumns !Int8 !Int8 !Int8 !Int8 !B.ByteString
   deriving (Show,Eq)
 
 data UpdateScoreAction
-  = CreateOrUpdateScoreItem T.Text T.Text VarInt
-  | RemoveScoreItem T.Text T.Text
+  = CreateOrUpdateScoreItem !T.Text !T.Text !VarInt
+  | RemoveScoreItem !T.Text !T.Text
   deriving (Show,Eq)
 
 data UseEntityType
-  = InteractWithEntity VarInt
+  = InteractWithEntity !VarInt
   | AttackEntity
-  | InteractAtEntity Float Float Float EntityHand
+  | InteractAtEntity !Float !Float !Float !EntityHand
   deriving (Show,Eq)
 
 data EntityHand = MainHand | OffHand deriving (Show,Eq,Enum)
+
+data ScoreboardMode
+  = CreateScoreboard !T.Text !T.Text
+  | RemoveScoreboard
+  | UpdateDisplayText !T.Text !T.Text
+  deriving (Show,Eq)
+
+encodeScoreboardMode :: ScoreboardMode -> Int8
+encodeScoreboardMode (CreateScoreboard _ _)   = 0
+encodeScoreboardMode RemoveScoreboard         = 1
+encodeScoreboardMode (UpdateDisplayText _ _)  = 2
