@@ -185,8 +185,11 @@ instance Arbitrary GameChangeReason where
 
 
 instance Arbitrary ChunkSection where
-  arbitrary = ChunkSection <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
+  arbitrary = do
+    light <- choose (True,False)
+    if light
+      then OverworldChunkSection <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+      else OtherChunkSection <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary DifficultyField where
   arbitrary = fmap toEnum (choose (0,3) :: Gen Int)
@@ -1087,14 +1090,6 @@ instance Arbitrary SBPlay where
         return $ SBUseItem a
 
 
-prop_varLongEq :: [VarLong] -> Bool
-prop_varLongEq [] = True
-prop_varLongEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeVarLong x)) lst
-  let decoded = fmap (parseOnly decodeVarLong) encoded :: [Either String VarLong]
-  lst == (rights decoded)
-
-
 prop_textEq :: [T.Text] -> Bool
 prop_textEq [] = True
 prop_textEq lst = do
@@ -1119,12 +1114,21 @@ prop_slotEq lst = do
   lst == (rights decoded)
 
 
-prop_chunkSectionEq :: [(Int,ChunkSection)] -> Bool
+prop_chunkSectionEq :: [ChunkSection] -> Bool
 prop_chunkSectionEq [] = True
-prop_chunkSectionEq lst = do
-  let encoded = fmap (\(i,x) -> (i,BL.toStrict . BB.toLazyByteString $ (encodeChunkSection i x))) lst
-  let decoded = fmap (\(i,x) -> parseOnly (decodeChunkSection i) x) encoded :: [Either String ChunkSection]
-  (fmap snd lst) == (rights decoded)
+prop_chunkSectionEq lst = foldr (==) True $ (go lst)
+  where
+  go [] = []
+  go (x:xs) =
+    case x of
+      OverworldChunkSection {} -> do
+        let encoded = BL.toStrict . BB.toLazyByteString $ encodeChunkSection x
+        let decoded = parseOnly (decodeChunkSection True) encoded :: Either String ChunkSection
+        (Right x == decoded):(go xs)
+      OtherChunkSection {} -> do
+        let encoded = BL.toStrict . BB.toLazyByteString $ encodeChunkSection x
+        let decoded = parseOnly (decodeChunkSection False) encoded :: Either String ChunkSection
+        (Right x == decoded):(go xs)
 
 
 prop_positionEq :: [Position] -> Bool
@@ -1174,22 +1178,64 @@ prop_playerPropertyEq lst = do
   let decoded = fmap (parseOnly decodePlayerProperty) encoded :: [Either String PlayerProperty]
   lst == (rights decoded)
 
-{-
-prop_playerListActionEq :: Int -> [PlayerListAction] -> Bool
-prop_playerListActionEq _ [] = True
-prop_playerListActionEq i lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodePlayerListAction x)) lst
-  let decoded = fmap (parseOnly decodePlayerListAction) encoded :: [Either String PlayerListAction]
-  lst == (rights decoded)
+
+prop_playerListActionEq :: [PlayerListAction] -> Bool
+prop_playerListActionEq [] = True
+prop_playerListActionEq lst = foldr (==) True (go lst)
+  where
+  go [] = []
+  go (x:xs) =
+    case x of
+      PlayerListAdd {} -> do
+        let encoded = BL.toStrict . BB.toLazyByteString $ encodePlayerListAction x
+        let decoded = parseOnly (decodePlayerListAction 0) encoded :: Either String PlayerListAction
+        (Right x == decoded):(go xs)
+      PlayerListUpdateGameMode {} -> do
+        let encoded = BL.toStrict . BB.toLazyByteString $ encodePlayerListAction x
+        let decoded = parseOnly (decodePlayerListAction 1) encoded :: Either String PlayerListAction
+        (Right x == decoded):(go xs)
+      PlayerListUpdateLatency {} -> do
+        let encoded = BL.toStrict . BB.toLazyByteString $ encodePlayerListAction x
+        let decoded = parseOnly (decodePlayerListAction 2) encoded :: Either String PlayerListAction
+        (Right x == decoded):(go xs)
+      PlayerListUpdateDisplayName {} -> do
+        let encoded = BL.toStrict . BB.toLazyByteString $ encodePlayerListAction x
+        let decoded = parseOnly (decodePlayerListAction 3) encoded :: Either String PlayerListAction
+        (Right x == decoded):(go xs)
+      PlayerListRemovePlayer -> do
+        let encoded = BL.toStrict . BB.toLazyByteString $ encodePlayerListAction x
+        let decoded = parseOnly (decodePlayerListAction 4) encoded :: Either String PlayerListAction
+        (Right x == decoded):(go xs)
 
 
-prop_playerListEntryEq :: Int -> [PlayerListEntry] -> Bool
+prop_playerListEntryEq :: [PlayerListEntry] -> Bool
 prop_playerListEntryEq [] = True
-prop_playerListEntryEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodePlayerListEntry x)) lst
-  let decoded = fmap (parseOnly decodePlayerListEntry) encoded :: [Either String PlayerListEntry]
-  lst == (rights decoded)
--}
+prop_playerListEntryEq lst = foldr (==) True (go lst)
+  where
+  go [] = []
+  go (x:xs) =
+    case playerListAction x of
+      PlayerListAdd {} -> do
+        let encoded = BL.toStrict . BB.toLazyByteString $ encodePlayerListEntry x
+        let decoded = parseOnly (decodePlayerListEntry 0) encoded :: Either String PlayerListEntry
+        (Right x == decoded):(go xs)
+      PlayerListUpdateGameMode {} -> do
+        let encoded = BL.toStrict . BB.toLazyByteString $ encodePlayerListEntry x
+        let decoded = parseOnly (decodePlayerListEntry 1) encoded :: Either String PlayerListEntry
+        (Right x == decoded):(go xs)
+      PlayerListUpdateLatency {} -> do
+        let encoded = BL.toStrict . BB.toLazyByteString $ encodePlayerListEntry x
+        let decoded = parseOnly (decodePlayerListEntry 2) encoded :: Either String PlayerListEntry
+        (Right x == decoded):(go xs)
+      PlayerListUpdateDisplayName {} -> do
+        let encoded = BL.toStrict . BB.toLazyByteString $ encodePlayerListEntry x
+        let decoded = parseOnly (decodePlayerListEntry 3) encoded :: Either String PlayerListEntry
+        (Right x == decoded):(go xs)
+      PlayerListRemovePlayer -> do
+        let encoded = BL.toStrict . BB.toLazyByteString $ encodePlayerListEntry x
+        let decoded = parseOnly (decodePlayerListEntry 4) encoded :: Either String PlayerListEntry
+        (Right x == decoded):(go xs)
+
 
 prop_iconEq :: [Icon] -> Bool
 prop_iconEq [] = True
@@ -1285,10 +1331,10 @@ main = hspec $ do
       it "Identity" $ property prop_statisticEq
     context "PlayerProperty:" $ do
       it "Identity" $ property prop_playerPropertyEq
-    --context "PlayerListAction:" $ do
-      --it "Identity" $ property prop_playerListActionEq
-    --context "PlayerListEntry:" $ do
-      --it "Identity" $ property prop_playerListEntryEq
+    context "PlayerListAction:" $ do
+      it "Identity" $ property prop_playerListActionEq
+    context "PlayerListEntry:" $ do
+      it "Identity" $ property prop_playerListEntryEq
     context "Icon:" $ do
       it "Identity" $ property prop_iconEq
     context "EntityProperty:" $ do

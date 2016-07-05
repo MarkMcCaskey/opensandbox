@@ -879,7 +879,7 @@ encodeCBPlay (CBChunkData chunkX chunkZ groundUpCont primaryBitMask dat biomes b
   <> (Encode.word8 . toEnum . fromEnum $ groundUpCont)
   <> encodeVarInt primaryBitMask
   <> (encodeVarInt . V.length $ dat)
-  <> V.foldl' (<>) mempty (fmap (encodeChunkSection primaryBitMask) dat)
+  <> V.foldl' (<>) mempty (fmap encodeChunkSection dat)
   <> case (groundUpCont,biomes) of
       (True,Just b)   -> Encode.byteString b
       _               -> mempty
@@ -1004,7 +1004,7 @@ encodeCBPlay (CBPlayerListItem action players) =
   Encode.word8 0x2D
   <> encodeVarInt action
   <> (encodeVarInt . V.length $ players)
-  <> V.foldl' (<>) mempty (fmap (encodePlayerListEntry action) players)
+  <> V.foldl' (<>) mempty (fmap encodePlayerListEntry players)
 
 -- flags should be better typed
 encodeCBPlay (CBPlayerPositionAndLook x y z yaw pitch flags teleportID) =
@@ -1543,7 +1543,7 @@ decodeCBPlay = do
           size <- decodeVarInt
           bs <- Decode.take (size - 256)
           let dat = Decode.parseOnly
-                      ((fmap V.fromList (Decode.many' (decodeChunkSection primaryBitMask))) <* Decode.endOfInput)
+                      ((fmap V.fromList (Decode.many' (decodeChunkSection (primaryBitMask > 255)))) <* Decode.endOfInput)
                       bs
           biomes <- Decode.take 256
           count <- decodeVarInt
@@ -1563,7 +1563,7 @@ decodeCBPlay = do
           size <- decodeVarInt
           bs <- Decode.take size
           let dat = Decode.parseOnly
-                      ((fmap V.fromList (Decode.many' (decodeChunkSection primaryBitMask))) <* Decode.endOfInput)
+                      ((fmap V.fromList (Decode.many' (decodeChunkSection (primaryBitMask > 255)))) <* Decode.endOfInput)
                       bs
           count <- decodeVarInt
           blockEntities <- V.replicateM count decodeNBT

@@ -149,10 +149,10 @@ import            OpenSandbox.Types
 import            Prelude hiding (max)
 
 
-debugNetCodeType :: VarLong -> IO ()
-debugNetCodeType packet = do
-  let encoded = BL.toStrict . Encode.toLazyByteString $ encodeVarLong packet
-  let decoded = Decode.parseOnly decodeVarLong encoded :: Either String VarLong
+debugNetCodeType :: Bool -> ChunkSection -> IO ()
+debugNetCodeType isOverworld packet = do
+  let encoded = BL.toStrict . Encode.toLazyByteString $ encodeChunkSection packet
+  let decoded = Decode.parseOnly (decodeChunkSection isOverworld) encoded :: Either String ChunkSection
   putStrLn "==================================================================="
   putStrLn $ "Packet: " ++ show packet
   putStrLn "-------------------------------------------------------------------"
@@ -163,7 +163,7 @@ debugNetCodeType packet = do
   putStrLn $ show decoded
   putStrLn "-------------------------------------------------------------------"
   putStrLn $ "Should be:"
-  putStrLn $ show (Right packet :: Either String VarLong)
+  putStrLn $ show (Right packet :: Either String ChunkSection)
   putStrLn "==================================================================="
 
 
@@ -314,16 +314,13 @@ decodeVarLong = do
 
 -- Chunk Section: 16x16x16 area
 -- Chunk Column: 16 chunks aligned vertically
-data ChunkSection = ChunkSection
-  { bitsPerBlock  :: !Word8
-  , palette       :: !(V.Vector Int)
-  , dataArray     :: !(V.Vector Int64)
-  , blockLight    :: !B.ByteString
-  , skyLight      :: !B.ByteString
-  } deriving (Show,Eq)
+data ChunkSection
+  = OverworldChunkSection !Word8 !(V.Vector Int) !(V.Vector Int64) !B.ByteString !B.ByteString
+  | OtherChunkSection !Word8 !(V.Vector Int) !(V.Vector Int64) !B.ByteString
+  deriving (Show,Eq)
 
-encodeChunkSection :: Int -> ChunkSection -> Encode.Builder
-encodeChunkSection bitmask (ChunkSection bpb pal datArr bLight sLight) =
+encodeChunkSection :: ChunkSection -> Encode.Builder
+encodeChunkSection (OverworldChunkSection bpb pal datArr bLight sLight) =
   Encode.word8 bpb
   <> encodeVarInt (V.length pal)
   <> (V.foldl' (<>) mempty (fmap encodeVarInt pal))
@@ -331,12 +328,20 @@ encodeChunkSection bitmask (ChunkSection bpb pal datArr bLight sLight) =
   <> (V.foldl' (<>) mempty (fmap Encode.int64BE datArr))
   <> (encodeVarInt . B.length $ bLight)
   <> Encode.byteString bLight
-  <> if bitmask > 255
-      then (encodeVarInt . B.length $ sLight) <> Encode.byteString sLight
-      else mempty
+  <> (encodeVarInt . B.length $ sLight)
+  <> Encode.byteString sLight
+encodeChunkSection (OtherChunkSection bpb pal datArr bLight) =
+  Encode.word8 bpb
+  <> encodeVarInt (V.length pal)
+  <> (V.foldl' (<>) mempty (fmap encodeVarInt pal))
+  <> encodeVarInt (V.length datArr)
+  <> (V.foldl' (<>) mempty (fmap Encode.int64BE datArr))
+  <> (encodeVarInt . B.length $ bLight)
+  <> Encode.byteString bLight
 
-decodeChunkSection :: Int -> Decode.Parser ChunkSection
-decodeChunkSection bitmask = do
+
+decodeChunkSection :: Bool -> Decode.Parser ChunkSection
+decodeChunkSection isOverworld = do
   bitsPerBlock <- Decode.anyWord8
   paletteCount <- decodeVarInt
   palette <- V.replicateM paletteCount decodeVarInt
@@ -344,12 +349,12 @@ decodeChunkSection bitmask = do
   dataArray <- V.replicateM dataCount decodeInt64BE
   blockLightLn <- decodeVarInt
   blockLight <- Decode.take blockLightLn
-  if bitmask > 255
+  if isOverworld
     then do
       skyLightLn <- decodeVarInt
       skyLight <- Decode.take skyLightLn
-      return $ ChunkSection bitsPerBlock palette dataArray blockLight skyLight
-    else return $ ChunkSection bitsPerBlock palette dataArray blockLight B.empty
+      return $ OverworldChunkSection bitsPerBlock palette dataArray blockLight skyLight
+    else return $ OtherChunkSection bitsPerBlock palette dataArray blockLight
 
 -- Entity Metadata
 type EntityMetadata = V.Vector EntityMetadataEntry
@@ -889,8 +894,8 @@ data PlayerListEntry = PlayerListEntry
   , playerListAction  :: !PlayerListAction
   } deriving (Show,Eq)
 
-encodePlayerListEntry :: Int -> PlayerListEntry -> Encode.Builder
-encodePlayerListEntry  a (PlayerListEntry u pla) =
+encodePlayerListEntry :: PlayerListEntry -> Encode.Builder
+encodePlayerListEntry (PlayerListEntry u pla) =
   encodeUUID u
   <> encodePlayerListAction pla
 
