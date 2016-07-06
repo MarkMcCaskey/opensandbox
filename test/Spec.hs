@@ -21,17 +21,20 @@ import            Test.Hspec
 import            Test.QuickCheck
 import            GHC.Generics
 
+
 instance Arbitrary (U.Vector Int32) where
   arbitrary = do
     ln <- choose (0,10) :: Gen Int32
     e <- vectorOf (fromEnum ln) arbitrary
     return $ U.fromList e
 
+
 instance Arbitrary (U.Vector Int8) where
   arbitrary = do
     ln <- choose (0,10) :: Gen Int32
     e <- vectorOf (fromEnum ln) arbitrary
     return $ U.fromList e
+
 
 instance Arbitrary UpdatedColumns where
   arbitrary = do
@@ -40,12 +43,14 @@ instance Arbitrary UpdatedColumns where
       then UpdatedColumns <$> return columns <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       else return NoUpdatedColumns
 
+
 instance Arbitrary UpdateScoreAction where
   arbitrary = do
     action <- arbitrary :: Gen Bool
     if action
       then CreateOrUpdateScoreItem <$> arbitrary <*> arbitrary <*> arbitrary
       else RemoveScoreItem <$> arbitrary <*> arbitrary
+
 
 instance Arbitrary NBT where
   arbitrary = sized nbt'
@@ -66,6 +71,7 @@ instance Arbitrary NBT where
               0x0a -> TagCompound <$> arbitrary <*> vectorOf (n `div` 30) arbitrary
               0x0b -> TagIntArray <$> arbitrary <*> arbitrary
 
+
 instance Arbitrary NBTList where
   arbitrary = sized nbtlst'
     where nbtlst' 0 = return $ NBTList TypeByte [NTagByte 0]
@@ -84,6 +90,7 @@ instance Arbitrary NBTList where
               0x09 -> NBTList <$> return TypeList <*> vectorOf (n `div` 20) (NTagList <$> arbitrary)
               0x0a -> NBTList <$> return TypeCompound <*> vectorOf (n `div` 30) (NTagCompound <$> vectorOf (n `div` 30) (arbitrary :: Gen NBT))
               0x0b -> NBTList <$> return TypeIntArray <*> vectorOf (n `div` 20) (NTagIntArray <$> (arbitrary :: Gen (U.Vector Int32)))
+
 
 instance Arbitrary a => Arbitrary (V.Vector a) where
   arbitrary = fmap V.fromList $ listOf arbitrary
@@ -191,6 +198,7 @@ instance Arbitrary ChunkSection where
       then OverworldChunkSection <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       else OtherChunkSection <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
+
 instance Arbitrary DifficultyField where
   arbitrary = fmap toEnum (choose (0,3) :: Gen Int)
 
@@ -277,8 +285,10 @@ instance Arbitrary EntityMetadataEntry where
       then return MetadataEnd
       else Entry <$> return w <*> arbitrary <*> arbitrary
 
+
 instance Arbitrary MetadataType where
   arbitrary = fmap toEnum (choose (0,12) :: Gen Int)
+
 
 instance Arbitrary Animation where
   arbitrary = fmap toEnum (choose (0,5) :: Gen Int)
@@ -328,6 +338,7 @@ instance Arbitrary BossBarAction where
 instance Arbitrary Slot where
   arbitrary = mkSlot <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
+
 instance Arbitrary UseEntityType where
   arbitrary = do
     t <- (choose (0,2) :: Gen Int)
@@ -336,8 +347,10 @@ instance Arbitrary UseEntityType where
       1 -> return AttackEntity
       2 -> InteractAtEntity <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
+
 instance Arbitrary EntityHand where
   arbitrary = fmap toEnum (choose (0,1) :: Gen Int)
+
 
 instance Arbitrary ScoreboardMode where
   arbitrary = do
@@ -346,6 +359,7 @@ instance Arbitrary ScoreboardMode where
       0 -> CreateScoreboard <$> arbitrary <*> arbitrary
       1 -> return RemoveScoreboard
       2 -> UpdateDisplayText <$> arbitrary <*> arbitrary
+
 
 instance Arbitrary SBHandshaking where
   arbitrary = do
@@ -647,8 +661,7 @@ instance Arbitrary CBPlay where
         d <- arbitrary
         e <- arbitrary
         f <- arbitrary
-        g <- arbitrary
-        return $ CBChunkData a b c d e f g
+        return $ CBChunkData a b c d e f
 
       0x21 -> do
         a <- arbitrary

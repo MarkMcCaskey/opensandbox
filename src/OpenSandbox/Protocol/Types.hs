@@ -356,6 +356,7 @@ decodeChunkSection isOverworld = do
       return $ OverworldChunkSection bitsPerBlock palette dataArray blockLight skyLight
     else return $ OtherChunkSection bitsPerBlock palette dataArray blockLight
 
+
 -- Entity Metadata
 type EntityMetadata = V.Vector EntityMetadataEntry
 

@@ -423,7 +423,7 @@ data CBPlay
 
   -- | __Chunk Data:__
   -- The server only sends skylight information for chunk pillars in the Overworld, it's up to the client to know in which dimenison the player is currently located. You can also infer this information from the primary bitmask and the amount of uncompressed bytes sent. This packet also sends all block entities in the chunk (though sending them is not required; it is still legal to send them with Update Block Entity later).
-  | CBChunkData Int32 Int32 Bool Int (V.Vector ChunkSection) (Maybe B.ByteString) (V.Vector NBT)
+  | CBChunkData Int32 Int32 Int (V.Vector ChunkSection) (Maybe B.ByteString) (V.Vector NBT)
 
   -- | __Effect:__
   -- Sent when a client is to play a sound or particle effect.
@@ -872,18 +872,19 @@ encodeCBPlay (CBKeepAlive keepAliveID) =
   Encode.word8 0x1F
   <> encodeVarInt keepAliveID
 
-encodeCBPlay (CBChunkData chunkX chunkZ groundUpCont primaryBitMask dat biomes blockEntities) =
+encodeCBPlay (CBChunkData chunkX chunkZ primaryBitMask dat maybeBiomes blockEntities) =
   Encode.word8 0x20
   <> Encode.int32BE chunkX
   <> Encode.int32BE chunkZ
-  <> (Encode.word8 . toEnum . fromEnum $ groundUpCont)
+  <> case maybeBiomes of
+      Just _ -> encodeBool True
+      Nothing -> encodeBool False
   <> encodeVarInt primaryBitMask
   <> (encodeVarInt . V.length $ dat)
   <> V.foldl' (<>) mempty (fmap encodeChunkSection dat)
-  <> case (groundUpCont,biomes) of
-      (True,Just b)   -> Encode.byteString b
-      _               -> mempty
-
+  <> case maybeBiomes of
+      Just b -> (encodeVarInt . B.length $ b) <> Encode.byteString b
+      Nothing -> mempty
   <> (encodeVarInt . V.length $ blockEntities)
   <> V.foldl' (<>) mempty (fmap encodeNBT blockEntities)
 
@@ -1536,7 +1537,7 @@ decodeCBPlay = do
     0x20 -> do
       chunkX <- decodeInt32BE
       chunkZ <- decodeInt32BE
-      groundUp <- fmap (toEnum . fromEnum) Decode.anyWord8
+      groundUp <- decodeBool
       primaryBitMask <- decodeVarInt
       if groundUp
         then do
@@ -1545,16 +1546,16 @@ decodeCBPlay = do
           let dat = Decode.parseOnly
                       ((fmap V.fromList (Decode.many' (decodeChunkSection (primaryBitMask > 255)))) <* Decode.endOfInput)
                       bs
-          biomes <- Decode.take 256
+          biomesLn <- decodeVarInt
+          biomes <- Decode.take biomesLn
           count <- decodeVarInt
           blockEntities <- V.replicateM count decodeNBT
           case dat of
-            Left err -> fail err
+            Left err -> fail $ "Error: " ++ err
             Right dat' -> return $
                             CBChunkData
                               chunkX
                               chunkZ
-                              groundUp
                               primaryBitMask
                               dat'
                               (Just biomes)
@@ -1568,12 +1569,11 @@ decodeCBPlay = do
           count <- decodeVarInt
           blockEntities <- V.replicateM count decodeNBT
           case dat of
-            Left err -> fail err
+            Left err -> fail $ "Error: " ++ err
             Right dat' -> return $
                             CBChunkData
                               chunkX
                               chunkZ
-                              groundUp
                               primaryBitMask
                               dat'
                               Nothing
@@ -1583,7 +1583,7 @@ decodeCBPlay = do
       effectID <- decodeInt32BE
       location <- decodePosition
       dat <- decodeInt32BE
-      disableRelativeVolume <- fmap (toEnum . fromEnum) Decode.anyWord8
+      disableRelativeVolume <- decodeBool
       return $ CBEffect effectID location dat disableRelativeVolume
 
     0x22 -> do
