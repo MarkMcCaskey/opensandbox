@@ -118,6 +118,8 @@ module OpenSandbox.Protocol.Types
   , encodeStatusPayload
   , encodeScoreboardMode
   , debugNetCodeType
+  , debugVarInt
+  , debugVarLong
   ) where
 
 import            Prelude hiding (max)
@@ -166,6 +168,41 @@ debugNetCodeType isOverworld packet = do
   putStrLn $ show (Right packet :: Either String ChunkSection)
   putStrLn "==================================================================="
 
+
+debugVarLong :: VarLong -> IO ()
+debugVarLong varlong = do
+  let encoded = BL.toStrict . Encode.toLazyByteString $ encodeVarLong varlong
+  let decoded = Decode.parseOnly decodeVarLong encoded :: Either String VarLong
+  putStrLn "==================================================================="
+  putStrLn $ "Packet: " ++ show varlong
+  putStrLn "-------------------------------------------------------------------"
+  putStrLn $ "Encoded:"
+  putStrLn $ show encoded
+  putStrLn "-------------------------------------------------------------------"
+  putStrLn $ "Decoded:"
+  putStrLn $ show decoded
+  putStrLn "-------------------------------------------------------------------"
+  putStrLn $ "Should be:"
+  putStrLn $ show (Right varlong :: Either String VarLong)
+  putStrLn "==================================================================="
+
+
+debugVarInt :: VarInt -> IO ()
+debugVarInt varint = do
+  let encoded = BL.toStrict . Encode.toLazyByteString $ encodeVarInt varint
+  let decoded = Decode.parseOnly decodeVarInt encoded :: Either String VarInt
+  putStrLn "==================================================================="
+  putStrLn $ "Packet: " ++ show varint
+  putStrLn "-------------------------------------------------------------------"
+  putStrLn $ "Encoded:"
+  putStrLn $ show encoded
+  putStrLn "-------------------------------------------------------------------"
+  putStrLn $ "Decoded:"
+  putStrLn $ show decoded
+  putStrLn "-------------------------------------------------------------------"
+  putStrLn $ "Should be:"
+  putStrLn $ show (Right varint :: Either String VarInt)
+  putStrLn "==================================================================="
 
 -------------------------------------------------------------------------------
 -- | Core Protocol Types
@@ -291,7 +328,7 @@ type VarLong = Int64
 
 encodeVarLong :: VarLong -> Encode.Builder
 encodeVarLong i
-    | i < 0     = encodeVarLong ((abs i) + (2^63 :: Int64))
+    | i < 0     = encodeVarLong ((abs i) + (2^62 :: Int64))
     | i < 0x80  = Encode.word8 (fromIntegral i)
     | otherwise = Encode.word8 (fromIntegral (i .&. 0x7F) .|. 0x80) <> encodeVarLong (i `shiftR` 7)
 
@@ -301,9 +338,9 @@ decodeVarLong = do
     if testBit w 7
       then do
         result <- go 7 (fromIntegral (w .&. 0x7F))
-        if result <= (2^63)
+        if result <= (2^62)
           then return result
-          else return (0 - (result - (2^63)))
+          else return (0 - (result - (2^62 :: Int64)))
       else return (fromIntegral w)
   where
     go n val = do

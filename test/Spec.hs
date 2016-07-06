@@ -1102,6 +1102,21 @@ instance Arbitrary SBPlay where
         a <- arbitrary
         return $ SBUseItem a
 
+prop_varIntEq :: [VarInt] -> Bool
+prop_varIntEq [] = True
+prop_varIntEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeVarInt x)) lst
+  let decoded = fmap (parseOnly decodeVarInt) encoded :: [Either String VarInt]
+  lst == (rights decoded)
+
+
+prop_varLongEq :: [VarLong] -> Bool
+prop_varLongEq [] = True
+prop_varLongEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeVarLong x)) lst
+  let decoded = fmap (parseOnly decodeVarLong) encoded :: [Either String VarLong]
+  lst == (rights decoded)
+
 
 prop_textEq :: [T.Text] -> Bool
 prop_textEq [] = True
@@ -1322,6 +1337,10 @@ main :: IO ()
 main = hspec $ do
 
   describe "Minecraft Protocol Core Types" $ do
+    context "VarInt:" $ do
+      it "Identity" $ property prop_varIntEq
+    context "VarLong:" $ do
+      it "Identity" $ property prop_varLongEq
     context "String:" $ do
       it "Identity" $ property prop_textEq
     context "EntityMetadata:" $ do
