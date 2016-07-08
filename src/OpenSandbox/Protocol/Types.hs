@@ -35,9 +35,13 @@ module OpenSandbox.Protocol.Types
   , EntityMetadata
   , MetadataType (..)
   , PlayerProperty (..)
-  , PlayerListAction (..)
+  , PlayerListEntries (..)
+  , PlayerListAdd (..)
+  , PlayerListUpdateGameMode (..)
+  , PlayerListUpdateLatency (..)
+  , PlayerListUpdateDisplayName (..)
+  , PlayerListRemovePlayer (..)
   , Statistic (..)
-  , PlayerListEntry (..)
   , StatusPayload (..)
   , Players (..)
   , Version (..)
@@ -51,7 +55,9 @@ module OpenSandbox.Protocol.Types
   , Slot (..)
   , SlotData (..)
   , EntityProperty (..)
-  , ChunkSection (..)
+  , ChunkSections (..)
+  , OverWorldChunkSection (..)
+  , OtherWorldChunkSection (..)
   , VarInt
   , VarLong
   , UpdateBlockEntityAction (..)
@@ -101,14 +107,16 @@ module OpenSandbox.Protocol.Types
   , decodeRecord
   , encodeSlot
   , decodeSlot
-  , encodeChunkSection
-  , decodeChunkSection
+  , encodeChunkSections
+  , decodeChunkSections
+  , encodeOverWorldChunkSection
+  , decodeOverWorldChunkSection
+  , encodeOtherWorldChunkSection
+  , decodeOtherWorldChunkSection
   , encodeIcon
   , decodeIcon
-  , encodePlayerListEntry
-  , decodePlayerListEntry
-  , encodePlayerListAction
-  , decodePlayerListAction
+  , encodePlayerListEntries
+  , decodePlayerListEntries
   , encodePlayerProperty
   , decodePlayerProperty
   , encodeEntityProperty
@@ -118,8 +126,6 @@ module OpenSandbox.Protocol.Types
   , encodeStatusPayload
   , encodeScoreboardMode
   , debugNetCodeType
-  , debugVarInt
-  , debugVarLong
   ) where
 
 import            Prelude hiding (max)
@@ -151,10 +157,10 @@ import            OpenSandbox.Types
 import            Prelude hiding (max)
 
 
-debugNetCodeType :: Bool -> ChunkSection -> IO ()
+debugNetCodeType :: Bool -> ChunkSections -> IO ()
 debugNetCodeType isOverworld packet = do
-  let encoded = BL.toStrict . Encode.toLazyByteString $ encodeChunkSection packet
-  let decoded = Decode.parseOnly (decodeChunkSection isOverworld) encoded :: Either String ChunkSection
+  let encoded = BL.toStrict . Encode.toLazyByteString $ encodeChunkSections packet
+  let decoded = Decode.parseOnly (decodeChunkSections isOverworld) encoded :: Either String ChunkSections
   putStrLn "==================================================================="
   putStrLn $ "Packet: " ++ show packet
   putStrLn "-------------------------------------------------------------------"
@@ -165,43 +171,7 @@ debugNetCodeType isOverworld packet = do
   putStrLn $ show decoded
   putStrLn "-------------------------------------------------------------------"
   putStrLn $ "Should be:"
-  putStrLn $ show (Right packet :: Either String ChunkSection)
-  putStrLn "==================================================================="
-
-
-debugVarLong :: VarLong -> IO ()
-debugVarLong varlong = do
-  let encoded = BL.toStrict . Encode.toLazyByteString $ encodeVarLong varlong
-  let decoded = Decode.parseOnly decodeVarLong encoded :: Either String VarLong
-  putStrLn "==================================================================="
-  putStrLn $ "Packet: " ++ show varlong
-  putStrLn "-------------------------------------------------------------------"
-  putStrLn $ "Encoded:"
-  putStrLn $ show encoded
-  putStrLn "-------------------------------------------------------------------"
-  putStrLn $ "Decoded:"
-  putStrLn $ show decoded
-  putStrLn "-------------------------------------------------------------------"
-  putStrLn $ "Should be:"
-  putStrLn $ show (Right varlong :: Either String VarLong)
-  putStrLn "==================================================================="
-
-
-debugVarInt :: VarInt -> IO ()
-debugVarInt varint = do
-  let encoded = BL.toStrict . Encode.toLazyByteString $ encodeVarInt varint
-  let decoded = Decode.parseOnly decodeVarInt encoded :: Either String VarInt
-  putStrLn "==================================================================="
-  putStrLn $ "Packet: " ++ show varint
-  putStrLn "-------------------------------------------------------------------"
-  putStrLn $ "Encoded:"
-  putStrLn $ show encoded
-  putStrLn "-------------------------------------------------------------------"
-  putStrLn $ "Decoded:"
-  putStrLn $ show decoded
-  putStrLn "-------------------------------------------------------------------"
-  putStrLn $ "Should be:"
-  putStrLn $ show (Right varint :: Either String VarInt)
+  putStrLn $ show (Right packet :: Either String ChunkSections)
   putStrLn "==================================================================="
 
 -------------------------------------------------------------------------------
@@ -349,15 +319,37 @@ decodeVarLong = do
         then go (n+7) (val .|. ((fromIntegral (w' .&. 0x7F)) `shiftL` n))
         else return (val .|. ((fromIntegral w') `shiftL` n))
 
--- Chunk Section: 16x16x16 area
--- Chunk Column: 16 chunks aligned vertically
-data ChunkSection
-  = OverworldChunkSection !Word8 !(V.Vector Int) !(V.Vector Int64) !B.ByteString !B.ByteString
-  | OtherChunkSection !Word8 !(V.Vector Int) !(V.Vector Int64) !B.ByteString
+data ChunkSections
+  = OverWorldChunkSections !(V.Vector OverWorldChunkSection)
+  | OtherWorldChunkSections !(V.Vector OtherWorldChunkSection)
   deriving (Show,Eq)
 
-encodeChunkSection :: ChunkSection -> Encode.Builder
-encodeChunkSection (OverworldChunkSection bpb pal datArr bLight sLight) =
+encodeChunkSections :: ChunkSections -> Encode.Builder
+encodeChunkSections (OverWorldChunkSections lst) =
+  (encodeVarInt . V.length $ lst)
+  <> (V.foldl' (<>) mempty (fmap encodeOverWorldChunkSection lst))
+encodeChunkSections (OtherWorldChunkSections lst) =
+  (encodeVarInt . V.length $ lst)
+  <> (V.foldl' (<>) mempty (fmap encodeOtherWorldChunkSection lst))
+
+decodeChunkSections :: Bool -> Decode.Parser ChunkSections
+decodeChunkSections True = do
+  ln <- decodeVarInt
+  OverWorldChunkSections <$> (V.replicateM ln decodeOverWorldChunkSection)
+decodeChunkSections False = do
+  ln <- decodeVarInt
+  OtherWorldChunkSections <$> (V.replicateM ln decodeOtherWorldChunkSection)
+
+-- Chunk Section: 16x16x16 area
+-- Chunk Column: 16 chunks aligned vertically
+data OverWorldChunkSection = OverWorldChunkSection !Word8 !(V.Vector Int) !(V.Vector Int64) !B.ByteString !B.ByteString
+  deriving (Show,Eq)
+
+data OtherWorldChunkSection = OtherWorldChunkSection !Word8 !(V.Vector Int) !(V.Vector Int64) !B.ByteString
+  deriving (Show,Eq)
+
+encodeOverWorldChunkSection :: OverWorldChunkSection -> Encode.Builder
+encodeOverWorldChunkSection (OverWorldChunkSection bpb pal datArr bLight sLight) =
   Encode.word8 bpb
   <> encodeVarInt (V.length pal)
   <> (V.foldl' (<>) mempty (fmap encodeVarInt pal))
@@ -367,8 +359,10 @@ encodeChunkSection (OverworldChunkSection bpb pal datArr bLight sLight) =
   <> Encode.byteString bLight
   <> (encodeVarInt . B.length $ sLight)
   <> Encode.byteString sLight
-encodeChunkSection (OtherChunkSection bpb pal datArr bLight) =
-  Encode.word8 bpb
+
+encodeOtherWorldChunkSection :: OtherWorldChunkSection -> Encode.Builder
+encodeOtherWorldChunkSection (OtherWorldChunkSection bitsperblock pal datArr bLight) =
+  Encode.word8 bitsperblock
   <> encodeVarInt (V.length pal)
   <> (V.foldl' (<>) mempty (fmap encodeVarInt pal))
   <> encodeVarInt (V.length datArr)
@@ -376,9 +370,8 @@ encodeChunkSection (OtherChunkSection bpb pal datArr bLight) =
   <> (encodeVarInt . B.length $ bLight)
   <> Encode.byteString bLight
 
-
-decodeChunkSection :: Bool -> Decode.Parser ChunkSection
-decodeChunkSection isOverworld = do
+decodeOverWorldChunkSection :: Decode.Parser OverWorldChunkSection
+decodeOverWorldChunkSection = do
   bitsPerBlock <- Decode.anyWord8
   paletteCount <- decodeVarInt
   palette <- V.replicateM paletteCount decodeVarInt
@@ -386,13 +379,21 @@ decodeChunkSection isOverworld = do
   dataArray <- V.replicateM dataCount decodeInt64BE
   blockLightLn <- decodeVarInt
   blockLight <- Decode.take blockLightLn
-  if isOverworld
-    then do
-      skyLightLn <- decodeVarInt
-      skyLight <- Decode.take skyLightLn
-      return $ OverworldChunkSection bitsPerBlock palette dataArray blockLight skyLight
-    else return $ OtherChunkSection bitsPerBlock palette dataArray blockLight
+  skyLightLn <- decodeVarInt
+  skyLight <- Decode.take skyLightLn
+  return $ OverWorldChunkSection bitsPerBlock palette dataArray blockLight skyLight
 
+
+decodeOtherWorldChunkSection :: Decode.Parser OtherWorldChunkSection
+decodeOtherWorldChunkSection = do
+  bitsPerBlock <- Decode.anyWord8
+  paletteCount <- decodeVarInt
+  palette <- V.replicateM paletteCount decodeVarInt
+  dataCount <- decodeVarInt
+  dataArray <- V.replicateM dataCount decodeInt64BE
+  blockLightLn <- decodeVarInt
+  blockLight <- Decode.take blockLightLn
+  return $ OtherWorldChunkSection bitsPerBlock palette dataArray blockLight
 
 -- Entity Metadata
 type EntityMetadata = V.Vector EntityMetadataEntry
@@ -427,7 +428,6 @@ data MetadataType
   | MetadataOptUUID
   | MetadataBlockID
   deriving (Show,Eq,Enum)
-
 
 encodeEntityMetadataEntry :: EntityMetadataEntry -> Encode.Builder
 encodeEntityMetadataEntry MetadataEnd =
@@ -927,75 +927,139 @@ decodeStatistic = do
   v <- decodeVarInt
   return $ Statistic t v
 
-data PlayerListEntry = PlayerListEntry
-  { playerUUID        :: !UUID
-  , playerListAction  :: !PlayerListAction
-  } deriving (Show,Eq)
-
-encodePlayerListEntry :: PlayerListEntry -> Encode.Builder
-encodePlayerListEntry (PlayerListEntry u pla) =
-  encodeUUID u
-  <> encodePlayerListAction pla
-
-decodePlayerListEntry :: Int -> Decode.Parser PlayerListEntry
-decodePlayerListEntry a = PlayerListEntry <$> decodeUUID <*> decodePlayerListAction a
-
-data PlayerListAction
-  = PlayerListAdd !T.Text !(V.Vector PlayerProperty) !GameModeField !Int !(Maybe T.Text)
-  | PlayerListUpdateGameMode !GameModeField
-  | PlayerListUpdateLatency !Int
-  | PlayerListUpdateDisplayName !(Maybe T.Text)
-  | PlayerListRemovePlayer
+data PlayerListEntries
+  = PlayerListAdds (V.Vector PlayerListAdd)
+  | PlayerListUpdateGameModes (V.Vector PlayerListUpdateGameMode)
+  | PlayerListUpdateLatencies (V.Vector PlayerListUpdateLatency)
+  | PlayerListUpdateDisplayNames (V.Vector PlayerListUpdateDisplayName)
+  | PlayerListRemovePlayers (V.Vector PlayerListRemovePlayer)
   deriving (Show,Eq)
 
-encodePlayerListAction :: PlayerListAction -> Encode.Builder
-encodePlayerListAction (PlayerListAdd name properties gameMode ping maybeDisplayName) =
-  encodeText name
+data PlayerListAdd = PlayerListAdd !UUID !T.Text !(V.Vector PlayerProperty) !GameModeField !Int !(Maybe T.Text)
+  deriving (Show,Eq)
+
+data PlayerListUpdateGameMode = PlayerListUpdateGameMode !UUID !GameModeField
+  deriving (Show,Eq)
+
+data PlayerListUpdateLatency = PlayerListUpdateLatency !UUID !Int
+  deriving (Show,Eq)
+
+data PlayerListUpdateDisplayName = PlayerListUpdateDisplayName !UUID !(Maybe T.Text)
+  deriving (Show,Eq)
+
+data PlayerListRemovePlayer = PlayerListRemovePlayer !UUID
+  deriving (Show,Eq)
+
+encodePlayerListEntries :: PlayerListEntries -> Encode.Builder
+encodePlayerListEntries (PlayerListAdds lst) =
+  encodeVarInt 0
+  <> (encodeVarInt . V.length $ lst)
+  <> (V.foldl' (<>) mempty (fmap encodePlayerListAdd lst))
+encodePlayerListEntries (PlayerListUpdateGameModes lst) =
+  encodeVarInt 1
+  <> (encodeVarInt . V.length $ lst)
+  <> (V.foldl' (<>) mempty (fmap encodePlayerListUpdateGameMode lst))
+encodePlayerListEntries (PlayerListUpdateLatencies lst) =
+  encodeVarInt 2
+  <> (encodeVarInt . V.length $ lst)
+  <> (V.foldl' (<>) mempty (fmap encodePlayerListUpdateLatency lst))
+encodePlayerListEntries (PlayerListUpdateDisplayNames lst) =
+  encodeVarInt 3
+  <> (encodeVarInt . V.length $ lst)
+  <> (V.foldl' (<>) mempty (fmap encodePlayerListUpdateDisplayName lst))
+encodePlayerListEntries (PlayerListRemovePlayers lst) =
+  encodeVarInt 4
+  <> (encodeVarInt . V.length $ lst)
+  <> (V.foldl' (<>) mempty (fmap encodePlayerListRemovePlayer lst))
+
+encodePlayerListAdd :: PlayerListAdd -> Encode.Builder
+encodePlayerListAdd (PlayerListAdd uuid name properties gamemode ping maybeDisplayName) =
+  encodeUUID uuid
+  <> encodeText name
   <> (encodeVarInt . V.length $ properties)
   <> (V.foldl' (<>) mempty (fmap encodePlayerProperty properties))
-  <> encodeVarInt (fromEnum gameMode)
+  <> encodeVarInt (fromEnum gamemode)
   <> encodeVarInt ping
   <> case maybeDisplayName of
       Just displayName -> encodeBool True <> encodeText displayName
       Nothing -> encodeBool False
-encodePlayerListAction (PlayerListUpdateGameMode gameMode) =
-  encodeVarInt (fromEnum gameMode)
-encodePlayerListAction (PlayerListUpdateLatency ping) =
-  encodeVarInt ping
-encodePlayerListAction (PlayerListUpdateDisplayName maybeDisplayName) =
-  case maybeDisplayName of
-    Nothing -> encodeBool False
-    Just displayName -> encodeBool True <> encodeText displayName
-encodePlayerListAction PlayerListRemovePlayer = mempty
 
-decodePlayerListAction :: Int -> Decode.Parser PlayerListAction
-decodePlayerListAction action =
-  case action of
-    0 -> do
-      name <- decodeText
-      count <- decodeVarInt
-      properties <- V.replicateM count decodePlayerProperty
-      gameMode <- fmap toEnum decodeVarInt
-      ping <- decodeVarInt
-      hasDisplayName <- decodeBool
-      if hasDisplayName
-        then do
-          displayName <- decodeText
-          return $ PlayerListAdd name properties gameMode ping (Just displayName)
-        else do
-          return $ PlayerListAdd name properties gameMode ping Nothing
-    1 -> PlayerListUpdateGameMode <$> (fmap toEnum decodeVarInt)
-    2 -> PlayerListUpdateLatency <$> decodeVarInt
-    3 -> do
-      hasDisplayName <- decodeBool
-      if hasDisplayName
-        then do
-          displayName <- decodeText
-          return $ PlayerListUpdateDisplayName (Just displayName)
-        else do
-          return $ PlayerListUpdateDisplayName Nothing
-    4 -> return PlayerListRemovePlayer
-    _ -> fail "Error: Invalid PlayerListAction int!"
+encodePlayerListUpdateGameMode :: PlayerListUpdateGameMode -> Encode.Builder
+encodePlayerListUpdateGameMode (PlayerListUpdateGameMode uuid gameMode) =
+  encodeUUID uuid
+  <> encodeVarInt (fromEnum gameMode)
+
+encodePlayerListUpdateLatency :: PlayerListUpdateLatency -> Encode.Builder
+encodePlayerListUpdateLatency (PlayerListUpdateLatency uuid ping) =
+  encodeUUID uuid
+  <> encodeVarInt ping
+
+encodePlayerListUpdateDisplayName :: PlayerListUpdateDisplayName -> Encode.Builder
+encodePlayerListUpdateDisplayName (PlayerListUpdateDisplayName uuid maybeDisplayName) =
+  encodeUUID uuid
+  <> case maybeDisplayName of
+      Nothing -> encodeBool False
+      Just displayName -> encodeBool True <> encodeText displayName
+
+encodePlayerListRemovePlayer :: PlayerListRemovePlayer -> Encode.Builder
+encodePlayerListRemovePlayer (PlayerListRemovePlayer uuid) =
+  encodeUUID uuid
+
+decodePlayerListEntries :: Decode.Parser PlayerListEntries
+decodePlayerListEntries = do
+    action <- decodeVarInt
+    ln <- decodeVarInt
+    case action of
+      0 -> PlayerListAdds <$> V.replicateM ln decodePlayerListAdd
+      1 -> PlayerListUpdateGameModes <$> V.replicateM ln decodePlayerListUpdateGameMode
+      2 -> PlayerListUpdateLatencies <$> V.replicateM ln decodePlayerListUpdateLatency
+      3 -> PlayerListUpdateDisplayNames <$> V.replicateM ln decodePlayerListUpdateDisplayName
+      4 -> PlayerListRemovePlayers <$> V.replicateM ln decodePlayerListRemovePlayer
+      err -> fail $ "Error: Invaid PlayerList action " ++ show err
+
+decodePlayerListAdd :: Decode.Parser PlayerListAdd
+decodePlayerListAdd = do
+  uuid <- decodeUUID
+  name <- decodeText
+  count <- decodeVarInt
+  properties <- V.replicateM count decodePlayerProperty
+  gameMode <- fmap toEnum decodeVarInt
+  ping <- decodeVarInt
+  hasDisplayName <- decodeBool
+  if hasDisplayName
+    then do
+      displayName <- decodeText
+      return $ PlayerListAdd uuid name properties gameMode ping (Just displayName)
+    else do
+      return $ PlayerListAdd uuid name properties gameMode ping Nothing
+
+decodePlayerListUpdateGameMode :: Decode.Parser PlayerListUpdateGameMode
+decodePlayerListUpdateGameMode = do
+  uuid <- decodeUUID
+  gamemode <- (fmap toEnum decodeVarInt)
+  return $ PlayerListUpdateGameMode uuid gamemode
+
+decodePlayerListUpdateLatency :: Decode.Parser PlayerListUpdateLatency
+decodePlayerListUpdateLatency = do
+  uuid <- decodeUUID
+  ping <- decodeVarInt
+  return $ PlayerListUpdateLatency uuid ping
+
+decodePlayerListUpdateDisplayName :: Decode.Parser PlayerListUpdateDisplayName
+decodePlayerListUpdateDisplayName = do
+  uuid <- decodeUUID
+  hasDisplayName <- decodeBool
+  if hasDisplayName
+    then do
+      displayName <- decodeText
+      return $ PlayerListUpdateDisplayName uuid (Just displayName)
+    else do
+      return $ PlayerListUpdateDisplayName uuid Nothing
+
+decodePlayerListRemovePlayer :: Decode.Parser PlayerListRemovePlayer
+decodePlayerListRemovePlayer = do
+  uuid <- decodeUUID
+  return $ PlayerListRemovePlayer uuid
 
 data PlayerProperty = PlayerProperty
   { playerName    :: !T.Text

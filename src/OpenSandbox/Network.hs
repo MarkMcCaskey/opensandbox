@@ -25,7 +25,10 @@ import qualified  Data.ByteString.Lazy as BL
 import qualified  Data.ByteString.Builder as Encode
 import            Data.Conduit
 import            Data.Conduit.Network
+import qualified  Data.Text as T
+import            Data.Text.Encoding
 import            Data.UUID.V4
+import qualified  Data.Vector as V
 
 import            OpenSandbox.Config
 import            OpenSandbox.Logger
@@ -70,7 +73,7 @@ runOpenSandboxServer config logger =
           if thirdState == Play
             then do
               writeTo logger Debug "Beginning Play handling..."
-              void $ flip execStateT Play
+              void $ forever $ flip execStateT Play
                 $ packetSource app
                 $$ deserializePlay
                 =$= handlePlay config logger
@@ -137,18 +140,28 @@ serializeLogin = do
   case maybeLogin of
     Nothing -> return ()
     Just login -> do
-      let bs = BL.toStrict $ Encode.toLazyByteString (encodeCBLogin login)
-      let ln = BL.toStrict $ Encode.toLazyByteString (encodeVarInt . B.length $ bs)
+      let bs = BL.toStrict . Encode.toLazyByteString . encodeCBLogin $ login
+      let ln = BL.toStrict . Encode.toLazyByteString . encodeVarInt . B.length $ bs
       yield (ln `B.append` bs)
 
 
-deserializePlay :: Conduit B.ByteString (StateT ProtocolState IO) SBPlay
-deserializePlay = undefined
+deserializePlay :: Conduit B.ByteString (StateT ProtocolState IO) (Either String SBPlay)
+deserializePlay = do
+  maybeBS <- await
+  case maybeBS of
+    Nothing -> return ()
+    Just bs -> do
+      case parseOnly (decodeSBPlay <* endOfInput) (B.tail bs) of
+        Left err -> traceM err >> traceM (show bs) >> yield (Left err) >> leftover bs
+        Right play -> yield (Right play)
 
 
 serializePlay :: Conduit CBPlay (StateT ProtocolState IO) B.ByteString
-serializePlay = undefined
-
+serializePlay = awaitForever (\play -> do
+      let bs = BL.toStrict . Encode.toLazyByteString . encodeCBPlay $ play
+      let ln = BL.toStrict . Encode.toLazyByteString . encodeVarInt . B.length $ bs
+      yield (ln `B.append` bs)
+  )
 
 handleHandshaking :: Config -> Logger -> Sink (Either String SBHandshaking) (StateT ProtocolState IO) ()
 handleHandshaking config logger = do
@@ -222,59 +235,58 @@ handleLogin logger = do
           liftIO $ writeTo logger Debug $ "Got an encryption request!"
           return ()
 
-handlePlay  :: Config -> Logger -> Conduit SBPlay (StateT ProtocolState IO) CBPlay
+handlePlay  :: Config -> Logger -> Conduit (Either String SBPlay) (StateT ProtocolState IO) CBPlay
 handlePlay config logger = do
   someUUID <- liftIO $ nextRandom
   liftIO $ writeTo logger Debug $ "Starting PLAY session"
-  {-
-  let loginPacket = ClientBoundLogin
+  let loginPacket = CBJoinGame
                       2566
-                      (srvGameMode config)
-                      Overworld
-                      (srvDifficulty config)
+                      (toEnum . fromEnum $ srvGameMode config)
+                      (toEnum . fromEnum $ srvDimension config)
+                      (toEnum . fromEnum $ srvDifficulty config)
                       (srvMaxPlayers config)
-                      (srvWorldType config)
+                      (T.pack . show $ srvWorldType config)
                       True
 
   liftIO $ writeTo logger Debug $ "Sending: " ++ show loginPacket
   yield loginPacket
 
-  let customPayloadPacket1 = ClientBoundCustomPayload "MC|Brand" "opensandbox"
+  let customPayloadPacket1 = CBPluginMessage "MC|Brand" (encodeUtf8 "opensandbox")
   liftIO $ writeTo logger Debug $ "Sending: " ++ show customPayloadPacket1
   yield customPayloadPacket1
 
-  let customPayloadPacket2 = ClientBoundCustomPayload "REGISTER" "MC|Brand"
+  let customPayloadPacket2 = CBPluginMessage "REGISTER" (encodeUtf8 "MC|Brand")
   liftIO $ writeTo logger Debug $ "Sending: " ++ show customPayloadPacket2
   yield customPayloadPacket2
 
-  let difficultyPacket = ClientBoundDifficulty (srvDifficulty config)
+  let difficultyPacket = CBServerDifficulty (toEnum . fromEnum $ srvDifficulty config)
   liftIO $ writeTo logger Debug $ "Sending: " ++ show difficultyPacket
   yield difficultyPacket
 
-  let updateTimePacket = ClientBoundUpdateTime 1000 25
+  let updateTimePacket = CBTimeUpdate 1000 25
   liftIO $ writeTo logger Debug $ "Sending: " ++ show updateTimePacket
   yield updateTimePacket
-
-  let abilitiesPacket = ClientBoundPlayerAbilities 0x02 0 0
+{-
+  let abilitiesPacket = CBPlayerAbilities 0x02 0 0
   liftIO $ writeTo logger Debug $ "Sending: " ++ show abilitiesPacket
   yield abilitiesPacket
 
-  let heldItemSlotPacket = ClientBoundHeldItemSlot False
+  let heldItemSlotPacket = CBHeldItemSlot False
   liftIO $ writeTo logger Debug $ "Sending: " ++ show heldItemSlotPacket
   yield heldItemSlotPacket
 
-  let entityStatusPacket = ClientBoundEntityStatus 0 1
+  let entityStatusPacket = CBEntityStatus 0 1
   liftIO $ writeTo logger Debug $ "Sending: " ++ show entityStatusPacket
   yield entityStatusPacket
 
-  let statisticsPacket = ClientBoundStatistics (V.fromList [])
+  let statisticsPacket = CBStatistics (V.fromList [])
   liftIO $ writeTo logger Debug $ "Sending: " ++ show statisticsPacket
   yield statisticsPacket
 
   let testAction = PlayerListAdd "oldmanmike" V.empty Survival 0 Nothing
   let testPlayer = Player someUUID testAction
   --let playerListItemPacket = ClientBoundPlayerListItem 0 (V.fromList [testPlayer])
-  let playerListItemPacket = ClientBoundPlayerListItem 0 V.empty
+  let playerListItemPacket = CBPlayerListItem 0 V.empty
   liftIO $ writeTo logger Debug $ "Sending: " ++ show playerListItemPacket
   yield playerListItemPacket
 
@@ -289,4 +301,4 @@ handlePlay config logger = do
   let chunkDataPacket3 = chunkData
   liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket3
   yield chunkDataPacket3
--}
+  -}

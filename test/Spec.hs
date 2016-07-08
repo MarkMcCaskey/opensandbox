@@ -191,12 +191,20 @@ instance Arbitrary GameChangeReason where
   arbitrary = fmap toEnum (choose (0,9) :: Gen Int)
 
 
-instance Arbitrary ChunkSection where
+instance Arbitrary ChunkSections where
   arbitrary = do
     light <- choose (True,False)
     if light
-      then OverworldChunkSection <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      else OtherChunkSection <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+      then OverWorldChunkSections <$> arbitrary
+      else OtherWorldChunkSections <$> arbitrary
+
+
+instance Arbitrary OverWorldChunkSection where
+  arbitrary = OverWorldChunkSection <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+
+instance Arbitrary OtherWorldChunkSection where
+  arbitrary = OtherWorldChunkSection <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 
 instance Arbitrary DifficultyField where
@@ -222,13 +230,6 @@ instance Arbitrary Statistic where
     return $ Statistic a b
 
 
-instance Arbitrary PlayerListEntry where
-  arbitrary = do
-    a <- arbitrary
-    b <- arbitrary
-    return $ PlayerListEntry a b
-
-
 instance Arbitrary NextState where
   arbitrary = do
     switch <- choose (1,2) :: Gen Int
@@ -237,29 +238,48 @@ instance Arbitrary NextState where
       2 -> return ProtocolLogin
 
 
-instance Arbitrary PlayerListAction where
+instance Arbitrary PlayerListEntries where
   arbitrary = do
-    switch <- choose (0,4) :: Gen Int
-    case switch of
-      0 -> do
-        a <- arbitrary
-        b <- arbitrary
-        c <- arbitrary
-        d <- arbitrary
-        e <- arbitrary
-        return $ PlayerListAdd a b c d e
-      1 -> do
-        a <- arbitrary
-        return $ PlayerListUpdateGameMode a
-      2 -> do
-        a <- arbitrary
-        return $ PlayerListUpdateLatency a
-      3 -> do
-        a <- arbitrary
-        return $ PlayerListUpdateDisplayName a
-      4 -> do
-        return $ PlayerListRemovePlayer
+    i <- choose (0,4) :: Gen Int
+    case i of
+      0 -> PlayerListAdds <$> arbitrary
+      1 -> PlayerListUpdateGameModes <$> arbitrary
+      2 -> PlayerListUpdateLatencies <$> arbitrary
+      3 -> PlayerListUpdateDisplayNames <$> arbitrary
+      4 -> PlayerListRemovePlayers <$> arbitrary
 
+instance Arbitrary PlayerListAdd where
+  arbitrary = do
+    a <- arbitrary
+    b <- arbitrary
+    c <- arbitrary
+    d <- arbitrary
+    e <- arbitrary
+    f <- arbitrary
+    return $ PlayerListAdd a b c d e f
+
+instance Arbitrary PlayerListUpdateGameMode where
+  arbitrary = do
+    a <- arbitrary
+    b <- arbitrary
+    return $ PlayerListUpdateGameMode a b
+
+instance Arbitrary PlayerListUpdateLatency where
+  arbitrary = do
+    a <- arbitrary
+    b <- arbitrary
+    return $ PlayerListUpdateLatency a b
+
+instance Arbitrary PlayerListUpdateDisplayName where
+  arbitrary = do
+    a <- arbitrary
+    b <- arbitrary
+    return $ PlayerListUpdateDisplayName a b
+
+instance Arbitrary PlayerListRemovePlayer where
+  arbitrary = do
+    a <- arbitrary
+    return $ PlayerListRemovePlayer a
 
 instance Arbitrary PlayerProperty where
   arbitrary = do
@@ -659,7 +679,7 @@ instance Arbitrary CBPlay where
         b <- arbitrary
         c <- arbitrary
         d <- arbitrary
-        e <- arbitrary
+        e <- (fmap . fmap) (B.take 256) (arbitrary :: Gen (Maybe B.ByteString))
         f <- arbitrary
         return $ CBChunkData a b c d e f
 
@@ -755,9 +775,7 @@ instance Arbitrary CBPlay where
 
       0x2D -> do
         a <- arbitrary
-        i <- arbitrary
-        b <- fmap V.fromList $ vectorOf i arbitrary
-        return $ CBPlayerListItem a b
+        return $ CBPlayerListItem a
 
       0x2E -> do
         a <- arbitrary
@@ -1142,20 +1160,20 @@ prop_slotEq lst = do
   lst == (rights decoded)
 
 
-prop_chunkSectionEq :: [ChunkSection] -> Bool
-prop_chunkSectionEq [] = True
-prop_chunkSectionEq lst = foldr (==) True $ (go lst)
+prop_chunkSectionsEq :: [ChunkSections] -> Bool
+prop_chunkSectionsEq [] = True
+prop_chunkSectionsEq lst = foldr (==) True $ (go lst)
   where
   go [] = []
   go (x:xs) =
     case x of
-      OverworldChunkSection {} -> do
-        let encoded = BL.toStrict . BB.toLazyByteString $ encodeChunkSection x
-        let decoded = parseOnly (decodeChunkSection True) encoded :: Either String ChunkSection
+      OverWorldChunkSections {} -> do
+        let encoded = BL.toStrict . BB.toLazyByteString $ encodeChunkSections x
+        let decoded = parseOnly (decodeChunkSections True) encoded :: Either String ChunkSections
         (Right x == decoded):(go xs)
-      OtherChunkSection {} -> do
-        let encoded = BL.toStrict . BB.toLazyByteString $ encodeChunkSection x
-        let decoded = parseOnly (decodeChunkSection False) encoded :: Either String ChunkSection
+      OtherWorldChunkSections {} -> do
+        let encoded = BL.toStrict . BB.toLazyByteString $ encodeChunkSections x
+        let decoded = parseOnly (decodeChunkSections False) encoded :: Either String ChunkSections
         (Right x == decoded):(go xs)
 
 
@@ -1207,62 +1225,12 @@ prop_playerPropertyEq lst = do
   lst == (rights decoded)
 
 
-prop_playerListActionEq :: [PlayerListAction] -> Bool
-prop_playerListActionEq [] = True
-prop_playerListActionEq lst = foldr (==) True (go lst)
-  where
-  go [] = []
-  go (x:xs) =
-    case x of
-      PlayerListAdd {} -> do
-        let encoded = BL.toStrict . BB.toLazyByteString $ encodePlayerListAction x
-        let decoded = parseOnly (decodePlayerListAction 0) encoded :: Either String PlayerListAction
-        (Right x == decoded):(go xs)
-      PlayerListUpdateGameMode {} -> do
-        let encoded = BL.toStrict . BB.toLazyByteString $ encodePlayerListAction x
-        let decoded = parseOnly (decodePlayerListAction 1) encoded :: Either String PlayerListAction
-        (Right x == decoded):(go xs)
-      PlayerListUpdateLatency {} -> do
-        let encoded = BL.toStrict . BB.toLazyByteString $ encodePlayerListAction x
-        let decoded = parseOnly (decodePlayerListAction 2) encoded :: Either String PlayerListAction
-        (Right x == decoded):(go xs)
-      PlayerListUpdateDisplayName {} -> do
-        let encoded = BL.toStrict . BB.toLazyByteString $ encodePlayerListAction x
-        let decoded = parseOnly (decodePlayerListAction 3) encoded :: Either String PlayerListAction
-        (Right x == decoded):(go xs)
-      PlayerListRemovePlayer -> do
-        let encoded = BL.toStrict . BB.toLazyByteString $ encodePlayerListAction x
-        let decoded = parseOnly (decodePlayerListAction 4) encoded :: Either String PlayerListAction
-        (Right x == decoded):(go xs)
-
-
-prop_playerListEntryEq :: [PlayerListEntry] -> Bool
-prop_playerListEntryEq [] = True
-prop_playerListEntryEq lst = foldr (==) True (go lst)
-  where
-  go [] = []
-  go (x:xs) =
-    case playerListAction x of
-      PlayerListAdd {} -> do
-        let encoded = BL.toStrict . BB.toLazyByteString $ encodePlayerListEntry x
-        let decoded = parseOnly (decodePlayerListEntry 0) encoded :: Either String PlayerListEntry
-        (Right x == decoded):(go xs)
-      PlayerListUpdateGameMode {} -> do
-        let encoded = BL.toStrict . BB.toLazyByteString $ encodePlayerListEntry x
-        let decoded = parseOnly (decodePlayerListEntry 1) encoded :: Either String PlayerListEntry
-        (Right x == decoded):(go xs)
-      PlayerListUpdateLatency {} -> do
-        let encoded = BL.toStrict . BB.toLazyByteString $ encodePlayerListEntry x
-        let decoded = parseOnly (decodePlayerListEntry 2) encoded :: Either String PlayerListEntry
-        (Right x == decoded):(go xs)
-      PlayerListUpdateDisplayName {} -> do
-        let encoded = BL.toStrict . BB.toLazyByteString $ encodePlayerListEntry x
-        let decoded = parseOnly (decodePlayerListEntry 3) encoded :: Either String PlayerListEntry
-        (Right x == decoded):(go xs)
-      PlayerListRemovePlayer -> do
-        let encoded = BL.toStrict . BB.toLazyByteString $ encodePlayerListEntry x
-        let decoded = parseOnly (decodePlayerListEntry 4) encoded :: Either String PlayerListEntry
-        (Right x == decoded):(go xs)
+prop_playerListEntriesEq :: [PlayerListEntries] -> Bool
+prop_playerListEntriesEq [] = True
+prop_playerListEntriesEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodePlayerListEntries x)) lst
+  let decoded = fmap (parseOnly decodePlayerListEntries) encoded :: [Either String PlayerListEntries]
+  lst == (rights decoded)
 
 
 prop_iconEq :: [Icon] -> Bool
@@ -1347,8 +1315,8 @@ main = hspec $ do
       it "Identity" $ property prop_entityMetadataEq
     context "Slot:" $ do
       it "Identity" $ property prop_slotEq
-    context "ChunkSection:" $ do
-      it "Identity" $ property prop_chunkSectionEq
+    context "ChunkSections:" $ do
+      it "Identity" $ property prop_chunkSectionsEq
     context "Position:" $ do
       it "Identity" $ property prop_positionEq
     context "Angle:" $ do
@@ -1363,10 +1331,8 @@ main = hspec $ do
       it "Identity" $ property prop_statisticEq
     context "PlayerProperty:" $ do
       it "Identity" $ property prop_playerPropertyEq
-    context "PlayerListAction:" $ do
-      it "Identity" $ property prop_playerListActionEq
-    context "PlayerListEntry:" $ do
-      it "Identity" $ property prop_playerListEntryEq
+    context "PlayerListEntries:" $ do
+      it "Identity" $ property prop_playerListEntriesEq
     context "Icon:" $ do
       it "Identity" $ property prop_iconEq
     context "EntityProperty:" $ do

@@ -423,7 +423,7 @@ data CBPlay
 
   -- | __Chunk Data:__
   -- The server only sends skylight information for chunk pillars in the Overworld, it's up to the client to know in which dimenison the player is currently located. You can also infer this information from the primary bitmask and the amount of uncompressed bytes sent. This packet also sends all block entities in the chunk (though sending them is not required; it is still legal to send them with Update Block Entity later).
-  | CBChunkData Int32 Int32 Int (V.Vector ChunkSection) (Maybe B.ByteString) (V.Vector NBT)
+  | CBChunkData Int32 Int32 Int ChunkSections (Maybe B.ByteString) (V.Vector NBT)
 
   -- | __Effect:__
   -- Sent when a client is to play a sound or particle effect.
@@ -479,7 +479,7 @@ data CBPlay
 
   -- | __Player List Item:__
   -- Sent by the server to update the user list (<tab> in the client).
-  | CBPlayerListItem Int (V.Vector PlayerListEntry)
+  | CBPlayerListItem PlayerListEntries
 
   -- | __Player Position And Look (clientbound):__
   -- Updates the player's position on the server. This packet will also close the “Downloading Terrain” screen when joining/respawning.
@@ -880,10 +880,9 @@ encodeCBPlay (CBChunkData chunkX chunkZ primaryBitMask dat maybeBiomes blockEnti
       Just _ -> encodeBool True
       Nothing -> encodeBool False
   <> encodeVarInt primaryBitMask
-  <> (encodeVarInt . V.length $ dat)
-  <> V.foldl' (<>) mempty (fmap encodeChunkSection dat)
+  <> (encodeChunkSections dat)
   <> case maybeBiomes of
-      Just b -> (encodeVarInt . B.length $ b) <> Encode.byteString b
+      Just b -> Encode.byteString b
       Nothing -> mempty
   <> (encodeVarInt . V.length $ blockEntities)
   <> V.foldl' (<>) mempty (fmap encodeNBT blockEntities)
@@ -1001,11 +1000,9 @@ encodeCBPlay (CBCombatEvent combatEvent) =
         <> Encode.int32BE entityID
         <> encodeText message
 
-encodeCBPlay (CBPlayerListItem action players) =
+encodeCBPlay (CBPlayerListItem entries) =
   Encode.word8 0x2D
-  <> encodeVarInt action
-  <> (encodeVarInt . V.length $ players)
-  <> V.foldl' (<>) mempty (fmap encodePlayerListEntry players)
+  <> encodePlayerListEntries entries
 
 -- flags should be better typed
 encodeCBPlay (CBPlayerPositionAndLook x y z yaw pitch flags teleportID) =
@@ -1543,15 +1540,12 @@ decodeCBPlay = do
         then do
           size <- decodeVarInt
           bs <- Decode.take (size - 256)
-          let dat = Decode.parseOnly
-                      ((fmap V.fromList (Decode.many' (decodeChunkSection (primaryBitMask > 255)))) <* Decode.endOfInput)
-                      bs
-          biomesLn <- decodeVarInt
-          biomes <- Decode.take biomesLn
+          let dat = Decode.parseOnly ((decodeChunkSections (primaryBitMask > 255)) <* Decode.endOfInput) bs
+          biomes <- Decode.take 256
           count <- decodeVarInt
           blockEntities <- V.replicateM count decodeNBT
           case dat of
-            Left err -> fail $ "Error: " ++ err
+            Left err -> fail $ "Ops: " ++ err
             Right dat' -> return $
                             CBChunkData
                               chunkX
@@ -1563,13 +1557,11 @@ decodeCBPlay = do
         else do
           size <- decodeVarInt
           bs <- Decode.take size
-          let dat = Decode.parseOnly
-                      ((fmap V.fromList (Decode.many' (decodeChunkSection (primaryBitMask > 255)))) <* Decode.endOfInput)
-                      bs
+          let dat = Decode.parseOnly ((decodeChunkSections (primaryBitMask > 255)) <* Decode.endOfInput) bs
           count <- decodeVarInt
           blockEntities <- V.replicateM count decodeNBT
           case dat of
-            Left err -> fail $ "Error: " ++ err
+            Left err -> fail $ "Ops: " ++ err
             Right dat' -> return $
                             CBChunkData
                               chunkX
@@ -1693,10 +1685,8 @@ decodeCBPlay = do
 
 
     0x2D -> do
-      action <- decodeVarInt
-      numberOfPlayers <- decodeVarInt
-      players <- V.replicateM numberOfPlayers (decodePlayerListEntry action)
-      return $ CBPlayerListItem action players
+      entries <- decodePlayerListEntries
+      return $ CBPlayerListItem entries
 
     0x2E -> do
       x <- decodeDoubleBE

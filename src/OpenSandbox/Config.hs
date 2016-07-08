@@ -40,6 +40,7 @@ data Config = Config
   , srvMCVersion        :: T.Text
   , srvMaxPlayers       :: Word8
   , srvGameMode         :: GameMode
+  , srvDimension        :: Dimension
   , srvDifficulty       :: Difficulty
   , srvWorldType        :: WorldType
   , srvMotd             :: T.Text
@@ -58,6 +59,7 @@ instance FromJSON Config where
             <*> v .: "mcVersion"
             <*> v .: "maxPlayers"
             <*> v .: "gameMode"
+            <*> v .: "dimension"
             <*> v .: "difficulty"
             <*> v .: "worldType"
             <*> v .: "motd"
@@ -77,7 +79,7 @@ debugConfig = Config
   --, srvPlayerCount = 0
   , srvMaxPlayers = 20
   , srvGameMode = Survival
-  --, srvDimension = Overworld
+  , srvDimension = Overworld
   , srvDifficulty = Normal
   , srvWorldType = Default
   , srvMotd = "A OpenSandbox Server"

@@ -7,6 +7,7 @@ worldPath: "world"
 mcVersion: "1.10"
 maxPlayers: 20
 gameMode: "Survival"
+dimension: "Overworld"
 difficulty: "Normal"
 worldType: "Flat"
 motd: "A OpenSandbox Server"

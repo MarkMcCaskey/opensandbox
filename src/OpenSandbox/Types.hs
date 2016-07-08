@@ -75,6 +75,8 @@ instance Enum Dimension where
     toEnum 1 = End
     toEnum _ = undefined
 
+instance FromJSON Dimension
+instance ToJSON Dimension
 
 data Difficulty = Peaceful | Easy | Normal | Hard
   deriving (Show,Enum,Eq,Generic)
