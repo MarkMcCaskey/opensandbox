@@ -28,6 +28,7 @@ main = do
     createDirectoryIfMissing True "config"
     maybeConfig <- loadConfig "./config/opensandboxd.yaml"
     let config = fromJust maybeConfig
+    encryption <- configEncryption
     -- Start Logger
     createDirectoryIfMissing True (srvPath config ++ "/" ++ srvLogPath config)
     let logFilePath =  srvPath config ++ "/" ++ srvLogPath config ++ "/" ++ "latest.log"
@@ -40,4 +41,4 @@ main = do
     writeTo logger Info $ "Starting minecraft server version " ++ show snapshotVersion
     writeTo logger Info $ "Starting Minecraft server on " ++ show (srvPort config)
     writeTo logger Info $ "Done!"
-    runOpenSandboxServer config logger
+    runOpenSandboxServer config logger encryption

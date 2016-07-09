@@ -37,13 +37,16 @@ import            OpenSandbox.Protocol
 import            OpenSandbox.Types
 import            OpenSandbox.Version
 
-runOpenSandboxServer :: Config -> Logger -> IO ()
-runOpenSandboxServer config logger =
+runOpenSandboxServer :: Config -> Logger -> Encryption -> IO ()
+runOpenSandboxServer config logger encryption =
     runTCPServer (serverSettings (srvPort config) "*") $ \app -> do
       firstState <- flip execStateT Handshake
         $ packetSource app
         $$ deserializeHandshaking
         =$= handleHandshaking config logger
+        =$= handleStatus config logger
+        =$= serializeStatus
+        =$= packetSink app
       writeTo logger Debug "Somebody's handshaking!"
       case firstState of
         Status -> do
@@ -62,7 +65,6 @@ runOpenSandboxServer config logger =
             =$= serializeStatus
             =$= packetSink app
           return ()
-
         Login -> do
           writeTo logger Debug "Beginning Login handling..."
           thirdState <- flip execStateT Login
@@ -83,6 +85,7 @@ runOpenSandboxServer config logger =
             else writeTo logger Debug "Somebody failed login"
         _ -> return ()
 
+
 packetSource  :: AppData -> Source (StateT ProtocolState IO) B.ByteString
 packetSource app = transPipe lift $ appSource app
 
@@ -91,7 +94,7 @@ packetSink  :: AppData -> Sink B.ByteString (StateT ProtocolState IO) ()
 packetSink app = transPipe lift $ appSink app
 
 
-deserializeHandshaking :: Conduit B.ByteString (StateT ProtocolState IO) (Either String SBHandshaking)
+deserializeHandshaking :: Conduit B.ByteString (StateT ProtocolState IO) (Either String (SBHandshaking,Maybe SBStatus))
 deserializeHandshaking = do
     maybeBS <- await
     case maybeBS of
@@ -99,22 +102,29 @@ deserializeHandshaking = do
       Just bs -> do
         if B.take 2 bs /= "\254\SOH"
           then do
-            case Decode.parseOnly (decodeSBHandshaking' <* Decode.endOfInput) bs of
-              Left err -> traceM err >> traceM (show bs) >> yield (Left err) >> leftover bs
-              Right handshake -> yield (Right handshake)
+            case Decode.parseOnly decodeSBHandshaking' bs of
+              Left err -> yield (Left err) >> leftover bs
+              Right (handshake,status) -> yield (Right (handshake,status))
           else do
-            traceM $ "Legacy!"
             case Decode.parseOnly (Decode.takeByteString <* Decode.endOfInput) (B.tail bs) of
               Left err -> yield (Left err) >> leftover bs
-              Right handshake -> yield $ Right SBLegacyServerListPing
+              Right handshake -> yield $ Right (SBLegacyServerListPing,Nothing)
   where
   decodeSBHandshaking' = do
     ln <- decodeVarInt
     bs <- Decode.take ln
-    Decode.takeByteString
     case Decode.parseOnly decodeSBHandshaking bs of
       Left err -> fail $ err
-      Right handshake -> return handshake
+      Right handshake -> do
+        end <- Decode.atEnd
+        if end
+          then return (handshake,Nothing)
+          else do
+            ln' <- decodeVarInt
+            earlyBs <- Decode.take ln'
+            case Decode.parseOnly decodeSBStatus earlyBs of
+              Left err -> return (handshake,Nothing)
+              Right earlyStatus -> return (handshake,Just earlyStatus)
 
 
 deserializeStatus :: Conduit B.ByteString (StateT ProtocolState IO) (Either String SBStatus)
@@ -124,7 +134,7 @@ deserializeStatus = do
       Nothing -> return ()
       Just bs -> do
         case Decode.parseOnly (decodeSBStatus <* Decode.endOfInput) (B.tail bs) of
-          Left err -> traceM err >> traceM (show bs) >> yield (Left err) >> leftover bs
+          Left err -> yield (Left err) >> leftover bs
           Right status -> yield (Right status)
 
 
@@ -146,7 +156,7 @@ deserializeLogin = do
     Nothing -> return ()
     Just bs -> do
       case Decode.parseOnly (decodeSBLogin <* Decode.endOfInput) (B.tail bs) of
-        Left err -> traceM err >> traceM (show bs) >> yield (Left err) >> leftover bs
+        Left err -> yield (Left err) >> leftover bs
         Right login -> yield (Right login)
 
 
@@ -168,7 +178,7 @@ deserializePlay = do
     Nothing -> return ()
     Just bs -> do
       case Decode.parseOnly (decodeSBPlay <* Decode.endOfInput) (B.tail bs) of
-        Left err -> traceM err >> traceM (show bs) >> yield (Left err) >> leftover bs
+        Left err -> yield (Left err) >> leftover bs
         Right play -> yield (Right play)
 
 
@@ -176,10 +186,10 @@ serializePlay :: Conduit CBPlay (StateT ProtocolState IO) B.ByteString
 serializePlay = awaitForever (\play -> do
       let bs = BL.toStrict . Encode.toLazyByteString . encodeCBPlay $ play
       let ln = BL.toStrict . Encode.toLazyByteString . encodeVarInt . B.length $ bs
-      yield (ln `B.append` bs)
+      yield (traceShowId $ ln `B.append` bs)
   )
 
-handleHandshaking :: Config -> Logger -> Sink (Either String SBHandshaking) (StateT ProtocolState IO) ()
+handleHandshaking :: Config -> Logger -> Conduit (Either String (SBHandshaking,Maybe SBStatus)) (StateT ProtocolState IO) (Either String SBStatus)
 handleHandshaking config logger = do
   maybeHandshake <- await
   liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybeHandshake
@@ -190,16 +200,17 @@ handleHandshaking config logger = do
         Left parseErr -> do
           liftIO $ writeTo logger Err $ "Something went wrong: " ++ show parseErr
           return ()
-        Right (SBHandshake _ _ _ ProtocolStatus) -> do
-          liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybeHandshake
+        Right ((SBHandshake _ _ _ ProtocolStatus),status) -> do
+          liftIO $ writeTo logger Debug $ "Switching protocol state to STATUS"
           lift $ put Status
-          return ()
-        Right (SBHandshake _ _ _ ProtocolLogin) -> do
+          case status of
+            Nothing -> return ()
+            Just status' -> yield (Right status')
+        Right ((SBHandshake _ _ _ ProtocolLogin),_) -> do
           liftIO $ writeTo logger Debug $ "Switching protocol state to LOGIN"
           lift $ put Login
           return ()
-        Right SBLegacyServerListPing -> do
-          liftIO $ writeTo logger Debug $ "Recieving Legacy Server Ping"
+        Right (SBLegacyServerListPing,_)-> do
           return ()
 
 
@@ -250,6 +261,7 @@ handleLogin logger = do
         Right (SBEncryptionResponse sharedSecret verifyToken) -> do
           liftIO $ writeTo logger Debug $ "Got an encryption request!"
           return ()
+
 
 handlePlay  :: Config -> Logger -> Conduit (Either String SBPlay) (StateT ProtocolState IO) CBPlay
 handlePlay config logger = do
@@ -325,10 +337,13 @@ handlePlay config logger = do
   liftIO $ writeTo logger Debug $ "Sending: " ++ show setSlotPacket
   yield setSlotPacket
 {-
-  let chunkDataPacket1 = chunkData
+  let chunkSection1 = OverWorldChunkSection 4 [0,112,48,32] (V.replicate ((4096 * 4) `div` 64) 0) (B.replicate 2048 0) (B.replicate 2048 0)
+  let chunkSections = OverWorldChunkSections [chunkSection1]
+  let chunkDataPacket1 = CBChunkData 0 0 1 chunkSections (Just $ B.replicate 256 1) V.empty
   liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket1
   yield chunkDataPacket1
-
+  -}
+{-
   let chunkDataPacket2 = chunkData
   liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket2
   yield chunkDataPacket2

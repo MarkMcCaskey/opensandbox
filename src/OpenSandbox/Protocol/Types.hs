@@ -328,19 +328,15 @@ data ChunkSections
 
 encodeChunkSections :: ChunkSections -> Encode.Builder
 encodeChunkSections (OverWorldChunkSections lst) =
-  (encodeVarInt . V.length $ lst)
-  <> (V.foldl' (<>) mempty (fmap encodeOverWorldChunkSection lst))
+  (V.foldl' (<>) mempty (fmap encodeOverWorldChunkSection lst))
 encodeChunkSections (OtherWorldChunkSections lst) =
-  (encodeVarInt . V.length $ lst)
-  <> (V.foldl' (<>) mempty (fmap encodeOtherWorldChunkSection lst))
+  (V.foldl' (<>) mempty (fmap encodeOtherWorldChunkSection lst))
 
 decodeChunkSections :: Bool -> Decode.Parser ChunkSections
 decodeChunkSections True = do
-  ln <- decodeVarInt
-  OverWorldChunkSections <$> (V.replicateM ln decodeOverWorldChunkSection)
+  OverWorldChunkSections <$> (V.replicateM 1 decodeOverWorldChunkSection)
 decodeChunkSections False = do
-  ln <- decodeVarInt
-  OtherWorldChunkSections <$> (V.replicateM ln decodeOtherWorldChunkSection)
+  OtherWorldChunkSections <$> (V.replicateM 1 decodeOtherWorldChunkSection)
 
 -- Chunk Section: 16x16x16 area
 -- Chunk Column: 16 chunks aligned vertically
@@ -350,6 +346,7 @@ data OverWorldChunkSection = OverWorldChunkSection !Word8 !(V.Vector Int) !(V.Ve
 data OtherWorldChunkSection = OtherWorldChunkSection !Word8 !(V.Vector Int) !(V.Vector Int64) !B.ByteString
   deriving (Show,Eq)
 
+
 encodeOverWorldChunkSection :: OverWorldChunkSection -> Encode.Builder
 encodeOverWorldChunkSection (OverWorldChunkSection bpb pal datArr bLight sLight) =
   Encode.word8 bpb
@@ -357,9 +354,7 @@ encodeOverWorldChunkSection (OverWorldChunkSection bpb pal datArr bLight sLight)
   <> (V.foldl' (<>) mempty (fmap encodeVarInt pal))
   <> encodeVarInt (V.length datArr)
   <> (V.foldl' (<>) mempty (fmap Encode.int64BE datArr))
-  <> (encodeVarInt . B.length $ bLight)
   <> Encode.byteString bLight
-  <> (encodeVarInt . B.length $ sLight)
   <> Encode.byteString sLight
 
 encodeOtherWorldChunkSection :: OtherWorldChunkSection -> Encode.Builder
@@ -369,7 +364,6 @@ encodeOtherWorldChunkSection (OtherWorldChunkSection bitsperblock pal datArr bLi
   <> (V.foldl' (<>) mempty (fmap encodeVarInt pal))
   <> encodeVarInt (V.length datArr)
   <> (V.foldl' (<>) mempty (fmap Encode.int64BE datArr))
-  <> (encodeVarInt . B.length $ bLight)
   <> Encode.byteString bLight
 
 decodeOverWorldChunkSection :: Decode.Parser OverWorldChunkSection
@@ -379,10 +373,8 @@ decodeOverWorldChunkSection = do
   palette <- V.replicateM paletteCount decodeVarInt
   dataCount <- decodeVarInt
   dataArray <- V.replicateM dataCount decodeInt64BE
-  blockLightLn <- decodeVarInt
-  blockLight <- Decode.take blockLightLn
-  skyLightLn <- decodeVarInt
-  skyLight <- Decode.take skyLightLn
+  blockLight <- Decode.take 2048
+  skyLight <- Decode.take 2048
   return $ OverWorldChunkSection bitsPerBlock palette dataArray blockLight skyLight
 
 

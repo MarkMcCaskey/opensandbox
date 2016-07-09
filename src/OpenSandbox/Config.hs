@@ -91,8 +91,8 @@ debugConfig = Config
 loadConfig :: FilePath -> IO (Maybe Config)
 loadConfig path = decodeFile path
 
-configEncryption :: IO (Maybe Encryption)
+configEncryption :: IO Encryption
 configEncryption = do
   (pubKey,privKey) <- generate 128 65537
   let cert = encodeASN1' DER $ toASN1 (PubKeyRSA pubKey) []
-  return (Just (Encryption cert pubKey privKey (B.pack [26,120,188,217])))
+  return (Encryption cert pubKey privKey (B.pack [26,120,188,217]))
