@@ -73,10 +73,9 @@ data SBHandshaking
   -- | __Handshake:__
   -- This causes the server to switch into the target state.
   = SBHandshake VarInt T.Text Short NextState
-
   -- | __Legacy Server List Ping:__
   -- While not technically part of the current protocol, legacy clients may send this packet to initiate Server List Ping, and modern servers should handle it correctly.
-  | SBLegacyServerListPing Word8
+  | SBLegacyServerListPing
   deriving (Show,Eq)
 
 
@@ -87,9 +86,9 @@ encodeSBHandshaking (SBHandshake protocolVersion srvAddress srvPort nextState) =
     <> encodeText srvAddress
     <> Encode.int16BE srvPort
     <> (encodeVarInt . toEnum . fromEnum $ nextState)
-encodeSBHandshaking (SBLegacyServerListPing payload) =
+encodeSBHandshaking SBLegacyServerListPing =
     Encode.word8 0xfe
-    <> Encode.word8 payload
+    <> Encode.word8 0x01
 
 
 decodeSBHandshaking :: Decode.Parser SBHandshaking
@@ -103,8 +102,9 @@ decodeSBHandshaking = do
         nextState <- (fmap (toEnum . fromEnum) decodeVarInt)
         return $! SBHandshake protocolVersion srvAddress srvPort nextState
       0xfe  -> do
-        payload <- Decode.anyWord8
-        return $! SBLegacyServerListPing payload
+        Decode.word8 0x01
+        Decode.takeByteString
+        return $! SBLegacyServerListPing
       err -> fail $ "Unrecognized packetID: " ++ show err
 
 

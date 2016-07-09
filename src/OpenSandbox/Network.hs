@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLists #-}
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.Network
@@ -18,7 +19,7 @@ import            Control.Monad
 import            Control.Monad.IO.Class
 import            Control.Monad.Trans.Class
 import            Control.Monad.Trans.State.Lazy
-import            Data.Attoparsec.ByteString
+import qualified  Data.Attoparsec.ByteString as Decode
 import            Data.Bits
 import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Lazy as BL
@@ -73,7 +74,7 @@ runOpenSandboxServer config logger =
           if thirdState == Play
             then do
               writeTo logger Debug "Beginning Play handling..."
-              void $ forever $ flip execStateT Play
+              void $ flip execStateT Play
                 $ packetSource app
                 $$ deserializePlay
                 =$= handlePlay config logger
@@ -96,9 +97,24 @@ deserializeHandshaking = do
     case maybeBS of
       Nothing -> return ()
       Just bs -> do
-        case parseOnly (decodeSBHandshaking <* endOfInput) (B.tail bs) of
-          Left err -> traceM err >> traceM (show bs) >> yield (Left err) >> leftover bs
-          Right handshake -> yield (Right handshake)
+        if B.take 2 bs /= "\254\SOH"
+          then do
+            case Decode.parseOnly (decodeSBHandshaking' <* Decode.endOfInput) bs of
+              Left err -> traceM err >> traceM (show bs) >> yield (Left err) >> leftover bs
+              Right handshake -> yield (Right handshake)
+          else do
+            traceM $ "Legacy!"
+            case Decode.parseOnly (Decode.takeByteString <* Decode.endOfInput) (B.tail bs) of
+              Left err -> yield (Left err) >> leftover bs
+              Right handshake -> yield $ Right SBLegacyServerListPing
+  where
+  decodeSBHandshaking' = do
+    ln <- decodeVarInt
+    bs <- Decode.take ln
+    Decode.takeByteString
+    case Decode.parseOnly decodeSBHandshaking bs of
+      Left err -> fail $ err
+      Right handshake -> return handshake
 
 
 deserializeStatus :: Conduit B.ByteString (StateT ProtocolState IO) (Either String SBStatus)
@@ -107,7 +123,7 @@ deserializeStatus = do
     case maybeBS of
       Nothing -> return ()
       Just bs -> do
-        case parseOnly (decodeSBStatus <* endOfInput) (B.tail bs) of
+        case Decode.parseOnly (decodeSBStatus <* Decode.endOfInput) (B.tail bs) of
           Left err -> traceM err >> traceM (show bs) >> yield (Left err) >> leftover bs
           Right status -> yield (Right status)
 
@@ -129,7 +145,7 @@ deserializeLogin = do
   case maybeBS of
     Nothing -> return ()
     Just bs -> do
-      case parseOnly (decodeSBLogin <* endOfInput) (B.tail bs) of
+      case Decode.parseOnly (decodeSBLogin <* Decode.endOfInput) (B.tail bs) of
         Left err -> traceM err >> traceM (show bs) >> yield (Left err) >> leftover bs
         Right login -> yield (Right login)
 
@@ -151,7 +167,7 @@ deserializePlay = do
   case maybeBS of
     Nothing -> return ()
     Just bs -> do
-      case parseOnly (decodeSBPlay <* endOfInput) (B.tail bs) of
+      case Decode.parseOnly (decodeSBPlay <* Decode.endOfInput) (B.tail bs) of
         Left err -> traceM err >> traceM (show bs) >> yield (Left err) >> leftover bs
         Right play -> yield (Right play)
 
@@ -182,8 +198,8 @@ handleHandshaking config logger = do
           liftIO $ writeTo logger Debug $ "Switching protocol state to LOGIN"
           lift $ put Login
           return ()
-        Right (SBLegacyServerListPing x) -> do
-          liftIO $ writeTo logger Debug $ show x
+        Right SBLegacyServerListPing -> do
+          liftIO $ writeTo logger Debug $ "Recieving Legacy Server Ping"
           return ()
 
 
@@ -263,33 +279,52 @@ handlePlay config logger = do
   liftIO $ writeTo logger Debug $ "Sending: " ++ show difficultyPacket
   yield difficultyPacket
 
-  let updateTimePacket = CBTimeUpdate 1000 25
-  liftIO $ writeTo logger Debug $ "Sending: " ++ show updateTimePacket
-  yield updateTimePacket
-{-
-  let abilitiesPacket = CBPlayerAbilities 0x02 0 0
-  liftIO $ writeTo logger Debug $ "Sending: " ++ show abilitiesPacket
-  yield abilitiesPacket
+  let spawnPositionPacket = CBSpawnPosition 0
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show spawnPositionPacket
+  yield spawnPositionPacket
 
-  let heldItemSlotPacket = CBHeldItemSlot False
-  liftIO $ writeTo logger Debug $ "Sending: " ++ show heldItemSlotPacket
-  yield heldItemSlotPacket
+  let playerAbilitiesPacket = CBPlayerAbilities 0 1028443341 1036831949
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show playerAbilitiesPacket
+  yield playerAbilitiesPacket
 
-  let entityStatusPacket = CBEntityStatus 0 1
+  let heldItemChangePacket = CBHeldItemChange 0
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show heldItemChangePacket
+  yield heldItemChangePacket
+
+  let entityStatusPacket = CBEntityStatus 32 AnimalInLove
   liftIO $ writeTo logger Debug $ "Sending: " ++ show entityStatusPacket
   yield entityStatusPacket
 
-  let statisticsPacket = CBStatistics (V.fromList [])
+  let statisticsPacket = CBStatistics []
   liftIO $ writeTo logger Debug $ "Sending: " ++ show statisticsPacket
   yield statisticsPacket
 
-  let testAction = PlayerListAdd "oldmanmike" V.empty Survival 0 Nothing
-  let testPlayer = Player someUUID testAction
-  --let playerListItemPacket = ClientBoundPlayerListItem 0 (V.fromList [testPlayer])
-  let playerListItemPacket = CBPlayerListItem 0 V.empty
+  let testAction = PlayerListAdd someUUID "oldmanmike" [] SurvivalField 0 Nothing
+  let playerListItemPacket = CBPlayerListItem (PlayerListAdds [testAction])
   liftIO $ writeTo logger Debug $ "Sending: " ++ show playerListItemPacket
   yield playerListItemPacket
 
+  let playerPositionAndLookPacket = CBPlayerPositionAndLook 0 100 0 0 0 0 0
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show playerPositionAndLookPacket
+  yield playerPositionAndLookPacket
+
+  let worldBorderAction = Initialize 0 0 100 100 0 29999984 5 15
+  let worldBorderPacket = CBWorldBorder worldBorderAction
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show worldBorderPacket
+  yield worldBorderPacket
+
+  let updateTimePacket = CBTimeUpdate 1000 25
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show updateTimePacket
+  yield updateTimePacket
+
+  let windowItemsPacket = CBWindowItems 0 (V.replicate 46 (mkSlot (-1) 1 1 (TagByte "" 0)))
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show windowItemsPacket
+  yield windowItemsPacket
+
+  let setSlotPacket = CBSetSlot (-1) (-1) (mkSlot (-1) 1 1 (TagByte "" 0))
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show setSlotPacket
+  yield setSlotPacket
+{-
   let chunkDataPacket1 = chunkData
   liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket1
   yield chunkDataPacket1

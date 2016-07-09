@@ -93,6 +93,8 @@ module OpenSandbox.Protocol.Types
   , decodeBool
   , encodeUUID
   , decodeUUID
+  , encodeUUID'
+  , decodeUUID'
   , encodeAngle
   , decodeAngle
   , encodeEntityMetadata
@@ -515,6 +517,17 @@ decodeUUID :: Decode.Parser UUID
 decodeUUID = do
   txt <- decodeText
   case fromText txt of
+    Just uuid -> return uuid
+    Nothing   -> fail "Error: Could not decode UUID!"
+
+
+encodeUUID' :: UUID -> Encode.Builder
+encodeUUID' u = Encode.lazyByteString (toByteString u)
+
+decodeUUID' :: Decode.Parser UUID
+decodeUUID' = do
+  raw <- Decode.take 16
+  case (fromByteString . BL.fromStrict $ raw) of
     Just uuid -> return uuid
     Nothing   -> fail "Error: Could not decode UUID!"
 
@@ -974,7 +987,7 @@ encodePlayerListEntries (PlayerListRemovePlayers lst) =
 
 encodePlayerListAdd :: PlayerListAdd -> Encode.Builder
 encodePlayerListAdd (PlayerListAdd uuid name properties gamemode ping maybeDisplayName) =
-  encodeUUID uuid
+  encodeUUID' uuid
   <> encodeText name
   <> (encodeVarInt . V.length $ properties)
   <> (V.foldl' (<>) mempty (fmap encodePlayerProperty properties))
@@ -986,24 +999,24 @@ encodePlayerListAdd (PlayerListAdd uuid name properties gamemode ping maybeDispl
 
 encodePlayerListUpdateGameMode :: PlayerListUpdateGameMode -> Encode.Builder
 encodePlayerListUpdateGameMode (PlayerListUpdateGameMode uuid gameMode) =
-  encodeUUID uuid
+  encodeUUID' uuid
   <> encodeVarInt (fromEnum gameMode)
 
 encodePlayerListUpdateLatency :: PlayerListUpdateLatency -> Encode.Builder
 encodePlayerListUpdateLatency (PlayerListUpdateLatency uuid ping) =
-  encodeUUID uuid
+  encodeUUID' uuid
   <> encodeVarInt ping
 
 encodePlayerListUpdateDisplayName :: PlayerListUpdateDisplayName -> Encode.Builder
 encodePlayerListUpdateDisplayName (PlayerListUpdateDisplayName uuid maybeDisplayName) =
-  encodeUUID uuid
+  encodeUUID' uuid
   <> case maybeDisplayName of
       Nothing -> encodeBool False
       Just displayName -> encodeBool True <> encodeText displayName
 
 encodePlayerListRemovePlayer :: PlayerListRemovePlayer -> Encode.Builder
 encodePlayerListRemovePlayer (PlayerListRemovePlayer uuid) =
-  encodeUUID uuid
+  encodeUUID' uuid
 
 decodePlayerListEntries :: Decode.Parser PlayerListEntries
 decodePlayerListEntries = do
@@ -1019,7 +1032,7 @@ decodePlayerListEntries = do
 
 decodePlayerListAdd :: Decode.Parser PlayerListAdd
 decodePlayerListAdd = do
-  uuid <- decodeUUID
+  uuid <- decodeUUID'
   name <- decodeText
   count <- decodeVarInt
   properties <- V.replicateM count decodePlayerProperty
@@ -1035,19 +1048,19 @@ decodePlayerListAdd = do
 
 decodePlayerListUpdateGameMode :: Decode.Parser PlayerListUpdateGameMode
 decodePlayerListUpdateGameMode = do
-  uuid <- decodeUUID
+  uuid <- decodeUUID'
   gamemode <- (fmap toEnum decodeVarInt)
   return $ PlayerListUpdateGameMode uuid gamemode
 
 decodePlayerListUpdateLatency :: Decode.Parser PlayerListUpdateLatency
 decodePlayerListUpdateLatency = do
-  uuid <- decodeUUID
+  uuid <- decodeUUID'
   ping <- decodeVarInt
   return $ PlayerListUpdateLatency uuid ping
 
 decodePlayerListUpdateDisplayName :: Decode.Parser PlayerListUpdateDisplayName
 decodePlayerListUpdateDisplayName = do
-  uuid <- decodeUUID
+  uuid <- decodeUUID'
   hasDisplayName <- decodeBool
   if hasDisplayName
     then do
@@ -1058,7 +1071,7 @@ decodePlayerListUpdateDisplayName = do
 
 decodePlayerListRemovePlayer :: Decode.Parser PlayerListRemovePlayer
 decodePlayerListRemovePlayer = do
-  uuid <- decodeUUID
+  uuid <- decodeUUID'
   return $ PlayerListRemovePlayer uuid
 
 data PlayerProperty = PlayerProperty

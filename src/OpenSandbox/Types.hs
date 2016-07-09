@@ -35,7 +35,6 @@ data ProtocolState = Handshake | Status | Login | Play deriving (Show,Eq)
 
 data BoundingBox = BoundAsBlock | BoundAsEmpty deriving (Show,Eq)
 
-
 data Material
   = Rock
   | Wood
