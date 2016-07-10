@@ -26,6 +26,7 @@ import qualified  Data.ByteString.Lazy as BL
 import qualified  Data.ByteString.Builder as Encode
 import            Data.Conduit
 import            Data.Conduit.Network
+import            Data.Int
 import qualified  Data.Text as T
 import            Data.Text.Encoding
 import            Data.UUID.V4
@@ -170,7 +171,6 @@ serializeLogin = do
       let ln = BL.toStrict . Encode.toLazyByteString . encodeVarInt . B.length $ bs
       yield (ln `B.append` bs)
 
-
 deserializePlay :: Conduit B.ByteString (StateT ProtocolState IO) (Either String SBPlay)
 deserializePlay = do
   maybeBS <- await
@@ -186,8 +186,9 @@ serializePlay :: Conduit CBPlay (StateT ProtocolState IO) B.ByteString
 serializePlay = awaitForever (\play -> do
       let bs = BL.toStrict . Encode.toLazyByteString . encodeCBPlay $ play
       let ln = BL.toStrict . Encode.toLazyByteString . encodeVarInt . B.length $ bs
-      yield (traceShowId $ ln `B.append` bs)
+      yield (ln `B.append` bs)
   )
+
 
 handleHandshaking :: Config -> Logger -> Conduit (Either String (SBHandshaking,Maybe SBStatus)) (StateT ProtocolState IO) (Either String SBStatus)
 handleHandshaking config logger = do
@@ -336,19 +337,88 @@ handlePlay config logger = do
   let setSlotPacket = CBSetSlot (-1) (-1) (mkSlot (-1) 1 1 (TagByte "" 0))
   liftIO $ writeTo logger Debug $ "Sending: " ++ show setSlotPacket
   yield setSlotPacket
-{-
-  let chunkSection1 = OverWorldChunkSection 4 [0,112,48,32] (V.replicate ((4096 * 4) `div` 64) 0) (B.replicate 2048 0) (B.replicate 2048 0)
-  let chunkSections = OverWorldChunkSections [chunkSection1]
-  let chunkDataPacket1 = CBChunkData 0 0 1 chunkSections (Just $ B.replicate 256 1) V.empty
-  liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket1
+
+  let bedrockLayer = V.replicate 16 $ V.foldl' (xor) 0 $ V.zipWith setBit (V.replicate 16 (0 :: Int64)) [0,4,8,12,16,20,24,28,32,36,40,44,48,52,56,60]
+  let dirtLayer = V.replicate 16 $ V.foldl' (xor) 0 $ V.zipWith setBit (V.replicate 16 (0 :: Int64)) [1,5,9,13,17,21,25,29,33,37,41,45,49,53,57,61]
+  let grassLayer = V.replicate 16 $ V.foldl' (xor) 0 $ V.zipWith setBit (V.replicate 32 (0 :: Int64)) [0,1,4,5,8,9,12,13,16,17,20,21,24,25,28,29,32,33,36,37,40,41,44,45,48,49,52,53,56,57,60,61]
+  let airLayer = V.replicate 16 (0 :: Int64)
+  let flatWorldBase = V.concat [bedrockLayer,dirtLayer,dirtLayer,grassLayer,(V.concat $ replicate 12 airLayer)]
+  let chunkSection1 = OverWorldChunkSection 4 [0,112,48,32] flatWorldBase (B.replicate 2048 0) (B.replicate 2048 0)
+  let chunkSections1 = OverWorldChunkSections [chunkSection1]
+  let chunkDataPacket1 = CBChunkData 0 0 1 chunkSections1 (Just $ B.replicate 256 1) V.empty
+  --liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket1
   yield chunkDataPacket1
-  -}
-{-
-  let chunkDataPacket2 = chunkData
-  liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket2
+
+  let airChunk = V.concat $ replicate 16 airLayer
+  let chunkSectionX = OverWorldChunkSection 4 [0,112,48,32] airChunk (B.replicate 2048 0) (B.replicate 2048 0)
+  let chunkSectionsX = OverWorldChunkSections [chunkSectionX]
+
+  let chunkDataPacket2 = CBChunkData 0 0 2 chunkSectionsX (Just $ B.replicate 256 1) V.empty
+  --liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket2
   yield chunkDataPacket2
 
-  let chunkDataPacket3 = chunkData
-  liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket3
+  let chunkDataPacket3 = CBChunkData 0 0 4 chunkSectionsX (Just $ B.replicate 256 1) V.empty
+  --liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket3
   yield chunkDataPacket3
-  -}
+
+  let chunkDataPacket4 = CBChunkData 0 0 8 chunkSectionsX (Just $ B.replicate 256 1) V.empty
+  --liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket4
+  yield chunkDataPacket4
+
+  let chunkDataPacket5 = CBChunkData 0 0 16 chunkSectionsX (Just $ B.replicate 256 1) V.empty
+  --liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket5
+  yield chunkDataPacket5
+
+  let chunkDataPacket6 = CBChunkData 0 0 32 chunkSectionsX (Just $ B.replicate 256 1) V.empty
+  --liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket6
+  yield chunkDataPacket6
+
+  let chunkDataPacket7 = CBChunkData 0 0 64 chunkSectionsX (Just $ B.replicate 256 1) V.empty
+  --liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket7
+  yield chunkDataPacket7
+
+  let chunkDataPacket8 = CBChunkData 0 0 128 chunkSectionsX (Just $ B.replicate 256 1) V.empty
+  --liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket8
+  yield chunkDataPacket8
+
+  let chunkDataPacket9 = CBChunkData 0 0 256 chunkSectionsX (Just $ B.replicate 256 1) V.empty
+  --liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket9
+  yield chunkDataPacket9
+
+  let chunkDataPacket10 = CBChunkData 0 0 512 chunkSectionsX (Just $ B.replicate 256 1) V.empty
+  --liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket10
+  yield chunkDataPacket10
+
+  let chunkDataPacket11 = CBChunkData 0 0 1024 chunkSectionsX (Just $ B.replicate 256 1) V.empty
+  --liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket11
+  yield chunkDataPacket11
+
+  let chunkDataPacket12 = CBChunkData 0 0 2048 chunkSectionsX (Just $ B.replicate 256 1) V.empty
+  --liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket12
+  yield chunkDataPacket12
+
+  let chunkDataPacket13 = CBChunkData 0 0 4096 chunkSectionsX (Just $ B.replicate 256 1) V.empty
+  --liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket13
+  yield chunkDataPacket13
+
+  let chunkDataPacket14 = CBChunkData 0 0 8192 chunkSectionsX (Just $ B.replicate 256 1) V.empty
+  --liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket14
+  yield chunkDataPacket14
+
+  let chunkDataPacket15 = CBChunkData 0 0 16384 chunkSectionsX (Just $ B.replicate 256 1) V.empty
+  --liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket15
+  yield chunkDataPacket15
+
+  let chunkDataPacket16 = CBChunkData 0 0 32768 chunkSectionsX (Just $ B.replicate 256 1) V.empty
+  --liftIO $ writeTo logger Debug $ "Sending: " ++ show chunkDataPacket16
+  yield chunkDataPacket16
+
+  let keepAlivePacket = CBKeepAlive 100
+  --liftIO $ writeTo logger Debug $ "Sending: " ++ show keepAlivePacket
+  yield keepAlivePacket
+
+{-
+  let disconnectPacket = CBPlayDisconnect "Because I said so..."
+  liftIO $ writeTo logger Debug $ "Sending: " ++ show disconnectPacket
+  yield disconnectPacket
+-}

@@ -880,7 +880,7 @@ encodeCBPlay (CBChunkData chunkX chunkZ primaryBitMask dat maybeBiomes blockEnti
       Just _ -> encodeBool True
       Nothing -> encodeBool False
   <> encodeVarInt primaryBitMask
-  <> (encodeVarInt . B.length . BL.toStrict . Encode.toLazyByteString $ (encodeChunkSections dat))
+  <> (encodeVarInt . (+256) . B.length . BL.toStrict . Encode.toLazyByteString $ (encodeChunkSections dat))
   <> encodeChunkSections dat
   <> case maybeBiomes of
       Just b -> Encode.byteString b
