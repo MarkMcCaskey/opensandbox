@@ -162,7 +162,7 @@ import            Prelude hiding (max)
 debugNetCodeType :: Bool -> ChunkSections -> IO ()
 debugNetCodeType isOverworld packet = do
   let encoded = BL.toStrict . Encode.toLazyByteString $ encodeChunkSections packet
-  let decoded = Decode.parseOnly (decodeChunkSections isOverworld) encoded :: Either String ChunkSections
+  let decoded = Decode.parseOnly (decodeChunkSections 1) encoded :: Either String ChunkSections
   putStrLn "==================================================================="
   putStrLn $ "Packet: " ++ show packet
   putStrLn "-------------------------------------------------------------------"
@@ -332,14 +332,12 @@ encodeChunkSections (OverWorldChunkSections lst) =
 encodeChunkSections (OtherWorldChunkSections lst) =
   (V.foldl' (<>) mempty (fmap encodeOtherWorldChunkSection lst))
 
-decodeChunkSections :: Bool -> Decode.Parser ChunkSections
-decodeChunkSections True = do
-  OverWorldChunkSections <$> (V.replicateM 1 decodeOverWorldChunkSection)
-decodeChunkSections False = do
-  OtherWorldChunkSections <$> (V.replicateM 1 decodeOtherWorldChunkSection)
+decodeChunkSections :: Int -> Decode.Parser ChunkSections
+decodeChunkSections bitMask = do
+  if bitMask > 255
+    then OverWorldChunkSections <$> (V.replicateM (popCount bitMask) decodeOverWorldChunkSection)
+    else OtherWorldChunkSections <$> (V.replicateM (popCount bitMask) decodeOtherWorldChunkSection)
 
--- Chunk Section: 16x16x16 area
--- Chunk Column: 16 chunks aligned vertically
 data OverWorldChunkSection = OverWorldChunkSection !Word8 !(V.Vector Int) !(V.Vector Int64) !B.ByteString !B.ByteString
   deriving (Show,Eq)
 
@@ -385,8 +383,7 @@ decodeOtherWorldChunkSection = do
   palette <- V.replicateM paletteCount decodeVarInt
   dataCount <- decodeVarInt
   dataArray <- V.replicateM dataCount decodeInt64BE
-  blockLightLn <- decodeVarInt
-  blockLight <- Decode.take blockLightLn
+  blockLight <- Decode.take 2048
   return $ OtherWorldChunkSection bitsPerBlock palette dataArray blockLight
 
 -- Entity Metadata

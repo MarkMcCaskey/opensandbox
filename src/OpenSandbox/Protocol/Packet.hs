@@ -1541,7 +1541,7 @@ decodeCBPlay = do
         then do
           size <- decodeVarInt
           bs <- Decode.take (size - 256)
-          let dat = Decode.parseOnly ((decodeChunkSections (primaryBitMask > 255)) <* Decode.endOfInput) bs
+          let dat = Decode.parseOnly ((decodeChunkSections primaryBitMask) <* Decode.endOfInput) bs
           biomes <- Decode.take 256
           count <- decodeVarInt
           blockEntities <- V.replicateM count decodeNBT
@@ -1558,7 +1558,7 @@ decodeCBPlay = do
         else do
           size <- decodeVarInt
           bs <- Decode.take size
-          let dat = Decode.parseOnly ((decodeChunkSections (primaryBitMask > 255)) <* Decode.endOfInput) bs
+          let dat = Decode.parseOnly ((decodeChunkSections primaryBitMask) <* Decode.endOfInput) bs
           count <- decodeVarInt
           blockEntities <- V.replicateM count decodeNBT
           case dat of
@@ -2185,6 +2185,7 @@ encodeSBPlay (SBCloseWindow windowID) =
 encodeSBPlay (SBPluginMessage channel dat) =
   Encode.word8 0x09
   <> encodeText channel
+  <> (encodeVarInt . B.length $ dat)
   <> Encode.byteString dat
 
 encodeSBPlay (SBUseEntity target t) =
@@ -2383,7 +2384,8 @@ decodeSBPlay = do
 
     0x09 -> do
       channel <- decodeText
-      dat <- Decode.takeByteString
+      ln <- decodeVarInt
+      dat <- Decode.take ln
       return $ SBPluginMessage channel dat
 
     0x0A -> do

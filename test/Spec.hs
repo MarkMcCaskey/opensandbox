@@ -4,6 +4,7 @@ import            Control.Monad
 import qualified  Data.Array.IArray as IA
 import            Data.Array.Unboxed (listArray)
 import            Data.Attoparsec.ByteString
+import            Data.Bits
 import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Lazy as BL
 import qualified  Data.ByteString.Builder as BB
@@ -1167,13 +1168,13 @@ prop_chunkSectionsEq lst = foldr (==) True $ (go lst)
   go [] = []
   go (x:xs) =
     case x of
-      OverWorldChunkSections {} -> do
+      OverWorldChunkSections chunks -> do
         let encoded = BL.toStrict . BB.toLazyByteString $ encodeChunkSections x
-        let decoded = parseOnly (decodeChunkSections True) encoded :: Either String ChunkSections
+        let decoded = parseOnly (decodeChunkSections (complementBit (0 :: Int) (V.length chunks))) encoded :: Either String ChunkSections
         (Right x == decoded):(go xs)
-      OtherWorldChunkSections {} -> do
+      OtherWorldChunkSections chunks -> do
         let encoded = BL.toStrict . BB.toLazyByteString $ encodeChunkSections x
-        let decoded = parseOnly (decodeChunkSections False) encoded :: Either String ChunkSections
+        let decoded = parseOnly (decodeChunkSections (complementBit (0 :: Int) (V.length chunks))) encoded :: Either String ChunkSections
         (Right x == decoded):(go xs)
 
 
