@@ -201,11 +201,20 @@ instance Arbitrary ChunkSections where
 
 
 instance Arbitrary OverWorldChunkSection where
-  arbitrary = OverWorldChunkSection <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = OverWorldChunkSection
+                <$> arbitrary
+                <*> arbitrary
+                <*> arbitrary
+                <*> (fmap B.pack $ vectorOf 2048 (arbitrary :: Gen Word8))
+                <*> (fmap B.pack $ vectorOf 2048 (arbitrary :: Gen Word8))
 
 
 instance Arbitrary OtherWorldChunkSection where
-  arbitrary = OtherWorldChunkSection <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = OtherWorldChunkSection
+                <$> arbitrary
+                <*> arbitrary
+                <*> arbitrary
+                <*> (fmap B.pack $ vectorOf 2048 (arbitrary :: Gen Word8))
 
 
 instance Arbitrary DifficultyField where

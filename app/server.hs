@@ -26,19 +26,20 @@ main = do
               exitSuccess
       else return ()
     createDirectoryIfMissing True "config"
-    maybeConfig <- loadConfig "./config/opensandboxd.yaml"
-    let config = fromJust maybeConfig
-    encryption <- configEncryption
-    -- Start Logger
-    createDirectoryIfMissing True (srvPath config ++ "/" ++ srvLogPath config)
-    let logFilePath =  srvPath config ++ "/" ++ srvLogPath config ++ "/" ++ "latest.log"
-    logger <- newLogger defaultBufSize logFilePath $
-      if getDebugFlag args
-        then Debug
-        else Info
-    writeTo logger Info "----------------- Log Start -----------------"
-    writeTo logger Info "Welcome to the OpenSandbox Minecraft Server!"
-    writeTo logger Info $ "Starting minecraft server version " ++ show snapshotVersion
-    writeTo logger Info $ "Starting Minecraft server on " ++ show (srvPort config)
-    writeTo logger Info $ "Done!"
-    runOpenSandboxServer config logger encryption
+    ideallyConfig <- loadConfig "./config/opensandboxd.yaml"
+    case ideallyConfig of
+      Left err -> print err
+      Right config -> do
+        encryption <- configEncryption
+        -- Start Logger
+        createDirectoryIfMissing True (srvPath config ++ "/" ++ srvLogPath config)
+        let logFilePath =  srvPath config ++ "/" ++ srvLogPath config ++ "/" ++ "latest.log"
+        logger <- newLogger defaultBufSize logFilePath $ if getDebugFlag args
+                                                            then Debug
+                                                            else Info
+        writeTo logger Info "----------------- Log Start -----------------"
+        writeTo logger Info "Welcome to the OpenSandbox Minecraft Server!"
+        writeTo logger Info $ "Starting minecraft server version " ++ show snapshotVersion
+        writeTo logger Info $ "Starting Minecraft server on " ++ show (srvPort config)
+        writeTo logger Info $ "Done!"
+        runOpenSandboxServer config logger encryption

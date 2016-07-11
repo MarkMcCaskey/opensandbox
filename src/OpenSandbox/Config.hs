@@ -23,6 +23,7 @@ import            Data.ASN1.BinaryEncoding
 import            Data.ASN1.Encoding
 import            Data.ASN1.Types hiding (End)
 import qualified  Data.ByteString as B
+import            Data.Int
 import qualified  Data.Text as T
 import            Data.Word
 import            Data.X509
@@ -38,7 +39,9 @@ data Config = Config
   , srvLogPath          :: FilePath
   , srvWorldPath        :: FilePath
   , srvMCVersion        :: T.Text
-  , srvMaxPlayers       :: Word8
+  , srvMaxPlayers       :: Int32
+  , srvViewDistance     :: Word8
+  , srvMaxBuildHeight   :: Int
   , srvGameMode         :: GameMode
   , srvDimension        :: Dimension
   , srvDifficulty       :: Difficulty
@@ -58,6 +61,8 @@ instance FromJSON Config where
             <*> v .: "worldPath"
             <*> v .: "mcVersion"
             <*> v .: "maxPlayers"
+            <*> v .: "viewDistance"
+            <*> v .: "maxBuildHeight"
             <*> v .: "gameMode"
             <*> v .: "dimension"
             <*> v .: "difficulty"
@@ -78,6 +83,8 @@ debugConfig = Config
   , srvMCVersion = snapshotVersion
   --, srvPlayerCount = 0
   , srvMaxPlayers = 20
+  , srvViewDistance = 10
+  , srvMaxBuildHeight = 256
   , srvGameMode = Survival
   , srvDimension = Overworld
   , srvDifficulty = Normal
@@ -88,8 +95,26 @@ debugConfig = Config
   , srvEnabled = False
   }
 
-loadConfig :: FilePath -> IO (Maybe Config)
-loadConfig path = decodeFile path
+loadConfig :: FilePath -> IO (Either String Config)
+loadConfig path = do
+  maybeConfig <- decodeFileEither path
+  case maybeConfig of
+    Left err -> return $ Left (show err)
+    Right shadyConfig -> do
+      let hasValidViewDistance c =
+            if ((srvViewDistance c) > 2) && ((srvViewDistance c) < 16)
+              then Right c
+              else Left "Error: Invalid View Distance!"
+      let hasValidMaxBuildHeight c =
+            if srvMaxBuildHeight c <= 256
+              then Right c
+              else Left "Error: Invalid Max Build Height!"
+      let hasValidMaxPlayers c =
+            if (srvMaxPlayers c < (maxBound :: Int32)) && (srvMaxPlayers c >= 0)
+              then Right c
+              else Left "Error: Invalid Max Players!"
+      return $ (hasValidViewDistance >=> hasValidMaxBuildHeight >=> hasValidMaxPlayers) shadyConfig
+
 
 configEncryption :: IO Encryption
 configEncryption = do

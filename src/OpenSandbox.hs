@@ -17,3 +17,4 @@ import OpenSandbox.Protocol           as O
 import OpenSandbox.Types              as O
 import OpenSandbox.User               as O
 import OpenSandbox.Version            as O
+import OpenSandbox.World              as O

@@ -6,6 +6,8 @@ logPath: "logs"
 worldPath: "world"
 mcVersion: "1.10"
 maxPlayers: 20
+viewDistance: 10
+maxBuildHeight: 256
 gameMode: "Survival"
 dimension: "Overworld"
 difficulty: "Normal"

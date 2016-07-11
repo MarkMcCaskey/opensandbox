@@ -28,6 +28,7 @@ library
                             OpenSandbox.Types
                             OpenSandbox.User
                             OpenSandbox.Version
+                            OpenSandbox.World
     build-depends:          aeson,
                             ansi-terminal,
                             asn1-encoding,
