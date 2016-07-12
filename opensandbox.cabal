@@ -20,6 +20,8 @@ library
     exposed-modules:        OpenSandbox
                             OpenSandbox.CommandLine
                             OpenSandbox.Config
+                            OpenSandbox.Data
+                            OpenSandbox.Data.Biome
                             OpenSandbox.Logger
                             OpenSandbox.Network
                             OpenSandbox.Protocol

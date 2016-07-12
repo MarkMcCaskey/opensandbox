@@ -11,6 +11,7 @@
 module OpenSandbox (module O) where
 import OpenSandbox.CommandLine        as O
 import OpenSandbox.Config             as O
+import OpenSandbox.Data               as O
 import OpenSandbox.Logger             as O
 import OpenSandbox.Network            as O
 import OpenSandbox.Protocol           as O
