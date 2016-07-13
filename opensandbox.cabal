@@ -22,6 +22,7 @@ library
                             OpenSandbox.Config
                             OpenSandbox.Data
                             OpenSandbox.Data.Biome
+                            OpenSandbox.Data.Block
                             OpenSandbox.Logger
                             OpenSandbox.Network
                             OpenSandbox.Protocol
