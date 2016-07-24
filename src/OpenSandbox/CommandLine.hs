@@ -19,8 +19,9 @@ import Options.Applicative
 
 
 data OpenSandboxOption = OpenSandboxOption
-  { getCustomConfigFile :: Maybe FilePath
-  , getCustomLogFile    :: Maybe FilePath
+  { getCustomRootDir    :: Maybe FilePath
+  , getCustomConfigDir  :: Maybe FilePath
+  , getCustomLogDir     :: Maybe FilePath
   , getDebugFlag        :: Bool
   , getVersionFlag      :: Bool
   , getVerboseFlag      :: Bool
@@ -43,13 +44,17 @@ openSandboxOpts =
 openSandboxOptions :: Parser OpenSandboxOption
 openSandboxOptions = OpenSandboxOption
   <$> (optional $ strOption
-    ( long "configFile"
-    <> metavar "FILE"
-    <> help "Select an alternative config file (DEFAULT: ./config/opensandboxd.yaml)"))
+    ( long "rootDir"
+    <> metavar "DIR"
+    <> help "Select an alternative root dir for OpenSandbox to start in (DEFAULT: ./)"))
   <*> (optional $ strOption
-    ( long "logFile"
-    <> metavar "FILE"
-    <> help "Select an alternative log file (DEFAULT: ./logs/latest.log)"))
+    ( long "configDir"
+    <> metavar "DIR"
+    <> help "Select an alternative config dir (DEFAULT: ./config/)"))
+  <*> (optional $ strOption
+    ( long "logDir"
+    <> metavar "DIR"
+    <> help "Select an alternative log dir (DEFAULT: ./logs)"))
   <*> switch
     ( long "debug"
     <> help "Enables Debug logging." )

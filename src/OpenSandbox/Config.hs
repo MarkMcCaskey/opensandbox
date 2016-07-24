@@ -11,7 +11,7 @@
 -------------------------------------------------------------------------------
 module OpenSandbox.Config
   ( Config (..)
-  , debugConfig
+  , genDefaultConfig
   , configEncryption
   , loadConfig
   ) where
@@ -30,14 +30,16 @@ import            Data.X509
 import            Data.Yaml
 import            OpenSandbox.Types
 import            OpenSandbox.Version
+import            Path
+
 
 data Config = Config
   { srvPort             :: Int
-  , srvPath             :: FilePath
-  , srvConfigPath       :: FilePath
-  , srvBackupPath       :: FilePath
-  , srvLogPath          :: FilePath
-  , srvWorldPath        :: FilePath
+  , srvRootDir          :: Maybe (Path Abs Dir)
+  , srvConfigDir        :: (Path Rel Dir)
+  , srvBackupDir        :: (Path Rel Dir)
+  , srvLogDir           :: (Path Rel Dir)
+  , srvWorldDir         :: (Path Rel Dir)
   , srvMCVersion        :: T.Text
   , srvMaxPlayers       :: Int32
   , srvViewDistance     :: Word8
@@ -47,73 +49,110 @@ data Config = Config
   , srvDifficulty       :: Difficulty
   , srvWorldType        :: WorldType
   , srvMotd             :: T.Text
+  , srvEncryption       :: Bool
+  , srvCompression      :: Bool
   , srvEnabled          :: Bool
   } deriving (Show,Eq)
+
+instance ToJSON Config where
+  toJSON c = object
+    [ "port"            .= srvPort c
+    , "rootDir"         .= srvRootDir c
+    , "configDir"       .= srvConfigDir c
+    , "backupDir"       .= srvBackupDir c
+    , "logDir"          .= srvLogDir c
+    , "worldDir"        .= srvWorldDir c
+    , "mcVersion"       .= srvMCVersion c
+    , "maxPlayers"      .= srvMaxPlayers c
+    , "viewDistance"    .= srvViewDistance c
+    , "maxBuildHeight"  .= srvMaxBuildHeight c
+    , "gameMode"        .= srvGameMode c
+    , "dimension"       .= srvDimension c
+    , "difficulty"      .= srvDifficulty c
+    , "worldType"       .= srvWorldType c
+    , "motd"            .= srvMotd c
+    , "encryption"      .= srvEncryption c
+    , "compression"     .= srvCompression c
+    , "enabled"         .= srvEnabled c
+    ]
 
 
 instance FromJSON Config where
   parseJSON (Object v) =
-    Config  <$> v .: "port"
-            <*> v .: "rootPath"
-            <*> v .: "configPath"
-            <*> v .: "backupPath"
-            <*> v .: "logPath"
-            <*> v .: "worldPath"
-            <*> v .: "mcVersion"
-            <*> v .: "maxPlayers"
-            <*> v .: "viewDistance"
-            <*> v .: "maxBuildHeight"
-            <*> v .: "gameMode"
-            <*> v .: "dimension"
-            <*> v .: "difficulty"
-            <*> v .: "worldType"
-            <*> v .: "motd"
-            <*> v .: "enabled"
+    Config
+      <$> v .: "port"
+      <*> v .: "rootDir"
+      <*> v .: "configDir"
+      <*> v .: "backupDir"
+      <*> v .: "logDir"
+      <*> v .: "worldDir"
+      <*> v .: "mcVersion"
+      <*> v .: "maxPlayers"
+      <*> v .: "viewDistance"
+      <*> v .: "maxBuildHeight"
+      <*> v .: "gameMode"
+      <*> v .: "dimension"
+      <*> v .: "difficulty"
+      <*> v .: "worldType"
+      <*> v .: "motd"
+      <*> v .: "encryption"
+      <*> v .: "compression"
+      <*> v .: "enabled"
   parseJSON _ = mzero
 
 
-debugConfig :: Config
-debugConfig = Config
-  { srvPort = 25567
-  , srvPath = "."
-  , srvConfigPath = "config"
-  , srvBackupPath = "backup"
-  , srvLogPath = "logs"
-  , srvWorldPath = "world"
-  , srvMCVersion = snapshotVersion
-  --, srvPlayerCount = 0
-  , srvMaxPlayers = 20
-  , srvViewDistance = 10
-  , srvMaxBuildHeight = 256
-  , srvGameMode = Survival
-  , srvDimension = Overworld
-  , srvDifficulty = Normal
-  , srvWorldType = Default
-  , srvMotd = "A OpenSandbox Server"
-  --, srvEncryption = Nothing
-  --, srvCompression = Nothing
-  , srvEnabled = False
-  }
+genDefaultConfig :: FilePath -> IO ()
+genDefaultConfig path = do
+  defaultConfigDir <- parseRelDir "configs"
+  defaultBackupDir <- parseRelDir "backups"
+  defaultLogDir <- parseRelDir "logs"
+  defaultWorldDir <- parseRelDir "world"
+  encodeFile path $
+    Config
+      { srvPort             = 25565
+      , srvRootDir          = Nothing
+      , srvConfigDir        = defaultConfigDir
+      , srvBackupDir        = defaultBackupDir
+      , srvLogDir           = defaultLogDir
+      , srvWorldDir         = defaultWorldDir
+      , srvMCVersion        = "1.10"
+      , srvMaxPlayers       = 20
+      , srvViewDistance     = 10
+      , srvMaxBuildHeight   = 256
+      , srvGameMode         = Survival
+      , srvDimension        = Overworld
+      , srvDifficulty       = Normal
+      , srvWorldType        = Flat
+      , srvMotd             = "A OpenSandbox Server"
+      , srvEncryption       = False
+      , srvCompression      = False
+      , srvEnabled          = False
+      }
 
-loadConfig :: FilePath -> IO (Either String Config)
+
+loadConfig :: Path b File -> IO (Either String Config)
 loadConfig path = do
-  maybeConfig <- decodeFileEither path
+  maybeConfig <- decodeFileEither (toFilePath path)
   case maybeConfig of
     Left err -> return $ Left (show err)
-    Right shadyConfig -> do
+    Right rawConfig -> do
+
       let hasValidViewDistance c =
             if ((srvViewDistance c) > 2) && ((srvViewDistance c) < 16)
               then Right c
               else Left "Error: Invalid View Distance!"
+
       let hasValidMaxBuildHeight c =
             if srvMaxBuildHeight c <= 256
               then Right c
               else Left "Error: Invalid Max Build Height!"
+
       let hasValidMaxPlayers c =
             if (srvMaxPlayers c < (maxBound :: Int32)) && (srvMaxPlayers c >= 0)
               then Right c
               else Left "Error: Invalid Max Players!"
-      return $ (hasValidViewDistance >=> hasValidMaxBuildHeight >=> hasValidMaxPlayers) shadyConfig
+
+      return $ (hasValidViewDistance >=> hasValidMaxBuildHeight >=> hasValidMaxPlayers) rawConfig
 
 
 configEncryption :: IO Encryption

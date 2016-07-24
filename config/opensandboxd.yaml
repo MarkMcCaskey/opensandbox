@@ -1,9 +1,9 @@
 port: 25567
-rootPath: "."
-configPath: "configs"
-backupPath: "backups"
-logPath: "logs"
-worldPath: "world"
+rootDir: "/home/oldmanmike/opensandbox"
+configDir: "configs"
+backupDir: "backups"
+logDir: "logs"
+worldDir: "world"
 mcVersion: "1.10"
 maxPlayers: 20
 viewDistance: 10
@@ -13,4 +13,6 @@ dimension: "Overworld"
 difficulty: "Normal"
 worldType: "Flat"
 motd: "A OpenSandbox Server"
+encryption: false
+compression: false
 enabled: true
