@@ -11,6 +11,7 @@
 -------------------------------------------------------------------------------
 module OpenSandbox.Config
   ( Config (..)
+  , writeDefaultConfig
   , genDefaultConfig
   , configEncryption
   , loadConfig
@@ -35,7 +36,7 @@ import            Path
 
 data Config = Config
   { srvPort             :: Int
-  , srvRootDir          :: Maybe (Path Abs Dir)
+  , srvRootDir          :: (Path Abs Dir)
   , srvConfigDir        :: (Path Rel Dir)
   , srvBackupDir        :: (Path Rel Dir)
   , srvLogDir           :: (Path Rel Dir)
@@ -101,16 +102,21 @@ instance FromJSON Config where
   parseJSON _ = mzero
 
 
-genDefaultConfig :: FilePath -> IO ()
-genDefaultConfig path = do
+writeDefaultConfig :: FilePath -> Config -> IO ()
+writeDefaultConfig path c = encodeFile path c
+
+
+genDefaultConfig :: IO Config
+genDefaultConfig = do
+  defaultRootDir <- parseAbsDir "/srv/opensandbox"
   defaultConfigDir <- parseRelDir "configs"
   defaultBackupDir <- parseRelDir "backups"
   defaultLogDir <- parseRelDir "logs"
   defaultWorldDir <- parseRelDir "world"
-  encodeFile path $
+  return $
     Config
       { srvPort             = 25565
-      , srvRootDir          = Nothing
+      , srvRootDir          = defaultRootDir
       , srvConfigDir        = defaultConfigDir
       , srvBackupDir        = defaultBackupDir
       , srvLogDir           = defaultLogDir
