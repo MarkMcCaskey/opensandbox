@@ -46,6 +46,7 @@ library
                             conduit-extra,
                             containers,
                             cryptonite,
+                            deepseq,
                             directory,
                             exceptions,
                             fast-logger,
