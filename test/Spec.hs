@@ -217,16 +217,16 @@ instance Arbitrary OtherWorldChunkSection where
                 <*> (fmap B.pack $ vectorOf 2048 (arbitrary :: Gen Word8))
 
 
-instance Arbitrary DifficultyField where
+instance Arbitrary Difficulty where
   arbitrary = fmap toEnum (choose (0,3) :: Gen Int)
 
 
-instance Arbitrary GameModeField where
-  arbitrary = elements [SurvivalField,CreativeField,AdventureField,SpectatorField]
+instance Arbitrary GameMode where
+  arbitrary = elements [Survival,Creative,Adventure,Spectator]
 
 
-instance Arbitrary DimensionField where
-  arbitrary = elements [OverworldField,NetherField,EndField]
+instance Arbitrary Dimension where
+  arbitrary = elements [Overworld,Nether,End]
 
 
 instance Arbitrary WorldType where
@@ -240,7 +240,7 @@ instance Arbitrary Statistic where
     return $ Statistic a b
 
 
-instance Arbitrary NextState where
+instance Arbitrary ProtocolState where
   arbitrary = do
     switch <- choose (1,2) :: Gen Int
     case switch of
