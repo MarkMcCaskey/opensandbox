@@ -1,6 +1,6 @@
 -------------------------------------------------------------------------------
 -- |
--- Module       : OpenSandbox.Protocol
+-- Module       : OpenSandbox.Data.Protocol
 -- Copyright    : (c) 2016 Michael Carpenter
 -- License      : GPL3
 -- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
@@ -8,10 +8,10 @@
 -- Portability  : portable
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Protocol
-  ( module OpenSandbox.Protocol.Packet
-  , module OpenSandbox.Protocol.Types
+module OpenSandbox.Data.Protocol
+  ( module OpenSandbox.Data.Protocol.Packet
+  , module OpenSandbox.Data.Protocol.Types
   ) where
 
-import OpenSandbox.Protocol.Packet
-import OpenSandbox.Protocol.Types
+import OpenSandbox.Data.Protocol.Packet
+import OpenSandbox.Data.Protocol.Types

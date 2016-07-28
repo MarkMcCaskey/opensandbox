@@ -27,12 +27,11 @@ library
                             OpenSandbox.Data.Entity
                             OpenSandbox.Data.Instrument
                             OpenSandbox.Data.Item
+                            OpenSandbox.Data.Protocol
+                            OpenSandbox.Data.Protocol.Packet
+                            OpenSandbox.Data.Protocol.Types
                             OpenSandbox.Logger
                             OpenSandbox.Network
-                            OpenSandbox.Protocol
-                            OpenSandbox.Protocol.Packet
-                            OpenSandbox.Protocol.Types
-                            OpenSandbox.Types
                             OpenSandbox.User
                             OpenSandbox.Version
                             OpenSandbox.World
@@ -58,6 +57,7 @@ library
                             old-locale,
                             optparse-applicative,
                             path,
+                            QuickCheck,
                             scientific,
                             stm,
                             text,

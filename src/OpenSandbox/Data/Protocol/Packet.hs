@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 -------------------------------------------------------------------------------
 -- |
--- Module       : OpenSandbox.Protocol.Packet
+-- Module       : OpenSandbox.Data.Protocol.Packet
 -- Copyright    : (c) 2016 Michael Carpenter
 -- License      : GPL3
 -- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
@@ -12,7 +12,7 @@
 -- Portability  : portable
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Protocol.Packet
+module OpenSandbox.Data.Protocol.Packet
   ( SBHandshaking (..)
   , CBStatus (..)
   , SBStatus (..)
@@ -50,7 +50,7 @@ import            Data.UUID
 import qualified  Data.Vector as V
 import            Data.Word
 
-import            OpenSandbox.Protocol.Types
+import            OpenSandbox.Data.Protocol.Types
 
 debugNetCode :: CBPlay -> IO ()
 debugNetCode packet = do
@@ -72,7 +72,7 @@ debugNetCode packet = do
 data SBHandshaking
   -- | __Handshake:__
   -- This causes the server to switch into the target state.
-  = SBHandshake VarInt T.Text Short NextState
+  = SBHandshake VarInt T.Text Short ProtocolState
   -- | __Legacy Server List Ping:__
   -- While not technically part of the current protocol, legacy clients may send this packet to initiate Server List Ping, and modern servers should handle it correctly.
   | SBLegacyServerListPing
@@ -336,7 +336,7 @@ data CBPlay
 
   -- | __Server Difficulty:__
   -- Changes the difficulty setting in the client's option menu.
-  | CBServerDifficulty DifficultyField
+  | CBServerDifficulty Difficulty
 
   -- | __Tab-Complete:__
   -- The server responds with a list of auto-completions of the
@@ -510,7 +510,7 @@ data CBPlay
 
   -- | __Respawn:__
   -- To change the player's dimension (overworld/nether/end), send them a respawn packet with the appropriate dimension, followed by prechunks/chunks for the new dimension, and finally a position and look packet. You do not need to unload chunks, the client will do it automatically.
-  | CBRespawn DimensionField DifficultyField GameModeField T.Text
+  | CBRespawn Dimension Difficulty GameMode T.Text
 
   -- | __Entity Head Look:__
   -- Changes the direction an entity's head is facing.

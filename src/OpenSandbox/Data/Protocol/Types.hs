@@ -6,7 +6,7 @@
 {-# OPTIONS_GHC -fno-warn-unused-matches #-}
 -------------------------------------------------------------------------------
 -- |
--- Module       : OpenSandbox.Protocol.Types
+-- Module       : OpenSandbox.Data.Protocol.Types
 -- Copyright    : (c) 2016 Michael Carpenter
 -- License      : GPL3
 -- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
@@ -14,15 +14,18 @@
 -- Portability  : portable
 --
 -------------------------------------------------------------------------------
-module OpenSandbox.Protocol.Types
-  ( Chat
+module OpenSandbox.Data.Protocol.Types
+  ( Encryption (..)
+  , Compression (..)
+  , WorldType (..)
+  , Chat
   , Short
   , Angle
   , Position
-  , NextState (..)
-  , DifficultyField (..)
-  , DimensionField (..)
-  , GameModeField (..)
+  , ProtocolState (..)
+  , Difficulty (..)
+  , Dimension (..)
+  , GameMode (..)
   , Animation (..)
   , BlockAction (..)
   , InstrumentType (..)
@@ -130,8 +133,9 @@ module OpenSandbox.Protocol.Types
   , debugNetCodeType
   ) where
 
-import            Prelude hiding (max)
+import            Control.DeepSeq
 import            Control.Monad.ST (runST,ST)
+import            Crypto.PubKey.RSA
 import            Data.Aeson as Aeson
 import qualified  Data.Attoparsec.ByteString as Decode
 import            Data.Array.MArray (MArray,readArray,newArray)
@@ -155,7 +159,7 @@ import            Data.UUID
 import qualified  Data.Vector as V
 import            Data.Word
 import            GHC.Generics
-import            OpenSandbox.Types
+import            OpenSandbox.Data.Block (BlockID)
 import            Prelude hiding (max)
 
 
@@ -175,6 +179,28 @@ debugNetCodeType isOverworld packet = do
   putStrLn $ "Should be:"
   putStrLn $ show (Right packet :: Either String ChunkSections)
   putStrLn "==================================================================="
+
+data WorldType = Default | Flat | LargeBiomes | Amplified
+  deriving (Eq,Enum,Generic)
+
+instance Show WorldType where
+  show Default = "default"
+  show Flat = "flat"
+  show LargeBiomes = "largeBiomes"
+  show Amplified = "amplified"
+
+instance ToJSON WorldType
+instance FromJSON WorldType
+
+data Compression = Everything | Int
+  deriving (Show,Eq)
+
+data Encryption = Encryption
+  { getCert         :: B.ByteString
+  , getPubKey       :: PublicKey
+  , getPrivKey      :: PrivateKey
+  , getVerifyToken  :: B.ByteString
+  } deriving (Show,Eq)
 
 -------------------------------------------------------------------------------
 -- | Core Protocol Types
@@ -321,6 +347,14 @@ decodeVarLong = do
         then go (n+7) (val .|. ((fromIntegral (w' .&. 0x7F)) `shiftL` n))
         else return (val .|. ((fromIntegral w') `shiftL` n))
 
+encodeBlockState :: BlockID -> Word8 -> Encode.Builder
+encodeBlockState bid metadata = encodeVarInt (((fromEnum bid) `shiftL` 4) .|. ((fromEnum metadata) .&. 0xF))
+
+decodeBlockState :: Decode.Parser (BlockID,Word8)
+decodeBlockState = do
+  raw <- decodeVarInt
+  return (toEnum (raw `shiftR` 4), toEnum (raw .&. 0xF))
+
 data ChunkSections
   = OverWorldChunkSections !(V.Vector OverWorldChunkSection)
   | OtherWorldChunkSections !(V.Vector OtherWorldChunkSection)
@@ -343,7 +377,6 @@ data OverWorldChunkSection = OverWorldChunkSection !Word8 !(V.Vector Int) !(V.Ve
 
 data OtherWorldChunkSection = OtherWorldChunkSection !Word8 !(V.Vector Int) !(V.Vector Int64) !B.ByteString
   deriving (Show,Eq)
-
 
 encodeOverWorldChunkSection :: OverWorldChunkSection -> Encode.Builder
 encodeOverWorldChunkSection (OverWorldChunkSection bpb pal datArr bLight sLight) =
@@ -374,7 +407,6 @@ decodeOverWorldChunkSection = do
   blockLight <- Decode.take 2048
   skyLight <- Decode.take 2048
   return $ OverWorldChunkSection bitsPerBlock palette dataArray blockLight skyLight
-
 
 decodeOtherWorldChunkSection :: Decode.Parser OtherWorldChunkSection
 decodeOtherWorldChunkSection = do
@@ -509,7 +541,6 @@ decodeUUID = do
     Just uuid -> return uuid
     Nothing   -> fail "Error: Could not decode UUID!"
 
-
 encodeUUID' :: UUID -> Encode.Builder
 encodeUUID' u = Encode.lazyByteString (toByteString u)
 
@@ -632,34 +663,40 @@ data BossBarAction
   | BossBarUpdateFlags !Word8
   deriving (Show,Eq)
 
--- DifficultyField
-data DifficultyField = PeacefulField | EasyField | NormalField | HardField
+-- Difficulty
+data Difficulty = Peaceful | Easy | Normal | Hard
   deriving (Show,Enum,Eq,Generic)
 
-instance FromJSON DifficultyField
-instance ToJSON DifficultyField
+instance FromJSON Difficulty
+instance ToJSON Difficulty
+instance NFData Difficulty
 
--- DimensionField
-data DimensionField = OverworldField | NetherField | EndField
+-- Dimension
+data Dimension = Overworld | Nether | End
   deriving (Show,Eq,Generic)
 
-instance Enum DimensionField where
-    fromEnum OverworldField = 0
-    fromEnum NetherField = -1
-    fromEnum EndField = 1
-    toEnum 0 = OverworldField
-    toEnum (-1) = NetherField
-    toEnum 1 = EndField
+instance Enum Dimension where
+    fromEnum Overworld = 0
+    fromEnum Nether = -1
+    fromEnum End = 1
+    toEnum 0 = Overworld
+    toEnum (-1) = Nether
+    toEnum 1 = End
 
--- GameModeField
-data GameModeField = SurvivalField | CreativeField | AdventureField | SpectatorField
+instance ToJSON Dimension
+instance FromJSON Dimension
+instance NFData Dimension
+
+-- GameMode
+data GameMode = Survival | Creative | Adventure | Spectator
   deriving (Show,Enum,Eq,Generic)
 
-instance FromJSON GameModeField
-instance ToJSON GameModeField
+instance FromJSON GameMode
+instance ToJSON GameMode
+instance NFData GameMode
 
--- NextState
-data NextState = ProtocolHandshake | ProtocolStatus | ProtocolLogin | ProtocolPlay
+-- ProtocolState
+data ProtocolState = ProtocolHandshake | ProtocolStatus | ProtocolLogin | ProtocolPlay
   deriving (Show,Eq,Enum)
 
 data UpdateBlockEntityAction
@@ -937,10 +974,10 @@ data PlayerListEntries
   | PlayerListRemovePlayers (V.Vector PlayerListRemovePlayer)
   deriving (Show,Eq)
 
-data PlayerListAdd = PlayerListAdd !UUID !T.Text !(V.Vector PlayerProperty) !GameModeField !Int !(Maybe T.Text)
+data PlayerListAdd = PlayerListAdd !UUID !T.Text !(V.Vector PlayerProperty) !GameMode !Int !(Maybe T.Text)
   deriving (Show,Eq)
 
-data PlayerListUpdateGameMode = PlayerListUpdateGameMode !UUID !GameModeField
+data PlayerListUpdateGameMode = PlayerListUpdateGameMode !UUID !GameMode
   deriving (Show,Eq)
 
 data PlayerListUpdateLatency = PlayerListUpdateLatency !UUID !Int

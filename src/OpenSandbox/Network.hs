@@ -14,7 +14,6 @@ module OpenSandbox.Network
   ( runOpenSandboxServer
   ) where
 
-import            Debug.Trace
 import            Control.Concurrent (threadDelay)
 import            Control.Monad
 import            Control.Monad.IO.Class
@@ -36,15 +35,14 @@ import qualified  Data.Vector as V
 
 import            OpenSandbox.Config
 import            OpenSandbox.Logger
-import            OpenSandbox.Protocol
-import            OpenSandbox.Types
+import            OpenSandbox.Data.Protocol
 import            OpenSandbox.Version
 import            OpenSandbox.World
 
 runOpenSandboxServer :: Config -> Logger -> Encryption -> IO ()
 runOpenSandboxServer config logger encryption =
     runTCPServer (serverSettings (srvPort config) "*") $ \app -> do
-      firstState <- flip execStateT Handshake
+      firstState <- flip execStateT ProtocolHandshake
         $ packetSource app
         $$ deserializeHandshaking
         =$= handleHandshaking config logger
@@ -53,34 +51,34 @@ runOpenSandboxServer config logger encryption =
         =$= packetSink app
       writeTo logger Debug "Somebody's handshaking!"
       case firstState of
-        Status -> do
+        ProtocolStatus -> do
           writeTo logger Debug "Beginning Status handling..."
-          secondState <- flip execStateT Status
+          secondState <- flip execStateT ProtocolStatus
             $ packetSource app
             $$ deserializeStatus
             =$= handleStatus config logger
             =$= serializeStatus
             =$= packetSink app
           writeTo logger Debug "Somebody's pinging!"
-          _ <- flip execStateT Status
+          _ <- flip execStateT ProtocolStatus
             $ packetSource app
             $$ deserializeStatus
             =$= handleStatus config logger
             =$= serializeStatus
             =$= packetSink app
           return ()
-        Login -> do
+        ProtocolLogin -> do
           writeTo logger Debug "Beginning Login handling..."
-          thirdState <- flip execStateT Login
+          thirdState <- flip execStateT ProtocolLogin
             $ packetSource app
             $$ deserializeLogin
             =$= handleLogin logger
             =$= serializeLogin
             =$= packetSink app
-          if thirdState == Play
+          if thirdState == ProtocolPlay
             then do
               writeTo logger Debug "Beginning Play handling..."
-              void $ flip execStateT Play
+              void $ flip execStateT ProtocolPlay
                 $ packetSource app
                 $$ deserializePlay
                 =$= handlePlay config logger
@@ -206,13 +204,13 @@ handleHandshaking config logger = do
           return ()
         Right ((SBHandshake _ _ _ ProtocolStatus),status) -> do
           liftIO $ writeTo logger Debug $ "Switching protocol state to STATUS"
-          lift $ put Status
+          lift $ put ProtocolStatus
           case status of
             Nothing -> return ()
             Just status' -> yield (Right status')
         Right ((SBHandshake _ _ _ ProtocolLogin),_) -> do
           liftIO $ writeTo logger Debug $ "Switching protocol state to LOGIN"
-          lift $ put Login
+          lift $ put ProtocolLogin
           return ()
         Right (SBLegacyServerListPing,_)-> do
           return ()
@@ -257,7 +255,7 @@ handleLogin logger = do
         Right (SBLoginStart username) -> do
           someUUID <- liftIO nextRandom
           liftIO $ writeTo logger Debug $ "Switching protocol state to PLAY"
-          lift $ put Play
+          lift $ put ProtocolPlay
           let loginSuccess = CBLoginSuccess someUUID username
           liftIO $ writeTo logger Debug $ "Sending: " ++ show loginSuccess
           yield loginSuccess
@@ -315,7 +313,7 @@ handlePlay config logger = do
   --liftIO $ writeTo logger Debug $ "Sending: " ++ show statisticsPacket
   yield statisticsPacket
 
-  let testAction = PlayerListAdd someUUID "oldmanmike" [] SurvivalField 0 Nothing
+  let testAction = PlayerListAdd someUUID "oldmanmike" [] Survival 0 Nothing
   let playerListItemPacket = CBPlayerListItem (PlayerListAdds [testAction])
   --liftIO $ writeTo logger Debug $ "Sending: " ++ show playerListItemPacket
   yield playerListItemPacket

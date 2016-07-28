@@ -6,10 +6,10 @@ module OpenSandbox.World
 import            Data.Bits
 import qualified  Data.ByteString as B
 import            Data.Int
-import            Data.List
 import qualified  Data.Vector as V
-import            OpenSandbox.Protocol
-import            OpenSandbox.Types
+import            Data.Word
+import            OpenSandbox.Data.Protocol
+import            OpenSandbox.Data.Block
 
 genFlatWorld :: Int32 -> [CBPlay]
 genFlatWorld radius = [chunkDataPacket1 x z | x <- [(-radius)..radius], z <- [(-radius)..radius]]

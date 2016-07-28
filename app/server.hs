@@ -63,7 +63,9 @@ main = do
     case potentialConfig of
         Left err -> print err
         Right baseConfig -> do
+
           encryption <- configEncryption
+
           (logFilePath,config) <-
             case getCustomLogDir args of
               Nothing -> do
