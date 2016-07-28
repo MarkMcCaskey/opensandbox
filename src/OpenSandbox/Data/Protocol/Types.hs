@@ -152,7 +152,6 @@ import            Data.Monoid
 import            Data.NBT.Encode (encodeNBT)
 import            Data.NBT.Decode (decodeNBT)
 import            Data.NBT.Types (NBT (..), NamelessNBT (..),NBTList (..),TagType(..))
-import            Data.Serialize (encode,decode)
 import qualified  Data.Text as T
 import            Data.Text.Encoding
 import            Data.UUID
