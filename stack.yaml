@@ -2,7 +2,7 @@ flags: {}
 packages:
 - '.'
 - location:
-    git: git@github.com:oldmanmike/hs-minecraft-nbt
+    git: http://github.com/oldmanmike/hs-minecraft-nbt
     commit: 8be84de612278c73e99858b1eeceaeafeafcfa04
 extra-deps: [thyme-0.3.5.5]
 resolver: nightly-2016-06-30
