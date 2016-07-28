@@ -12,10 +12,6 @@
 -------------------------------------------------------------------------------
 module OpenSandbox.Types
   ( ProtocolState (..)
-  , BoundingBox (..)
-  , Material (..)
-  , Variation (..)
-  , Drop (..)
   , Dimension (..)
   , Difficulty (..)
   , GameMode (..)
@@ -31,34 +27,6 @@ import qualified  Data.Text as T
 import            GHC.Generics
 
 data ProtocolState = Handshake | Status | Login | Play deriving (Show,Eq)
-
-
-data BoundingBox = BoundAsBlock | BoundAsEmpty deriving (Show,Eq)
-
-data Material
-  = Rock
-  | Wood
-  | Plant
-  | Melon
-  | Leaves
-  | Dirt
-  | Web
-  | Wool
-  deriving (Show,Eq)
-
-
-data Variation = Variation
-    { variantMetadata       :: Int
-    , variantDisplayName    :: T.Text
-    } deriving (Show,Eq)
-
-
-data Drop = Drop
-    { dropID        :: Int
-    , dropMinCount  :: Maybe Int
-    , dropMaxCount  :: Maybe Int
-    , dropMetadata  :: Int
-    } deriving (Show,Eq)
 
 
 data Dimension = Overworld | Nether | End

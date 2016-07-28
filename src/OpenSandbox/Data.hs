@@ -11,7 +11,15 @@
 module OpenSandbox.Data
   ( module OpenSandbox.Data.Biome
   , module OpenSandbox.Data.Block
+  , module OpenSandbox.Data.Effect
+  , module OpenSandbox.Data.Entity
+  , module OpenSandbox.Data.Instrument
+  , module OpenSandbox.Data.Item
   ) where
 
 import OpenSandbox.Data.Biome
 import OpenSandbox.Data.Block
+import OpenSandbox.Data.Effect
+import OpenSandbox.Data.Entity
+import OpenSandbox.Data.Instrument
+import OpenSandbox.Data.Item

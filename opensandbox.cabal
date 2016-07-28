@@ -23,6 +23,10 @@ library
                             OpenSandbox.Data
                             OpenSandbox.Data.Biome
                             OpenSandbox.Data.Block
+                            OpenSandbox.Data.Effect
+                            OpenSandbox.Data.Entity
+                            OpenSandbox.Data.Instrument
+                            OpenSandbox.Data.Item
                             OpenSandbox.Logger
                             OpenSandbox.Network
                             OpenSandbox.Protocol
@@ -54,10 +58,12 @@ library
                             old-locale,
                             optparse-applicative,
                             path,
+                            scientific,
                             stm,
                             text,
                             thyme,
                             transformers,
+                            unordered-containers,
                             uuid,
                             vector,
                             x509,
@@ -70,6 +76,7 @@ executable server
     ghc-options:            -Wall -threaded -O2 -rtsopts -with-rtsopts=-N
     build-depends:          aeson,
                             base,
+                            bytestring,
                             directory,
                             opensandbox,
                             path,

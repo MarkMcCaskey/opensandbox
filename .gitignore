@@ -23,8 +23,12 @@ style.css
 cache/
 logs/
 spec/
+data/
 
 # Private Minecraft server files used for testing
 *.properties
 *.log
 *.log.gz
+
+# Development stuff
+minecraft-data/

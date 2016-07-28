@@ -1,247 +1,476 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE OverloadedStrings #-}
+-------------------------------------------------------------------------------
+-- |
+-- Module       : OpenSandbox.Data.Block
+-- Copyright    : (c) 2016 Michael Carpenter
+-- License      : GPL3
+-- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
+-- Stability    : experimental
+-- Portability  : portable
+--
+-------------------------------------------------------------------------------
 module OpenSandbox.Data.Block
-  ( BlockID (..)
+  ( Block (..)
+  , BlockID (..)
+  , Half (..)
+  , Axis (..)
+  , Facing4 (..)
+  , Facing5 (..)
+  , Facing6 (..)
+  , AnvilDamage (..)
+  , BannerStanding (..)
+  , BedPart (..)
+  , BeetrootAge (..)
+  , CactusAge (..)
+  , CakeBites (..)
+  , Color (..)
+  , CarrotAge (..)
+  , CauldronLevel (..)
+  , ChorusFlowerAge (..)
+  , CobblestoneWallVariant (..)
+  , CocoaAge (..)
+  , DaylightSensorPower (..)
+  , DirtVariant (..)
+  , DoorHalf (..)
+  , DoorHinge (..)
+  , FarmlandMoisture (..)
+  , FireAge (..)
+  , RedFlowersType (..)
+  , YellowFlowersType (..)
+  , FlowerPotContents (..)
+  , FrostedIceAge (..)
+  , GrassType (..)
+  , HopperFacing (..)
+  , FluidLevel (..)
+  , LeavesVariant (..)
+  , Leaves2Variant (..)
+  , LeverFacing (..)
+  , MelonStemAge (..)
+  , MonsterEggVariant (..)
+  , MushroomVariant (..)
+  , NetherWartAge (..)
+  , PistonHeadType (..)
+  , NetherPortalAxis (..)
+  , PotatoAge (..)
+  , PrismarineVariant (..)
+  , PumpkinStemAge (..)
+  , QuartzVariant (..)
+  , RailShape (..)
+  , UtilityRailShape (..)
+  , RedSandstoneType (..)
+  , ComparatorMode (..)
+  , RedstonePower (..)
+  , RedstoneRepeaterDelay (..)
+  , SandVariant (..)
+  , SandstoneType (..)
+  , SaplingType (..)
+  , SignStandingRotation
+  , StoneSlabVariant (..)
+  , StoneSlab2Variant (..)
+  , WoodenSlabVariant (..)
+  , PurpurSlabVariant (..)
+  , DoubleStoneSlabVariant (..)
+  , DoubleWoodenSlabVariant (..)
+  , PurpurDoubleSlabVariant (..)
+  , SnowLayers (..)
+  , StairShape (..)
+  , StoneVariant (..)
+  , StoneBrickVariant (..)
+  , StructureBlockMode (..)
+  , SugarCaneAge (..)
+  , DoublePlantVariant (..)
+  , WeightedPressurePlatePower (..)
+  , WheatAge (..)
+  , LogAxis (..)
+  , LogVariant (..)
+  , Log2Variant (..)
+  , WoodPlanksVariant (..)
+  , RedSandstoneSlabs (..)
   ) where
 
+import            Data.Aeson
+import            Data.Aeson.Types
+import qualified  Data.Attoparsec.Text as A
+import            Data.Data
+import qualified  Data.HashMap.Strict as H
+import            Data.Scientific
+import            Data.Text as T
+import            Data.Typeable
+import            Data.Word
 import            Control.DeepSeq
 import            GHC.Generics (Generic)
+import            Prelude hiding (id)
+
+data Block = Block
+  { id            :: Word32
+  , displayName   :: Text
+  , name          :: Text
+  , hardness      :: Double
+  , stackSize     :: Word8
+  , diggable      :: Bool
+  , material      :: Maybe Material
+  , harvestTools  :: Maybe [Word32]
+  , drops         :: [Drop]
+  , transparent   :: Bool
+  , emitLight     :: Word8
+  , filterLight   :: Word8
+  } deriving (Show,Eq,Generic,Data,Typeable)
+
+instance FromJSON Block where
+  parseJSON (Object v) = Block
+      <$> v .: "id"
+      <*> v .: "displayName"
+      <*> v .: "name"
+      <*> v .: "hardness"
+      <*> v .: "stackSize"
+      <*> v .: "diggable"
+      <*> v .:? "material"
+      <*> (fmap . fmap) extractIds (v .:? "harvestTools" :: Parser (Maybe Object))
+      <*> v .: "drops"
+      <*> v .: "transparent"
+      <*> v .: "emitLight"
+      <*> v .: "filterLight"
+    where
+    extractIds obj = case sequence (fmap extractId (H.keys obj)) of
+                      Left err -> fail err
+                      Right lst -> lst
+    extractId x = (A.parseOnly A.decimal x :: Either String Word32)
+  parseJSON x = typeMismatch "Block" x
+
+instance NFData Block
+
+data Material
+  = Material_Rock
+  | Material_Dirt
+  | Material_Wood
+  | Material_Plant
+  | Material_Leaves
+  | Material_Web
+  | Material_Wool
+  deriving (Show,Eq,Generic,Data,Typeable)
+
+instance FromJSON Material where
+  parseJSON (String s) =
+    case s of
+      "rock" -> return Material_Rock
+      "dirt" -> return Material_Dirt
+      "wood" -> return Material_Wood
+      "plant" -> return Material_Plant
+      "leaves" -> return Material_Leaves
+      "web" -> return Material_Web
+      "wool" -> return Material_Wool
+      x       -> fail $ "ERROR => Aeson => failed to pattern match text to Material: " ++ show x
+
+  parseJSON x = typeMismatch ("ERROR => Aeson => Material => not a String, got " ++ show x) x
+
+instance NFData Material
+
+data Drop = Drop
+  { drop      :: DropEntry
+  , minCount  :: Maybe Word8
+  , maxCount  :: Maybe Word8
+  } deriving (Show,Eq,Ord,Generic,Data,Typeable)
+
+instance FromJSON Drop
+instance NFData Drop
+
+newtype DropEntry = DropEntry (Either Word32 DropBody)
+  deriving (Show,Eq,Ord,Generic,Data,Typeable)
+
+instance FromJSON DropEntry where
+  parseJSON (Number n) = return $ DropEntry . Left . toEnum . base10Exponent $ n
+  parseJSON (Object o) = fmap (DropEntry . Right) $ DropBody
+    <$> o .: "id"
+    <*> o .: "metadata"
+
+instance NFData DropEntry
+
+data DropBody = DropBody
+  { id        :: Word32
+  , metadata  :: Word32
+  } deriving (Show,Eq,Ord,Generic,Data,Typeable)
+
+instance FromJSON DropBody
+instance NFData DropBody
 
 data BlockID
-  = BlockIDAir
-  | BlockIDStone StoneVariant
-  | BlockIDGrass Snowy GrassType
-  | BlockIDDirt Snowy DirtVariant
-  | BlockIDCobblestone
-  | BlockIDWoodPlanks WoodPlanksVariant
-  | BlockIDSapling SaplingStage SaplingType
-  | BlockIDBedrock
-  | BlockIDFlowingWater FluidLevel
-  | BlockIDWater FluidLevel
-  | BlockIDFlowingLava FluidLevel
-  | BlockIDLava FluidLevel
-  | BlockIDSand SandVariant
-  | BlockIDGravel
-  | BlockIDGoldOre
-  | BlockIDIronOre
-  | BlockIDCoalOre
-  | BlockIDLog LogAxis LogVariant
-  | BlockIDLeaves Bool Bool LeavesVariant
-  | BlockIDSponge SpongeWet
-  | BlockIDGlass
-  | BlockIDLapisOre
-  | BlockIDLapisBlock
-  | BlockIDDispenser DispenserFacing Bool
-  | BlockIDSandstone SandstoneType
-  | BlockIDNoteblock
-  | BlockIDBed Facing Occupied BedPart
-  | BlockIDGoldenRail Bool UtilityRailShape
-  | BlockIDDetectorRail Bool UtilityRailShape
-  | BlockIDStickyPiston Bool PistonFacing
-  | BlockIDWeb
-  | BlockIDTallgrass GrassType
-  | BlockIDDeadbush
-  | BlockIDPiston Bool PistonFacing
-  | BlockIDPistonHead PistonHeadFacing Bool PistonHeadType
-  | BlockIDWool Color
-  | BlockIDPistonExtension Bool PistonExtensionFacing
-  | BlockIDYellowFlower
-  | BlockIDRedFlower RedFlowersType
-  | BlockIDBrownMushroom
-  | BlockIDRedMushroom
-  | BlockIDGoldBlock
-  | BlockIDIronBlock
-  | BlockIDDoubleStoneSlab Bool DoubleStoneSlabVariant
-  | BlockIDStoneSlab Bool StoneSlabVariant
-  | BlockIDBrickBlock
-  | BlockIDTNT Bool
-  | BlockIDBookshelf
-  | BlockIDMossyCobblestone
-  | BlockIDObsidian
-  | BlockIDTorch TorchFacing
-  | BlockIDFire FireAge Bool Bool Bool Bool Bool
-  | BlockIDMobSpawner
-  | BlockIDOakStairs Facing Half StairShape
-  | BlockIDChest Facing
-  | BlockIDRedstoneWire RedstonePower
-  | BlockIDDiamondOre
-  | BlockIDDiamondBlock
-  | BlockIDCraftingTable
-  | BlockIDWheat WheatAge
-  | BlockIDFarmland FarmlandMoisture
-  | BlockIDFurnace Facing
-  | BlockIDLitFurnace Facing
-  | BlockIDStandingSign SignStandingRotation
-  | BlockIDWoodenDoor Facing DoorHalf DoorHinge Bool Bool
-  | BlockIDLadder Facing
-  | BlockIDRail RailShape
-  | BlockIDStoneStairs Facing Half StairShape
-  | BlockIDWallSign Facing
-  | BlockIDLever LeverFacing Bool
-  | BlockIDStonePressurePlate Bool
-  | BlockIDIronDoor Facing DoorHalf DoorHinge Bool Bool
-  | BlockIDWoodenPressurePlate Bool
-  | BlockIDRedstoneOre
-  | BlockIDLitRedstoneOre TorchFacing
-  | BlockIDUnlitRedstoneTorch TorchFacing
-  | BlockIDRedstoneTorch TorchFacing
-  | BlockIDStoneButton ButtonFacing Bool
-  | BlockIDSnowLayer SnowLayers
-  | BlockIDIce
-  | BlockIDSnow
-  | BlockIDCactus CactusAge
-  | BlockIDClay
-  | BlockIDReeds SugarCaneAge
-  | BlockIDJukebox Bool
-  | BlockIDFence
-  | BlockIDPumpkin Facing
-  | BlockIDNetherrack
-  | BlockIDSoulSand
-  | BlockIDGlowstone
-  | BlockIDPortal
-  | BlockIDLitPumpkin Facing
-  | BlockIDCake CakeBites
-  | BlockIDUnpoweredRepeater RedstoneRepeaterDelay Facing Bool
-  | BlockIDPoweredRepeater RedstoneRepeaterDelay Facing Bool
-  | BlockIDStainedGlass Color
-  | BlockIDTrapdoor Facing Half Bool
-  | BlockIDMonsterEgg MonsterEggVariant
-  | BlockIDStoneBrick StoneBrickVariant
-  | BlockIDBrownMushroomBlock MushroomVariant
-  | BlockIDRedMushroomBlock MushroomVariant
-  | BlockIDIronBars
-  | BlockIDGlassPane
-  | BlockIDMelonBlock
-  | BlockIDPumpkinStem PumpkinStemAge PumpkinStemFacing
-  | BlockIDMelonStem MelonStemAge MelonStemFacing
-  | BlockIDVine Bool Bool Bool Bool Bool
-  | BlockIDFenceGate Facing Bool Bool Bool
-  | BlockIDBrickStairs Facing Half StairShape
-  | BlockIDStoneBrickStairs Facing Half StairShape
-  | BlockIDMycelium
-  | BlockIDWaterlily
-  | BlockIDNetherBrick
-  | BlockIDNetherBrickFence
-  | BlockIDNetherBrickStairs Facing Half StairShape
-  | BlockIDNetherWart NetherWartAge
-  | BlockIDEnchantingTable
-  | BlockIDBrewingStand Bool Bool Bool
-  | BlockIDCauldron CauldronLevel
-  | BlockIDEndPortal
-  | BlockIDEndPortalFrame Bool Facing
-  | BlockIDEndStone
-  | BlockIDDragonEgg
-  | BlockIDRedstoneLamp
-  | BlockIDLitRedstoneLamp
-  | BlockIDDoubleWoodenSlab DoubleWoodenSlabVariant
-  | BlockIDWoodenSlab Half WoodenSlabVariant
-  | BlockIDCocoa CocoaAge Facing
-  | BlockIDSandstoneStairs Facing Half StairShape
-  | BlockIDEmeraldOre
-  | BlockIDEnderChest Facing
-  | BlockIDTripwireHook Bool Facing Bool
-  | BlockIDTripwire Bool Bool Bool Bool Bool Bool Bool
-  | BlockIDEmeraldBlock
-  | BlockIDSpruceStairs Facing Half StairShape
-  | BlockIDBirchStairs Facing Half StairShape
-  | BlockIDJungleStairs Facing Half StairShape
-  | BlockIDCommandBlock Bool CommandBlockFacing
-  | BlockIDBeacon
-  | BlockIDCobblestoneWall Bool Bool Bool Bool Bool CobblestoneWallVariant
-  | BlockIDFlowerPot FlowerPotContents
-  | BlockIDCarrots CarrotAge
-  | BlockIDPotatoes PotatoAge
-  | BlockIDWoodenButton ButtonFacing Bool
-  | BlockIDSkull SkullFacing Bool
-  | BlockIDAnvil AnvilDamage Facing
-  | BlockIDTrappedChest Facing
-  | BlockIDLightWeightedPressurePlate WeightedPressurePlatePower
-  | BlockIDHeavyWeightedPressurePlate WeightedPressurePlatePower
-  | BlockIDUnpoweredComparator Facing ComparatorMode Bool
-  | BlockIDPoweredComparator Facing ComparatorMode Bool
-  | BlockIDDaylightDetector DaylightSensorPower
-  | BlockIDRedstoneBlock
-  | BlockIDQuartzOre
-  | BlockIDHopper Bool HopperFacing
-  | BlockIDQuartzBlock QuartzVariant
-  | BlockIDQuartzStairs Facing Half StairShape
-  | BlockIDActivatorRail Bool UtilityRailShape
-  | BlockIDDropper DropperFacing Bool
-  | BlockIDStainedHardenedClay Color
-  | BlockIDStainedGlassPane Color Bool Bool Bool Bool
-  | BlockIDLeaves2 Bool Bool Leaves2Variant
-  | BlockIDLog2 LogAxis Log2Variant
-  | BlockIDAcaciaStairs Facing Half StairShape
-  | BlockIDDarkOakStairs Facing Half StairShape
-  | BlockIDSlime
-  | BlockIDBarrier
-  | BlockIDIronTrapdoor Facing Half Bool
-  | BlockIDPrismarine PrismarineVariant
-  | BlockIDSeaLantern
-  | BlockIDHayBlock Axis
-  | BlockIDCarpet Color
-  | BlockIDHardenedClay
-  | BlockIDCoalBlock
-  | BlockIDPackedIce
-  | BlockIDDoublePlant Half DoublePlantVariant Facing
-  | BlockIDStandingBanner BannerStanding
-  | BlockIDWallBanner Facing
-  | BlockIDDaylightDetectorInverted DaylightSensorPower
-  | BlockIDRedSandstone RedSandstoneType
-  | BlockIDRedSandstoneStairs Facing Half StairShape
-  | BlockIDDoubleStoneSlab2 Half DoubleStoneSlab2Variant
-  | BlockIDStoneSlab2 Half StoneSlab2Variant
-  | BlockIDSpruceFenceGate Facing Bool Bool Bool
-  | BlockIDBirchFenceGate Facing Bool Bool Bool
-  | BlockIDJungleFenceGate Facing Bool Bool Bool
-  | BlockIDDarkOakFenceGate Facing Bool Bool Bool
-  | BlockIDAcaciaFenceGate Facing Bool Bool Bool
-  | BlockIDSpruceFence Bool Bool Bool Bool
-  | BlockIDBirchFence Bool Bool Bool Bool
-  | BlockIDJungleFence Bool Bool Bool Bool
-  | BlockIDDarkOakFence Bool Bool Bool Bool
-  | BlockIDAcaciaFence Bool Bool Bool Bool
-  | BlockIDSpruceDoor Facing DoorHalf DoorHinge Bool Bool
-  | BlockIDBirchDoor Facing DoorHalf DoorHinge Bool Bool
-  | BlockIDJungleDoor Facing DoorHalf DoorHinge Bool Bool
-  | BlockIDAcaciaDoor Facing DoorHalf DoorHinge Bool Bool
-  | BlockIDDarkOakDoor Facing DoorHalf DoorHinge Bool Bool
-  | BlockIDEndRod EndRodFacing
-  | BlockIDChorusPlant Bool Bool Bool Bool Bool Bool
-  | BlockIDChorusFlower ChorusFlowerAge
-  | BlockIDPurpurBlock Axis
-  | BlockIDPurpurPillar Axis
-  | BlockIDPurpurStairs Facing Half StairShape
-  | BlockIDPurpurDoubleSlab PurpurDoubleSlabVariant
-  | BlockIDPurpurSlab PurpurSlabVariant
-  | BlockIDEndBricks
-  | BlockIDBeetroots BeetrootAge
-  | BlockIDGrassPath
-  | BlockIDEndGateway
-  | BlockIDRepeatingCommandBlock Bool CommandBlockFacing
-  | BlockIDChainCommandBlock Bool CommandBlockFacing
-  | BlockIDFrostedIce FrostedIceAge
-  | BlockIDMagma
-  | BlockIDNetherWartBlock
-  | BlockIDRedNetherBrick
-  | BlockIDBoneBlock Axis
-  | BlockIDStructureVoid StructureBlockMode
-  | BlockIDStructureBlock StructureBlockMode
-  deriving (Show,Eq)
+  = Air
+  | Stone
+  | Grass
+  | Dirt
+  | Cobblestone
+  | WoodPlanks
+  | Sapling
+  | Bedrock
+  | FlowingWater
+  | Water
+  | FlowingLava
+  | Lava
+  | Sand
+  | Gravel
+  | GoldOre
+  | IronOre
+  | CoalOre
+  | Log
+  | Leaves
+  | Sponge
+  | Glass
+  | LapisOre
+  | LapisBlock
+  | Dispenser
+  | Sandstone
+  | Noteblock
+  | Bed
+  | GoldenRail
+  | DetectorRail
+  | StickyPiston
+  | Web
+  | Tallgrass
+  | Deadbush
+  | Piston
+  | PistonHead
+  | Wool
+  | PistonExtension
+  | YellowFlower
+  | RedFlower
+  | BrownMushroom
+  | RedMushroom
+  | GoldBlock
+  | IronBlock
+  | DoubleStoneSlab
+  | StoneSlab
+  | BrickBlock
+  | TNT
+  | Bookshelf
+  | MossyCobblestone
+  | Obsidian
+  | Torch
+  | Fire
+  | MobSpawner
+  | OakStairs
+  | Chest
+  | RedstoneWire
+  | DiamondOre
+  | DiamondBlock
+  | CraftingTable
+  | Wheat
+  | Farmland
+  | Furnace
+  | LitFurnace
+  | StandingSign
+  | WoodenDoor
+  | Ladder
+  | Rail
+  | StoneStairs
+  | WallSign
+  | Lever
+  | StonePressurePlate
+  | IronDoor
+  | WoodenPressurePlate
+  | RedstoneOre
+  | LitRedstoneOre
+  | UnlitRedstoneTorch
+  | RedstoneTorch
+  | StoneButton
+  | SnowLayer
+  | Ice
+  | Snow
+  | Cactus
+  | Clay
+  | Reeds
+  | Jukebox
+  | Fence
+  | Pumpkin
+  | Netherrack
+  | SoulSand
+  | Glowstone
+  | Portal
+  | LitPumpkin
+  | Cake
+  | UnpoweredRepeater
+  | PoweredRepeater
+  | StainedGlass
+  | Trapdoor
+  | MonsterEgg
+  | StoneBrick
+  | BrownMushroomBlock
+  | RedMushroomBlock
+  | IronBars
+  | GlassPane
+  | MelonBlock
+  | PumpkinStem
+  | MelonStem
+  | Vine
+  | FenceGate
+  | BrickStairs
+  | StoneBrickStairs
+  | Mycelium
+  | Waterlily
+  | NetherBrick
+  | NetherBrickFence
+  | NetherBrickStairs
+  | NetherWart
+  | EnchantingTable
+  | BrewingStand
+  | Cauldron
+  | EndPortal
+  | EndPortalFrame
+  | EndStone
+  | DragonEgg
+  | RedstoneLamp
+  | LitRedstoneLamp
+  | DoubleWoodenSlab
+  | WoodenSlab
+  | Cocoa
+  | SandstoneStairs
+  | EmeraldOre
+  | EnderChest
+  | TripwireHook
+  | Tripwire
+  | EmeraldBlock
+  | SpruceStairs
+  | BirchStairs
+  | JungleStairs
+  | CommandBlock
+  | Beacon
+  | CobblestoneWall
+  | FlowerPot
+  | Carrots
+  | Potatoes
+  | WoodenButton
+  | Skull
+  | Anvil
+  | TrappedChest
+  | LightWeightedPressurePlate
+  | HeavyWeightedPressurePlate
+  | UnpoweredComparator
+  | PoweredComparator
+  | DaylightDetector
+  | RedstoneBlock
+  | QuartzOre
+  | Hopper
+  | QuartzBlock
+  | QuartzStairs
+  | ActivatorRail
+  | Dropper
+  | StainedHardenedClay
+  | StainedGlassPane
+  | Leaves2
+  | Log2
+  | AcaciaStairs
+  | DarkOakStairs
+  | Slime
+  | Barrier
+  | IronTrapdoor
+  | Prismarine
+  | SeaLantern
+  | HayBlock
+  | Carpet
+  | HardenedClay
+  | CoalBlock
+  | PackedIce
+  | DoublePlant
+  | StandingBanner
+  | WallBanner
+  | DaylightDetectorInverted
+  | RedSandstone
+  | RedSandstoneStairs
+  | DoubleStoneSlab2
+  | StoneSlab2
+  | SpruceFenceGate
+  | BirchFenceGate
+  | JungleFenceGate
+  | DarkOakFenceGate
+  | AcaciaFenceGate
+  | SpruceFence
+  | BirchFence
+  | JungleFence
+  | DarkOakFence
+  | AcaciaFence
+  | SpruceDoor
+  | BirchDoor
+  | JungleDoor
+  | AcaciaDoor
+  | DarkOakDoor
+  | EndRod
+  | ChorusPlant
+  | ChorusFlower
+  | PurpurBlock
+  | PurpurPillar
+  | PurpurStairs
+  | PurpurDoubleSlab
+  | PurpurSlab
+  | EndBricks
+  | Beetroots
+  | GrassPath
+  | EndGateway
+  | RepeatingCommandBlock
+  | ChainCommandBlock
+  | FrostedIce
+  | Magma
+  | NetherWartBlock
+  | RedNetherBrick
+  | BoneBlock
+  | StructureVoid
+  -- | BlockIDStructureBlock
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
+
+instance NFData BlockID
+
+type Snowy = Bool
+
+data Half = Top | Bottom
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
+
+instance NFData Half
 
 data Axis
   = AxisX
   | AxisY
   | AxisZ
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData Axis
 
+data Facing4
+  = Facing4N
+  | Facing4S
+  | Facing4E
+  | Facing4W
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
+
+instance NFData Facing4
+
+data Facing5
+  = Facing5N
+  | Facing5S
+  | Facing5E
+  | Facing5W
+  | Facing5Up
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
+
+instance NFData Facing5
+
+data Facing6
+  = Facing6N
+  | Facing6S
+  | Facing6E
+  | Facing6W
+  | Facing6Up
+  | Facing6Down
+  deriving (Show,Eq,Ord,Generic,Data,Typeable)
+
+instance NFData Facing6
+
 data AnvilDamage
-  = Anvil
-  | SlightlyDamagedAnvil
-  | VeryDamagedAnvil
-  deriving (Show,Eq,Ord,Enum,Generic)
+  = AnvilNoDamage
+  | AnvilSlightlyDamaged
+  | AnvilVeryDamaged
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData AnvilDamage
 
@@ -262,17 +491,14 @@ data BannerStanding
   | RotationESE
   | RotationSE
   | RotationSSE
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData BannerStanding
 
-newtype Occupied = Occupied Bool
-  deriving (Show,Eq,Ord,Enum,Generic)
-
-instance NFData Occupied
+type Occupied = Bool
 
 data BedPart = Head | Foot
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData BedPart
 
@@ -281,26 +507,13 @@ data BeetrootAge
   | BeetrootAgeII
   | BeetrootAgeIII
   | BeetrootAgeIV
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData BeetrootAge
 
-newtype HasBottle = HasBottle Bool deriving (Show,Eq,Ord,Enum,Generic)
+type HasBottle = Bool
 
-instance NFData HasBottle
-
-data ButtonFacing
-  = ButtonFacingN
-  | ButtonFacingS
-  | ButtonFacingE
-  | ButtonFacingW
-  | ButtonFacingUp
-  | ButtonFacingDown
-  deriving (Show,Eq,Ord,Enum,Generic)
-
-instance NFData ButtonFacing
-
-newtype ButtonPowered = ButtonPowered Bool deriving (Show,Eq,Ord,Enum)
+type ButtonPowered = Bool
 
 data CactusAge
   = CactusAge0
@@ -319,7 +532,7 @@ data CactusAge
   | CactusAge13
   | CactusAge14
   | CactusAge15
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData CactusAge
 
@@ -331,7 +544,7 @@ data CakeBites
   | CakeBites4
   | CakeBites5
   | CakeBites6
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData CakeBites
 
@@ -352,7 +565,7 @@ data Color
   | Green
   | Red
   | Black
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData Color
 
@@ -365,7 +578,7 @@ data CarrotAge
   | CarrotAge5
   | CarrotAge6
   | CarrotAge7
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData CarrotAge
 
@@ -374,7 +587,7 @@ data CauldronLevel
   | CauldronLevel1
   | CauldronLevel2
   | CauldronLevel3
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData CauldronLevel
 
@@ -385,14 +598,14 @@ data ChorusFlowerAge
   | ChorusFlowerAge3
   | ChorusFlowerAge4
   | ChorusFlowerAge5
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData ChorusFlowerAge
 
 data CobblestoneWallVariant
-  = CobblestoneWall
+  = PlainCobblestoneWall
   | MossyCobblestoneWall
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData CobblestoneWallVariant
 
@@ -400,20 +613,9 @@ data CocoaAge
   = CocoaAge0
   | CocoaAge1
   | CocoaAge2
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData CocoaAge
-
-data CommandBlockFacing
-  = CommandBlockFacingN
-  | CommandBlockFacingS
-  | CommandBlockFacingE
-  | CommandBlockFacingW
-  | CommandBlockFacingUp
-  | CommandBlockFacingDown
-  deriving (Show,Eq,Ord,Enum,Generic)
-
-instance NFData CommandBlockFacing
 
 data DaylightSensorPower
   = DS_Power0
@@ -432,60 +634,27 @@ data DaylightSensorPower
   | DS_Power13
   | DS_Power14
   | DS_Power15
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData DaylightSensorPower
 
 data DirtVariant
-  = Dirt
-  | Coarse
-  | Podzol
-  deriving (Show,Eq,Ord,Enum,Generic)
+  = DirtPlain
+  | DirtCoarse
+  | DirtPodzol
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData DirtVariant
 
-data DispenserFacing
-  = DispenserFacingN
-  | DispenserFacingS
-  | DispenserFacingE
-  | DispenserFacingW
-  | DispenserFacingUp
-  | DispenserFacingDown
-  deriving (Show,Eq,Ord,Enum,Generic)
-
-instance NFData DispenserFacing
-
 data DoorHalf = DoorUpper | DoorLower
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData DoorHalf
 
 data DoorHinge = HingeLeft | HingeRight
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData DoorHinge
-
-data DropperFacing
-  = DropperFacingN
-  | DropperFacingS
-  | DropperFacingE
-  | DropperFacingW
-  | DropperFacingUp
-  | DropperFacingDown
-  deriving (Show,Eq,Ord,Enum,Generic)
-
-instance NFData DropperFacing
-
-data EndRodFacing
-  = EndRodFacingN
-  | EndRodFacingS
-  | EndRodFacingE
-  | EndRodFacingW
-  | EndRodFacingUp
-  | EndRodFacingDown
-  deriving (Show,Eq,Ord,Enum,Generic)
-
-instance NFData EndRodFacing
 
 data FarmlandMoisture
   = Moisture0
@@ -496,7 +665,7 @@ data FarmlandMoisture
   | Moisture5
   | Moisture6
   | Moisture7
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData FarmlandMoisture
 
@@ -517,7 +686,7 @@ data FireAge
   | FireAge13
   | FireAge14
   | FireAge15
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData FireAge
 
@@ -531,12 +700,12 @@ data RedFlowersType
   | FlowerWhiteTulip
   | FlowerPinkTulip
   | FlowerOxeyeDaisy
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData RedFlowersType
 
 data YellowFlowersType = FlowerDandelion
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData YellowFlowersType
 
@@ -563,7 +732,7 @@ data FlowerPotContents
   | FPC_DeadBush
   | FPC_Fern
   | FPC_Cactus
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData FlowerPotContents
 
@@ -572,7 +741,7 @@ data FrostedIceAge
   | FrostedIceAge1
   | FrostedIceAge2
   | FrostedIceAge3
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData FrostedIceAge
 
@@ -580,7 +749,7 @@ data GrassType
   = GrassDeadBush
   | GrassTallGrass
   | GrassFern
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData GrassType
 
@@ -590,7 +759,7 @@ data HopperFacing
   | HopperFacingE
   | HopperFacingW
   | HopperFacingDown
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData HopperFacing
 
@@ -611,7 +780,7 @@ data FluidLevel
   | FluidLvl13
   | FluidLvl14
   | FluidLvl15
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData FluidLevel
 
@@ -620,14 +789,14 @@ data LeavesVariant
   | LeavesSpruce
   | LeavesBirch
   | LeavesJungle
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData LeavesVariant
 
 data Leaves2Variant
   = Leaves2Acacia
   | Leaves2DarkOak
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData Leaves2Variant
 
@@ -641,7 +810,7 @@ data LeverFacing
   | LeverFacingDownE
   | LeverFacingUpS
   | LeverFacingDownS
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData LeverFacing
 
@@ -654,19 +823,9 @@ data MelonStemAge
   | MelonStemAge5
   | MelonStemAge6
   | MelonStemAge7
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData MelonStemAge
-
-data MelonStemFacing
-  = MelonStemFacingN
-  | MelonStemFacingS
-  | MelonStemFacingE
-  | MelonStemFacingW
-  | MelonStemFacingUp
-  deriving (Show,Eq,Ord,Enum,Generic)
-
-instance NFData MelonStemFacing
 
 data MonsterEggVariant
   = MonsterEggVariantStone
@@ -675,7 +834,7 @@ data MonsterEggVariant
   | MonsterEggVariantMossyBrick
   | MonsterEggVariantCrackedBrick
   | MonsterEggVariantChiseledBrick
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData MonsterEggVariant
 
@@ -693,7 +852,7 @@ data MushroomVariant
   | MushroomVariantAllInside
   | MushroomVariantAllOutside
   | MushroomVariantAllStem
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData MushroomVariant
 
@@ -702,54 +861,21 @@ data NetherWartAge
   | NetherWartAge1
   | NetherWartAge2
   | NetherWartAge3
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData NetherWartAge
-
-data PistonFacing
-  = PistonFacingN
-  | PistonFacingS
-  | PistonFacingE
-  | PistonFacingW
-  | PistonFacingUp
-  | PistonFacingDown
-  deriving (Show,Eq,Ord,Enum,Generic)
-
-instance NFData PistonFacing
-
-data PistonHeadFacing
-  = PistonHeadFacingN
-  | PistonHeadFacingS
-  | PistonHeadFacingE
-  | PistonHeadFacingW
-  | PistonHeadFacingUp
-  | PistonHeadFacingDown
-  deriving (Show,Eq,Ord,Enum,Generic)
-
-instance NFData PistonHeadFacing
 
 data PistonHeadType
   = PistonHeadNormal
   | PistonHeadSticky
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData PistonHeadType
-
-data PistonExtensionFacing
-  = PistonExtensionFacingN
-  | PistonExtensionFacingS
-  | PistonExtensionFacingE
-  | PistonExtensionFacingW
-  | PistonExtensionFacingUp
-  | PistonExtensionFacingDown
-  deriving (Show,Eq,Ord,Enum,Generic)
-
-instance NFData PistonExtensionFacing
 
 data NetherPortalAxis
   = NetherPortalAxisX
   | NetherPortalAxisZ
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData NetherPortalAxis
 
@@ -762,15 +888,15 @@ data PotatoAge
   | PotatoAge5
   | PotatoAge6
   | PotatoAge7
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData PotatoAge
 
 data PrismarineVariant
-  = Prismarine
+  = PrismarinePlain
   | PrismarineBricks
-  | DarkPrismarine
-  deriving (Show,Eq,Ord,Enum,Generic)
+  | PrismarineDark
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData PrismarineVariant
 
@@ -782,19 +908,9 @@ data PumpkinStemAge
   | PumpkinStemAge4
   | PumpkinStemAge5
   | PumpkinStemAge6
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData PumpkinStemAge
-
-data PumpkinStemFacing
-  = PumpkinStemFacingN
-  | PumpkinStemFacingS
-  | PumpkinStemFacingE
-  | PumpkinStemFacingW
-  | PumpkinStemFacingUp
-  deriving (Show,Eq,Ord,Enum,Generic)
-
-instance NFData PumpkinStemFacing
 
 data QuartzVariant
   = QuartzDefault
@@ -802,7 +918,7 @@ data QuartzVariant
   | QuartzLinesX
   | QuartzLinesY
   | QuartzLinesZ
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData QuartzVariant
 
@@ -817,7 +933,7 @@ data RailShape
   | RailAscendingS
   | RailAscendingE
   | RailAscendingW
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData RailShape
 
@@ -828,20 +944,20 @@ data UtilityRailShape
   | UtilityRailAscendingS
   | UtilityRailAscendingE
   | UtilityRailAscendingW
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData UtilityRailShape
 
 data RedSandstoneType
-  = RedSandstone
-  | SmoothRedSandstone
-  | ChiseledRedSandstone
-  deriving (Show,Eq,Ord,Enum,Generic)
+  = RedSandstonePlain
+  | RedSandstoneSmooth
+  | RedSandstoneChiseled
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData RedSandstoneType
 
 data ComparatorMode = Compare | Subtract
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData ComparatorMode
 
@@ -864,7 +980,7 @@ data RedstonePower
   | RedstonePower13
   | RedstonePower14
   | RedstonePower15
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData RedstonePower
 
@@ -873,38 +989,26 @@ data RedstoneRepeaterDelay
   | RedstoneRepeaterDelay2
   | RedstoneRepeaterDelay3
   | RedstoneRepeaterDelay4
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData RedstoneRepeaterDelay
 
-data TorchFacing
-  = TorchFacingN
-  | TorchFacingS
-  | TorchFacingE
-  | TorchFacingW
-  | TorchFacingUp
-  deriving (Show,Eq,Ord,Enum,Generic)
-
-instance NFData TorchFacing
-
 data SandVariant
-  = Sand
-  | RedSand
-  deriving (Show,Eq,Ord,Enum,Generic)
+  = SandPlain
+  | SandRed
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData SandVariant
 
 data SandstoneType
-  = Sandstone
-  | ChiseledSandstone
-  | SmoothSandstone
-  deriving (Show,Eq,Ord,Enum,Generic)
+  = SandstonePlain
+  | SandstoneChiseled
+  | SandstoneSmooth
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData SandstoneType
 
-newtype SaplingStage = SaplingStage Bool deriving (Show,Eq,Ord,Enum,Generic)
-
-instance NFData SaplingStage
+type SaplingStage = Bool
 
 data SaplingType
   = SaplingOak
@@ -913,7 +1017,7 @@ data SaplingType
   | SaplingJungle
   | SaplingAcacia
   | SaplingDarkOak
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData SaplingType
 
@@ -934,28 +1038,12 @@ data SignStandingRotation
   | SignStandingESE
   | SignStandingSE
   | SignStandingSSE
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData SignStandingRotation
 
-data SkullFacing
-  = SkullFacingN
-  | SkullFacingS
-  | SkullFacingE
-  | SkullFacingW
-  | SkullFacingUp
-  | SkullFacingDown
-  deriving (Show,Eq,Ord,Enum,Generic)
-
-instance NFData SkullFacing
-
-data SlabHalf = SlabTop | SlabBottom
-  deriving (Show,Eq,Ord,Enum,Generic)
-
-instance NFData SlabHalf
-
 data StoneSlabVariant
-  = StoneSlab
+  = StoneSlabPlain
   | StoneSlabSandstone
   | StoneSlabWoodOld
   | StoneSlabCobblestone
@@ -963,12 +1051,12 @@ data StoneSlabVariant
   | StoneSlabStoneBrick
   | StoneSlabNetherBrick
   | StoneSlabQuartz
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData StoneSlabVariant
 
 data StoneSlab2Variant = StoneSlabRedSandstone
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData StoneSlab2Variant
 
@@ -978,35 +1066,32 @@ data WoodenSlabVariant
   | WoodSlabBirch
   | WoodSlabJungle
   | WoodSlabDarkOak
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData WoodenSlabVariant
 
 data PurpurSlabVariant = PurpurSlabDefault
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData PurpurSlabVariant
 
-newtype Seamless = Seamless Bool
-  deriving (Show,Eq,Ord,Enum,Generic)
-
-instance NFData Seamless
+type Seamless = Bool
 
 data DoubleStoneSlabVariant
-  = DoubleStoneSlab
+  = DoubleStoneSlabPlain
   | DoubleSandstoneSlab
-  | DoubleWoodenSlab
+  | DoubleWoodOldSlab
   | DoubleCobblestoneSlab
   | DoubleBricksSlab
   | DoubleStoneBrickSlab
   | DoubleNetherBrickSlab
   | DoubleQuartzSlab
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData DoubleStoneSlabVariant
 
 data DoubleStoneSlab2Variant = DoubleStoneSlab2RedSandstone
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData DoubleStoneSlab2Variant
 
@@ -1017,12 +1102,12 @@ data DoubleWoodenSlabVariant
   | DoubleWoodenSlabJungle
   | DoubleWoodenSlabAcacia
   | DoubleWoodenSlabDarkOak
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData DoubleWoodenSlabVariant
 
 data PurpurDoubleSlabVariant = PurpurDoubleSlabDefault
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData PurpurDoubleSlabVariant
 
@@ -1035,14 +1120,11 @@ data SnowLayers
   | SnowLayer6
   | SnowLayer7
   | SnowLayer8
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData SnowLayers
 
-newtype SpongeWet = SpongeWet Bool
-  deriving (Show,Eq,Ord,Enum,Generic)
-
-instance NFData SpongeWet
+type SpongeWet = Bool
 
 data StairShape
   = StairStraight
@@ -1050,28 +1132,28 @@ data StairShape
   | StairInnerRight
   | StairOuterLeft
   | StairOuterRight
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData StairShape
 
 data StoneVariant
-  = Stone
+  = StonePlain
   | Granite
   | PolishedGranite
   | Diorite
   | PolishedDiorite
   | Andesite
   | PolishedAndesite
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData StoneVariant
 
 data StoneBrickVariant
-  = StoneBrick
+  = StoneBrickPlain
   | StoneBrickMossy
   | StoneBrickCracked
   | StoneBrickChiseled
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData StoneBrickVariant
 
@@ -1080,7 +1162,7 @@ data StructureBlockMode
   | StructureBlockLoad
   | StructureBlockCorner
   | StructureBlockData
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData StructureBlockMode
 
@@ -1101,7 +1183,7 @@ data SugarCaneAge
   | SugarCaneAge13
   | SugarCaneAge14
   | SugarCaneAge15
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData SugarCaneAge
 
@@ -1112,23 +1194,9 @@ data DoublePlantVariant
   | DoublePlantDoubleFern
   | DoublePlantDoubleRose
   | DoublePlantPaeonia
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData DoublePlantVariant
-
-data Facing
-  = FacingN
-  | FacingS
-  | FacingE
-  | FacingW
-  deriving (Show,Eq,Ord,Enum,Generic)
-
-instance NFData Facing
-
-data Half = Top | Bottom
-  deriving (Show,Eq,Ord,Enum,Generic)
-
-instance NFData Half
 
 data WeightedPressurePlatePower
   = WeightedPressurePlatePower0
@@ -1147,7 +1215,7 @@ data WeightedPressurePlatePower
   | WeightedPressurePlatePower13
   | WeightedPressurePlatePower14
   | WeightedPressurePlatePower15
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData WeightedPressurePlatePower
 
@@ -1160,7 +1228,7 @@ data WheatAge
   | WheatAge5
   | WheatAge6
   | WheatAge7
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData WheatAge
 
@@ -1169,7 +1237,7 @@ data LogAxis
   | LogAxisX
   | LogAxisY
   | LogAxisZ
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData LogAxis
 
@@ -1178,14 +1246,14 @@ data LogVariant
   | WoodSpruce
   | WoodBirch
   | WoodJungle
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData LogVariant
 
 data Log2Variant
   = WoodAcacia
   | WoodDarkOak
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData Log2Variant
 
@@ -1196,7 +1264,7 @@ data WoodPlanksVariant
   | WoodPlanksJungle
   | WoodPlanksAcacia
   | WoodPlanksDarkOak
-  deriving (Show,Eq,Ord,Enum,Generic)
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData WoodPlanksVariant
 
@@ -1204,13 +1272,3 @@ data RedSandstoneSlabs
   = SlabRedSandstone
   | SlabUpperRedSandstone
   deriving (Show,Eq)
-
-instance Enum RedSandstoneSlabs where
-  fromEnum SlabRedSandstone = 0
-  fromEnum SlabUpperRedSandstone = 8
-  toEnum 0 = SlabRedSandstone
-  toEnum 8 = SlabUpperRedSandstone
-
-newtype Snowy = Snowy Bool deriving (Show,Eq,Ord,Enum,Generic)
-
-instance NFData Snowy
