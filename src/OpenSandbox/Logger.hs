@@ -19,10 +19,9 @@ module OpenSandbox.Logger
 
 import Control.Concurrent.STM.TVar
 import Data.Monoid
-import Data.Thyme.Format
-import Data.Thyme.LocalTime
+import Data.Time.Format
+import Data.Time.LocalTime
 import System.Console.ANSI
-import System.Locale
 import System.Log.FastLogger
 
 
