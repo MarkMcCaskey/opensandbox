@@ -20,6 +20,9 @@ import            Path
 import            System.Directory
 import            System.Exit
 
+logMsg :: Logger -> Lvl -> String -> IO ()
+logMsg logger lvl msg = logIO logger "Main" lvl (T.pack msg)
+
 main :: IO ()
 main = do
     args <- getOpts
@@ -78,20 +81,18 @@ main = do
                 logFile <- parseRelFile "latest.log"
                 createDirectoryIfMissing True $ toFilePath $ rootDir </> logDir
                 return $ (rootDir </> logDir </> logFile,baseConfig {srvLogDir = logDir})
+          let spec = FileLogSpec "logs/latest.log" 1000000 10
 
-          logger <- newLogger defaultBufSize (toFilePath logFilePath) $
-            if getDebugFlag args
-              then Debug
-              else Info
-
-          writeTo logger Info "----------------- Log Start -----------------"
-          writeTo logger Info "Welcome to the OpenSandbox Minecraft Server!"
-          writeTo logger Info $ "Starting minecraft server version " ++ show snapshotVersion
-          writeTo logger Info $ "Starting OpenSandbox server at: " ++ show (srvRootDir config)
-          writeTo logger Info $ "Loading config from: " ++ show (srvConfigDir config)
-          writeTo logger Info $ "Writing logs to: " ++ show (srvLogDir config)
-          writeTo logger Info $ "Starting Minecraft server on " ++ show (srvPort config)
-          writeTo logger Info $ "Done!"
+          logger <- newLogger spec
+          runLogger logger
+          logMsg logger LvlInfo "----------------- Log Start -----------------"
+          logMsg logger LvlInfo "Welcome to the OpenSandbox Minecraft Server!"
+          logMsg logger LvlInfo $ "Starting minecraft server version " ++ show snapshotVersion
+          logMsg logger LvlInfo $ "Starting OpenSandbox server at: " ++ show (srvRootDir config)
+          logMsg logger LvlInfo $ "Loading config from: " ++ show (srvConfigDir config)
+          logMsg logger LvlInfo $ "Writing logs to: " ++ show (srvLogDir config)
+          logMsg logger LvlInfo $ "Starting Minecraft server on " ++ show (srvPort config)
+          logMsg logger LvlInfo $ "Done!"
           {-
           rawBiomes <- B.readFile "data/biomes.json"
           rawBlocks <- B.readFile "data/blocks.json"

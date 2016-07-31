@@ -39,6 +39,9 @@ import            OpenSandbox.Data.Protocol
 import            OpenSandbox.Version
 import            OpenSandbox.World
 
+logMsg :: MonadIO m => Logger -> Lvl -> String -> m ()
+logMsg logger lvl msg = logIO logger "OpenSandbox.Network" lvl (T.pack msg)
+
 runOpenSandboxServer :: Config -> Logger -> Encryption -> IO ()
 runOpenSandboxServer config logger encryption =
     runTCPServer (serverSettings (srvPort config) "*") $ \app -> do
@@ -49,17 +52,17 @@ runOpenSandboxServer config logger encryption =
         =$= handleStatus config logger
         =$= serializeStatus
         =$= packetSink app
-      writeTo logger Debug "Somebody's handshaking!"
+      liftIO $ logMsg logger LvlDebug $ "Somebody's handshaking!"
       case firstState of
         ProtocolStatus -> do
-          writeTo logger Debug "Beginning Status handling..."
+          logMsg logger LvlDebug $ "Beginning Status handling..."
           secondState <- flip execStateT ProtocolStatus
             $ packetSource app
             $$ deserializeStatus
             =$= handleStatus config logger
             =$= serializeStatus
             =$= packetSink app
-          writeTo logger Debug "Somebody's pinging!"
+          logMsg logger LvlDebug $ "Somebody's pinging!"
           _ <- flip execStateT ProtocolStatus
             $ packetSource app
             $$ deserializeStatus
@@ -68,7 +71,7 @@ runOpenSandboxServer config logger encryption =
             =$= packetSink app
           return ()
         ProtocolLogin -> do
-          writeTo logger Debug "Beginning Login handling..."
+          logMsg logger LvlDebug $ "Beginning Login handling..."
           thirdState <- flip execStateT ProtocolLogin
             $ packetSource app
             $$ deserializeLogin
@@ -77,14 +80,14 @@ runOpenSandboxServer config logger encryption =
             =$= packetSink app
           if thirdState == ProtocolPlay
             then do
-              writeTo logger Debug "Beginning Play handling..."
+              logMsg logger LvlDebug $ "Beginning Play handling..."
               void $ flip execStateT ProtocolPlay
                 $ packetSource app
                 $$ deserializePlay
                 =$= handlePlay config logger
                 =$= serializePlay
                 =$= packetSink app
-            else writeTo logger Debug "Somebody failed login"
+            else logMsg logger LvlDebug $ "Somebody failed login"
         _ -> return ()
 
 
@@ -194,22 +197,22 @@ serializePlay = awaitForever (\play -> do
 handleHandshaking :: Config -> Logger -> Conduit (Either String (SBHandshaking,Maybe SBStatus)) (StateT ProtocolState IO) (Either String SBStatus)
 handleHandshaking config logger = do
   maybeHandshake <- await
-  liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybeHandshake
+  liftIO $ logMsg logger LvlDebug $ "Recieving: " ++ show maybeHandshake
   case maybeHandshake of
     Nothing -> return ()
     Just eitherHandshake -> do
       case eitherHandshake of
         Left parseErr -> do
-          liftIO $ writeTo logger Err $ "Something went wrong: " ++ show parseErr
+          liftIO $ logMsg logger LvlError $ "Something went wrong: " ++ show parseErr
           return ()
         Right ((SBHandshake _ _ _ ProtocolStatus),status) -> do
-          liftIO $ writeTo logger Debug $ "Switching protocol state to STATUS"
+          liftIO $ logMsg logger LvlDebug "Switching protocol state to STATUS"
           lift $ put ProtocolStatus
           case status of
             Nothing -> return ()
             Just status' -> yield (Right status')
         Right ((SBHandshake _ _ _ ProtocolLogin),_) -> do
-          liftIO $ writeTo logger Debug $ "Switching protocol state to LOGIN"
+          liftIO $ logMsg logger LvlDebug "Switching protocol state to LOGIN"
           lift $ put ProtocolLogin
           return ()
         Right (SBLegacyServerListPing,_)-> do
@@ -223,7 +226,7 @@ handleStatus config logger = do
     Nothing -> return ()
     Just eitherStatus -> do
       case eitherStatus of
-        Left parseErr -> liftIO $ writeTo logger Err $ parseErr
+        Left parseErr -> liftIO $ logMsg logger LvlError $ parseErr
 
         Right SBRequest -> do
           let responsePacket = CBResponse
@@ -233,35 +236,35 @@ handleStatus config logger = do
                                 (toEnum . fromEnum . srvMaxPlayers $ config)
                                 (srvMotd config)
 
-          liftIO $ writeTo logger Debug $ "Sending: " ++ show responsePacket
+          liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show responsePacket
           yield responsePacket
 
         Right (SBPing payload) -> do
           let pongPacket = CBPong payload
-          liftIO $ writeTo logger Debug $ "Sending: " ++ show pongPacket
+          liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show pongPacket
           yield pongPacket
 
 
 handleLogin :: Logger -> Conduit (Either String SBLogin) (StateT ProtocolState IO) CBLogin
 handleLogin logger = do
   maybeLoginStart <- await
-  liftIO $ writeTo logger Debug $ "Recieving: " ++ show maybeLoginStart
+  liftIO $ logMsg logger LvlDebug $ "Recieving: " ++ show maybeLoginStart
   case maybeLoginStart of
     Nothing -> return ()
     Just eitherLogin -> do
       case eitherLogin of
-        Left parseErr -> liftIO $ writeTo logger Err $ parseErr
+        Left parseErr -> liftIO $ logMsg logger LvlError $ parseErr
 
         Right (SBLoginStart username) -> do
           someUUID <- liftIO nextRandom
-          liftIO $ writeTo logger Debug $ "Switching protocol state to PLAY"
+          liftIO $ logMsg logger LvlDebug $ "Switching protocol state to PLAY"
           lift $ put ProtocolPlay
           let loginSuccess = CBLoginSuccess someUUID username
-          liftIO $ writeTo logger Debug $ "Sending: " ++ show loginSuccess
+          liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show loginSuccess
           yield loginSuccess
 
         Right (SBEncryptionResponse sharedSecret verifyToken) -> do
-          liftIO $ writeTo logger Debug $ "Got an encryption request!"
+          liftIO $ logMsg logger LvlDebug $ "Got an encryption request!"
           return ()
 
 
@@ -343,4 +346,4 @@ handlePlay config logger = do
   mapM_ yield $ genFlatWorld (toEnum . fromEnum . srvViewDistance $ config)
   awaitForever $ \packets -> do
     liftIO $ threadDelay 10000
-    liftIO $ writeTo logger Debug $ "Sending: " ++ show packets
+    liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show packets

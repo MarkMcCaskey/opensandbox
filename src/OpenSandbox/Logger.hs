@@ -10,70 +10,104 @@
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.Logger
-  ( Logger
+  ( MonadLogger
+  , ToLogStr
+  , Logger
   , Lvl (..)
+  , FileLogSpec (..)
   , newLogger
-  , writeTo
+  , logIO
+  , logFrom
   , defaultBufSize
+  , runLogger
   ) where
 
-import Control.Concurrent.STM.TVar
-import Data.Monoid
-import Data.Time.Format
-import Data.Time.LocalTime
-import System.Console.ANSI
-import System.Log.FastLogger
+import            Control.Concurrent
+import            Control.Concurrent.Chan
+import            Control.Monad
+import            Control.Monad.IO.Class
+import            Control.Monad.Logger
+import qualified  Data.ByteString.Builder as BB
+import            Data.Monoid
+import qualified  Data.Text as T
+import            System.Console.ANSI
+import            System.Log.FastLogger
 
+data Logger = Logger
+  { lChan       :: Chan (Loc, LogSource, LogLevel, LogStr)
+  , lTimeCache  :: IO FormattedTime
+  , lSpec       :: FileLogSpec
+  }
+
+newLogger :: FileLogSpec -> IO Logger
+newLogger spec = do
+  chan <- newChan
+  timeCache <- newTimeCache timeFormat
+  return $ Logger chan timeCache spec
 
 data Lvl
-  = Debug
-  | Info
-  | Notice
-  | Warning
-  | Err
-  | Crit
-  | Alert
-  | Emerg
-  deriving (Show,Eq,Enum,Ord)
-
+  = LvlDebug
+  | LvlInfo
+  | LvlNotice
+  | LvlWarning
+  | LvlError
+  | LvlCritical
+  | LvlAlert
+  | LvlEmergency
+  deriving (Show,Eq,Ord,Enum)
 
 instance ToLogStr Lvl where
   toLogStr = toLogStr . show
 
+logIO :: MonadIO m => Logger -> T.Text -> Lvl -> T.Text -> m ()
+logIO logger src lvl msg = runChanLoggingT (lChan logger) $ logFrom src lvl msg
 
-data Logger = Logger
-  { loggerSet   :: LoggerSet
-  , loggerLvl   :: (TVar Lvl)
-  }
+logFrom :: MonadLogger m => T.Text -> Lvl -> T.Text -> m ()
+logFrom src lvl msg = logOtherNS src convertedLvl msg
+  where convertedLvl = case lvl of
+                        LvlDebug -> LevelOther "DEBUG"
+                        LvlInfo -> LevelOther "INFO"
+                        LvlNotice -> LevelOther "NOTICE"
+                        LvlWarning -> LevelOther "WARNING"
+                        LvlError -> LevelOther "ERR"
+                        LvlCritical -> LevelOther "CRIT"
+                        LvlAlert -> LevelOther "ALERT"
+                        LvlEmergency -> LevelOther "EMERG"
 
+timeFormat :: TimeFormat
+timeFormat = "%Y-%m-%d %T"
 
-newLogger :: BufSize -> FilePath -> Lvl -> IO Logger
-newLogger buf path lvl = do
-  l <- newFileLoggerSet buf path
-  newLvl <- newTVarIO lvl
-  return $ Logger l newLvl
+timestamp :: FormattedTime -> LogStr
+timestamp time = toLogStr time
 
+loc :: Loc -> LogStr
+loc _ = mempty
 
-writeTo :: Logger -> Lvl -> String -> IO ()
-writeTo logger lvl s = do
-  minSeverity <- readTVarIO $ loggerLvl logger
-  if (fromEnum minSeverity) <= (fromEnum lvl)
-    then do
-      time <- getZonedTime
-      let timestampField = "["++ formatTime defaultTimeLocale "%T" time ++ "]"
-      let lvlField = "[" ++ show lvl ++ "]"
-      let msg = s
-      let logEntry = timestampField <> " " <> lvlField <> " " <> msg
-      case lvl of
-        Debug -> setSGR [SetColor Foreground Dull Cyan]
-        Info -> return ()
-        Notice -> setSGR [SetColor Foreground Dull Yellow]
-        Warning -> setSGR [SetColor Foreground Dull Yellow]
-        Err -> setSGR [SetColor Foreground Dull Red]
-        Crit -> setSGR [SetColor Foreground Dull Red]
-        Alert -> setSGR [SetColor Foreground Dull Red]
-        Emerg -> setSGR [SetColor Foreground Dull Red]
-      putStrLn logEntry >> pushLogStrLn (loggerSet logger) (toLogStr logEntry)
-      setSGR [Reset]
-    else
-      return ()
+source :: LogSource -> LogStr
+source src = toLogStr src
+
+level :: LogLevel -> LogStr
+level LevelDebug = "DEBUG"
+level LevelInfo = "INFO"
+level LevelWarn = "WARNING"
+level LevelError = "ERR"
+level (LevelOther lvl) = toLogStr lvl
+
+customLogStr :: FormattedTime -> Loc -> LogSource -> LogLevel -> LogStr -> LogStr
+customLogStr t a b c d = "[" <> timestamp t <> " " <> source b <> "/" <> level c <> "]" <> " " <> d <> "\n"
+
+customLogger :: LogStr -> (LogStr -> IO ()) -> IO ()
+customLogger str f = f str
+
+customOutput:: LogType -> IO FormattedTime -> Loc -> LogSource -> LogLevel -> LogStr -> IO ()
+customOutput logType timeCache loc src lvl msg = do
+  t <- timeCache
+  withFastLogger logType (customLogger (ls t))
+  where ls t = customLogStr t loc src lvl msg
+
+runCustomLoggingT :: MonadIO m => FileLogSpec -> BufSize -> IO FormattedTime -> LoggingT m a -> m a
+runCustomLoggingT spec buf  t l = (l `runLoggingT` customOutput (LogStdout 0) t) >> (l `runLoggingT` customOutput (LogFile spec buf) t)
+
+runLogger :: Logger -> IO ()
+runLogger (Logger chan timeCache spec) =
+  void $ forkIO $ runCustomLoggingT spec 0 timeCache $ unChanLoggingT chan

@@ -52,6 +52,7 @@ library
                             exceptions,
                             fast-logger,
                             minecraft-nbt,
+                            monad-logger,
                             optparse-applicative,
                             path,
                             scientific,
