@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE BangPatterns #-}
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.Logger
@@ -25,11 +24,9 @@ module OpenSandbox.Logger
 
 import            Control.Concurrent
 import            Control.Concurrent.Chan
-import            Control.DeepSeq
 import            Control.Monad
 import            Control.Monad.IO.Class
 import            Control.Monad.Logger
-import qualified  Data.ByteString.Builder as BB
 import            Data.Monoid
 import qualified  Data.Text as T
 import            System.Log.FastLogger
