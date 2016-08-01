@@ -24,6 +24,7 @@ module OpenSandbox.Logger
 
 import            Control.Concurrent
 import            Control.Concurrent.Chan
+import            Control.Monad
 import            Control.Monad.IO.Class
 import            Control.Monad.Logger
 import            Data.Monoid
@@ -34,13 +35,14 @@ data Logger = Logger
   { lChan       :: Chan (Loc, LogSource, LogLevel, LogStr)
   , lTimeCache  :: IO FormattedTime
   , lSpec       :: FileLogSpec
+  , lLvl        :: Lvl
   }
 
-newLogger :: FileLogSpec -> IO Logger
-newLogger spec = do
+newLogger :: FileLogSpec -> Lvl -> IO Logger
+newLogger spec lvl = do
   chan <- newChan
   timeCache <- newTimeCache timeFormat
-  return $ Logger chan timeCache spec
+  return $ Logger chan timeCache spec lvl
 
 data Lvl
   = LvlDebug
@@ -57,7 +59,7 @@ instance ToLogStr Lvl where
   toLogStr = toLogStr . show
 
 logIO :: MonadIO m => Logger -> T.Text -> Lvl -> T.Text -> m ()
-logIO logger src lvl msg = runChanLoggingT (lChan logger) $ logFrom src lvl msg
+logIO logger src lvl msg = when (lvl >= (lLvl logger)) $ runChanLoggingT (lChan logger) $ logFrom src lvl msg
 
 logFrom :: MonadLogger m => T.Text -> Lvl -> T.Text -> m ()
 logFrom src lvl msg = logOtherNS src convertedLvl msg
@@ -97,5 +99,5 @@ runCustomLoggingT :: MonadIO m => FileLogSpec -> BufSize -> IO FormattedTime -> 
 runCustomLoggingT spec buf t l = (l `runLoggingT` (customOutput (LogFile spec buf) t))
 
 runLogger :: Logger -> IO ThreadId
-runLogger (Logger chan timeCache spec) =
+runLogger (Logger chan timeCache spec _) =
   forkIO $ runCustomLoggingT spec 100000 timeCache $ unChanLoggingT chan

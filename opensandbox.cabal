@@ -71,7 +71,7 @@ library
 executable server
     hs-source-dirs:         app
     main-is:                server.hs
-    ghc-options:            -Wall -threaded -O2 -rtsopts -with-rtsopts=-NT
+    ghc-options:            -Wall -threaded -O2 -rtsopts -with-rtsopts=-N -with-rtsopts=-T
     build-depends:          aeson,
                             base,
                             bytestring,

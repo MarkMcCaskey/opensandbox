@@ -83,8 +83,12 @@ main = do
                 return $ (rootDir </> logDir </> logFile,baseConfig {srvLogDir = logDir})
           let spec = FileLogSpec (toFilePath logFilePath) 1000000 10
 
-          logger <- newLogger spec
-          tid <- runLogger logger
+          logger <- newLogger spec $
+            if getDebugFlag args
+              then LvlDebug
+              else LvlInfo
+
+          _ <- runLogger logger
           logMsg logger LvlInfo "----------------- Log Start -----------------"
           logMsg logger LvlInfo "Welcome to the OpenSandbox Minecraft Server!"
           logMsg logger LvlInfo $ "Starting minecraft server version " ++ show snapshotVersion
