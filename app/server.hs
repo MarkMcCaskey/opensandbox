@@ -81,7 +81,7 @@ main = do
                 logFile <- parseRelFile "latest.log"
                 createDirectoryIfMissing True $ toFilePath $ rootDir </> logDir
                 return $ (rootDir </> logDir </> logFile,baseConfig {srvLogDir = logDir})
-          let spec = FileLogSpec "logs/latest.log" 1000000 10
+          let spec = FileLogSpec (toFilePath logFilePath) 1000000 10
 
           logger <- newLogger spec
           runLogger logger

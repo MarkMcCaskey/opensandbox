@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.Logger
@@ -24,13 +25,13 @@ module OpenSandbox.Logger
 
 import            Control.Concurrent
 import            Control.Concurrent.Chan
+import            Control.DeepSeq
 import            Control.Monad
 import            Control.Monad.IO.Class
 import            Control.Monad.Logger
 import qualified  Data.ByteString.Builder as BB
 import            Data.Monoid
 import qualified  Data.Text as T
-import            System.Console.ANSI
 import            System.Log.FastLogger
 
 data Logger = Logger
@@ -103,11 +104,12 @@ customOutput:: LogType -> IO FormattedTime -> Loc -> LogSource -> LogLevel -> Lo
 customOutput logType timeCache loc src lvl msg = do
   t <- timeCache
   withFastLogger logType (customLogger (ls t))
+  withFastLogger (LogStdout 0) (customLogger (ls t))
   where ls t = customLogStr t loc src lvl msg
 
-runCustomLoggingT :: MonadIO m => FileLogSpec -> BufSize -> IO FormattedTime -> LoggingT m a -> m a
-runCustomLoggingT spec buf  t l = (l `runLoggingT` customOutput (LogStdout 0) t) >> (l `runLoggingT` customOutput (LogFile spec buf) t)
+runCustomLoggingT :: FileLogSpec -> BufSize -> IO FormattedTime -> LoggingT IO () -> IO ()
+runCustomLoggingT spec buf t l = (l `runLoggingT` (customOutput (LogFile spec buf) t))
 
 runLogger :: Logger -> IO ()
 runLogger (Logger chan timeCache spec) =
-  void $ forkIO $ runCustomLoggingT spec 0 timeCache $ unChanLoggingT chan
+  void $ forkIO $ runCustomLoggingT spec 100000 timeCache $ unChanLoggingT chan
