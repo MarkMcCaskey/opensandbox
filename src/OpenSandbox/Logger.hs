@@ -107,7 +107,7 @@ customOutput logType timeCache loc src lvl msg = do
   withFastLogger (LogStdout 0) (customLogger (ls t))
   where ls t = customLogStr t loc src lvl msg
 
-runCustomLoggingT :: FileLogSpec -> BufSize -> IO FormattedTime -> LoggingT IO () -> IO ()
+runCustomLoggingT :: MonadIO m => FileLogSpec -> BufSize -> IO FormattedTime -> LoggingT m a -> m a
 runCustomLoggingT spec buf t l = (l `runLoggingT` (customOutput (LogFile spec buf) t))
 
 runLogger :: Logger -> IO ()
