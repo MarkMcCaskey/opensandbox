@@ -84,7 +84,7 @@ main = do
           let spec = FileLogSpec (toFilePath logFilePath) 1000000 10
 
           logger <- newLogger spec
-          runLogger logger
+          tid <- runLogger logger
           logMsg logger LvlInfo "----------------- Log Start -----------------"
           logMsg logger LvlInfo "Welcome to the OpenSandbox Minecraft Server!"
           logMsg logger LvlInfo $ "Starting minecraft server version " ++ show snapshotVersion

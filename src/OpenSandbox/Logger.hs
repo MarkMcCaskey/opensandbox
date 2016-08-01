@@ -24,7 +24,6 @@ module OpenSandbox.Logger
 
 import            Control.Concurrent
 import            Control.Concurrent.Chan
-import            Control.Monad
 import            Control.Monad.IO.Class
 import            Control.Monad.Logger
 import            Data.Monoid
@@ -75,15 +74,6 @@ logFrom src lvl msg = logOtherNS src convertedLvl msg
 timeFormat :: TimeFormat
 timeFormat = "%Y-%m-%d %T"
 
-timestamp :: FormattedTime -> LogStr
-timestamp time = toLogStr time
-
-loc :: Loc -> LogStr
-loc _ = mempty
-
-source :: LogSource -> LogStr
-source src = toLogStr src
-
 level :: LogLevel -> LogStr
 level LevelDebug = "DEBUG"
 level LevelInfo = "INFO"
@@ -92,10 +82,7 @@ level LevelError = "ERR"
 level (LevelOther lvl) = toLogStr lvl
 
 customLogStr :: FormattedTime -> Loc -> LogSource -> LogLevel -> LogStr -> LogStr
-customLogStr t a b c d = "[" <> timestamp t <> " " <> source b <> "/" <> level c <> "]" <> " " <> d <> "\n"
-
-customLogger :: LogStr -> (LogStr -> IO ()) -> IO ()
-customLogger str f = f str
+customLogStr t a b c d = "[" <> toLogStr t <> " " <> toLogStr b <> "/" <> level c <> "]" <> " " <> d <> "\n"
 
 customOutput:: LogType -> IO FormattedTime -> Loc -> LogSource -> LogLevel -> LogStr -> IO ()
 customOutput logType timeCache loc src lvl msg = do
@@ -103,10 +90,12 @@ customOutput logType timeCache loc src lvl msg = do
   withFastLogger logType (customLogger (ls t))
   withFastLogger (LogStdout 0) (customLogger (ls t))
   where ls t = customLogStr t loc src lvl msg
+        customLogger :: LogStr -> (LogStr -> IO ()) -> IO ()
+        customLogger str f = f str
 
 runCustomLoggingT :: MonadIO m => FileLogSpec -> BufSize -> IO FormattedTime -> LoggingT m a -> m a
 runCustomLoggingT spec buf t l = (l `runLoggingT` (customOutput (LogFile spec buf) t))
 
-runLogger :: Logger -> IO ()
+runLogger :: Logger -> IO ThreadId
 runLogger (Logger chan timeCache spec) =
-  void $ forkIO $ runCustomLoggingT spec 100000 timeCache $ unChanLoggingT chan
+  forkIO $ runCustomLoggingT spec 100000 timeCache $ unChanLoggingT chan
