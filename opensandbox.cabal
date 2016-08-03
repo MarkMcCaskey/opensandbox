@@ -31,6 +31,7 @@ library
                             OpenSandbox.Data.Protocol.Packet
                             OpenSandbox.Data.Protocol.Types
                             OpenSandbox.Logger
+                            OpenSandbox.Monitor
                             OpenSandbox.Network
                             OpenSandbox.User
                             OpenSandbox.Version
@@ -50,8 +51,12 @@ library
                             deepseq,
                             directory,
                             ekg-core,
+                            ekg-json,
                             exceptions,
                             fast-logger,
+                            http-conduit,
+                            http-types,
+                            lifted-base,
                             minecraft-nbt,
                             monad-logger,
                             optparse-applicative,
@@ -64,6 +69,9 @@ library
                             unordered-containers,
                             uuid,
                             vector,
+                            wai,
+                            wai-conduit,
+                            warp,
                             x509,
                             yaml
     default-language:       Haskell2010
@@ -76,9 +84,12 @@ executable server
                             base,
                             bytestring,
                             directory,
+                            ekg-core,
                             opensandbox,
                             path,
-                            text
+                            text,
+                            unordered-containers,
+                            warp
     default-language:       Haskell2010
 
 

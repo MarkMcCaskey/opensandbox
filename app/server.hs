@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE BangPatterns #-}
 -------------------------------------------------------------------------------
 -- |
 -- File         : server.hs
@@ -11,14 +10,18 @@
 --
 -------------------------------------------------------------------------------
 
+import            Control.Concurrent
+import            Control.Monad
 import qualified  Data.Aeson as A
 import qualified  Data.ByteString as B
 import            Data.Maybe
 import qualified  Data.Text as T
+import            Network.Wai.Handler.Warp (run)
 import            OpenSandbox
 import            Path
 import            System.Directory
 import            System.Exit
+import            System.Metrics
 
 logMsg :: Logger -> Lvl -> String -> IO ()
 logMsg logger lvl msg = logIO logger "Main" lvl (T.pack msg)
@@ -68,7 +71,6 @@ main = do
         Right baseConfig -> do
 
           encryption <- configEncryption
-
           (logFilePath,config) <-
             case getCustomLogDir args of
               Nothing -> do
@@ -81,6 +83,7 @@ main = do
                 logFile <- parseRelFile "latest.log"
                 createDirectoryIfMissing True $ toFilePath $ rootDir </> logDir
                 return $ (rootDir </> logDir </> logFile,baseConfig {srvLogDir = logDir})
+
           let spec = FileLogSpec (toFilePath logFilePath) 1000000 10
 
           logger <- newLogger spec $
@@ -112,4 +115,10 @@ main = do
           let !instruments = A.eitherDecodeStrict' rawInstruments :: Either String [Instrument]
           let !items = A.eitherDecodeStrict' rawItems :: Either String [Item]
           -}
+
+          store <- newStore
+          registerGcMetrics store
+
+          _ <- forkIO $ run 3000 (monitor store)
+
           runOpenSandboxServer config logger encryption
