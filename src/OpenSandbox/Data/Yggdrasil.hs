@@ -13,7 +13,17 @@
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.Data.Yggdrasil
-  ( YggdrasilResponseError
+  ( AuthenticatePayload
+  , AuthenticateResponse
+  , RefreshPayload
+  , RefreshResponse
+  , ValidatePayload
+  , SignoutPayload
+  , InvalidatePayload
+  , Agent
+  , AvailableProfile
+  , SelectedProfile
+  , YggdrasilResponseError
   , YggdrasilError
   ) where
 
@@ -103,7 +113,6 @@ instance ToJSON YggdrasilError where
       ForbiddenOperationException -> String "ForbiddenOperationException"
       IllegalArgumentException    -> String "IllegalArgumentException"
       UnsupportedMediaType        -> String "Unsupported Media Type"
-
 
 instance FromJSON YggdrasilError where
   parseJSON (String s) =
