@@ -16,6 +16,7 @@ module OpenSandbox.Data
   , module OpenSandbox.Data.Instrument
   , module OpenSandbox.Data.Item
   , module OpenSandbox.Data.Protocol
+  , module OpenSandbox.Data.Yggdrasil
   ) where
 
 import OpenSandbox.Data.Biome
@@ -25,3 +26,4 @@ import OpenSandbox.Data.Entity
 import OpenSandbox.Data.Instrument
 import OpenSandbox.Data.Item
 import OpenSandbox.Data.Protocol
+import OpenSandbox.Data.Yggdrasil

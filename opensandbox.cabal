@@ -30,6 +30,7 @@ library
                             OpenSandbox.Data.Protocol
                             OpenSandbox.Data.Protocol.Packet
                             OpenSandbox.Data.Protocol.Types
+                            OpenSandbox.Data.Yggdrasil
                             OpenSandbox.Logger
                             OpenSandbox.Network
                             OpenSandbox.User
