@@ -118,6 +118,7 @@ module OpenSandbox.Data.Protocol.Types
   , decodeOverWorldChunkSection
   , encodeOtherWorldChunkSection
   , decodeOtherWorldChunkSection
+  , encodeBitsPerBlock
   , encodeIcon
   , decodeIcon
   , encodePlayerListEntries
@@ -416,6 +417,18 @@ decodeOtherWorldChunkSection = do
   dataArray <- V.replicateM dataCount decodeInt64BE
   blockLight <- Decode.take 2048
   return $ OtherWorldChunkSection bitsPerBlock palette dataArray blockLight
+
+
+newtype BitsPerBlock = BitsPerBlock Word8
+  deriving (Show,Eq,Ord)
+
+mkBitsPerBlock :: Word8 -> Either String BitsPerBlock
+mkBitsPerBlock w = if ((4 <= w) &&  (w <= 13))
+                    then Right (BitsPerBlock w)
+                    else Left "Error: invalid bitsPerBlock value!"
+
+encodeBitsPerBlock :: BitsPerBlock -> Encode.Builder
+encodeBitsPerBlock (BitsPerBlock bpb) = Encode.word8 bpb
 
 -- Entity Metadata
 type EntityMetadata = V.Vector EntityMetadataEntry

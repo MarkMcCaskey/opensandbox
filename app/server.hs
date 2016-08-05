@@ -67,8 +67,6 @@ main = do
         Left err -> print err
         Right baseConfig -> do
 
-          encryption <- configEncryption
-
           (logFilePath,config) <-
             case getCustomLogDir args of
               Nothing -> do
@@ -81,6 +79,7 @@ main = do
                 logFile <- parseRelFile "latest.log"
                 createDirectoryIfMissing True $ toFilePath $ rootDir </> logDir
                 return $ (rootDir </> logDir </> logFile,baseConfig {srvLogDir = logDir})
+
           let spec = FileLogSpec (toFilePath logFilePath) 1000000 10
 
           logger <- newLogger spec $
@@ -92,12 +91,22 @@ main = do
           logMsg logger LvlInfo "----------------- Log Start -----------------"
           logMsg logger LvlInfo "Welcome to the OpenSandbox Minecraft Server!"
           logMsg logger LvlInfo $ "Starting minecraft server version " ++ show snapshotVersion
-          logMsg logger LvlInfo $ "Starting OpenSandbox server at: " ++ show (srvRootDir config)
           logMsg logger LvlInfo $ "Loading config from: " ++ show (srvConfigDir config)
+          logMsg logger LvlInfo $ "Starting OpenSandbox server at: " ++ show (srvRootDir config)
           logMsg logger LvlInfo $ "Writing logs to: " ++ show (srvLogDir config)
+
+          -- Encryption Step
+          encryption <- configEncryption
+          logMsg logger LvlInfo $ "Generating keypair..."
+
           logMsg logger LvlInfo $ "Starting Minecraft server on " ++ show (srvPort config)
+
+          -- World Gen Step
+          logMsg logger LvlInfo $ "Generating world..."
+          --world <- genWorld logger
+
           logMsg logger LvlInfo $ "Done!"
-          {-
+
           rawBiomes <- B.readFile "data/biomes.json"
           rawBlocks <- B.readFile "data/blocks.json"
           rawEffects <- B.readFile "data/effects.json"
@@ -111,5 +120,5 @@ main = do
           let !entities = A.eitherDecodeStrict' rawEntity :: Either String [Entity]
           let !instruments = A.eitherDecodeStrict' rawInstruments :: Either String [Instrument]
           let !items = A.eitherDecodeStrict' rawItems :: Either String [Item]
-          -}
+
           runOpenSandboxServer config logger encryption

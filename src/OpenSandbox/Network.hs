@@ -14,6 +14,7 @@ module OpenSandbox.Network
   ( runOpenSandboxServer
   ) where
 
+import qualified  Codec.Compression.Zlib as Zlib
 import            Control.Concurrent (threadDelay)
 import            Control.Monad
 import            Control.Monad.IO.Class
@@ -26,13 +27,15 @@ import qualified  Data.ByteString.Lazy as BL
 import qualified  Data.ByteString.Builder as Encode
 import            Data.Conduit
 import            Data.Conduit.Network
+import            Data.Conduit.Zlib
 import            Data.Int
 import            Data.List
+import            Data.Monoid
 import qualified  Data.Text as T
 import            Data.Text.Encoding
 import            Data.UUID.V4
 import qualified  Data.Vector as V
-
+import            Debug.Trace
 import            OpenSandbox.Config
 import            OpenSandbox.Logger
 import            OpenSandbox.Data.Protocol
@@ -75,29 +78,32 @@ runOpenSandboxServer config logger encryption =
           thirdState <- flip execStateT ProtocolLogin
             $ packetSource app
             $$ deserializeLogin
-            =$= handleLogin logger
-            =$= serializeLogin
+            =$= handleLogin config logger encryption
+            =$= serializeLogin config
             =$= packetSink app
           if thirdState == ProtocolPlay
             then do
               logMsg logger LvlDebug $ "Beginning Play handling..."
               void $ flip execStateT ProtocolPlay
                 $ packetSource app
-                $$ deserializePlay
+                $$ deserializePlay config
                 =$= handlePlay config logger
-                =$= serializePlay
+                =$= serializePlay config
                 =$= packetSink app
             else logMsg logger LvlDebug $ "Somebody failed login"
         _ -> return ()
 
-
 packetSource  :: AppData -> Source (StateT ProtocolState IO) B.ByteString
 packetSource app = transPipe lift $ appSource app
-
 
 packetSink  :: AppData -> Sink B.ByteString (StateT ProtocolState IO) ()
 packetSink app = transPipe lift $ appSink app
 
+compressPlay :: Conduit B.ByteString (StateT ProtocolState IO) B.ByteString
+compressPlay = awaitForever $ \play -> yield (BL.toStrict $ Zlib.compress (BL.fromStrict $ play))
+
+decompressPlay :: Conduit B.ByteString (StateT ProtocolState IO) B.ByteString
+decompressPlay = awaitForever $ \play -> yield (BL.toStrict $ Zlib.decompress (BL.fromStrict $ play))
 
 deserializeHandshaking :: Conduit B.ByteString (StateT ProtocolState IO) (Either String (SBHandshaking,Maybe SBStatus))
 deserializeHandshaking = do
@@ -131,7 +137,6 @@ deserializeHandshaking = do
               Left err -> return (handshake,Nothing)
               Right earlyStatus -> return (handshake,Just earlyStatus)
 
-
 deserializeStatus :: Conduit B.ByteString (StateT ProtocolState IO) (Either String SBStatus)
 deserializeStatus = do
     maybeBS <- await
@@ -142,17 +147,15 @@ deserializeStatus = do
           Left err -> yield (Left err) >> leftover bs
           Right status -> yield (Right status)
 
-
 serializeStatus :: Conduit CBStatus (StateT ProtocolState IO) B.ByteString
 serializeStatus = do
   maybeStatus <- await
   case maybeStatus of
     Nothing -> return ()
     Just status -> do
-      let bs = BL.toStrict $ Encode.toLazyByteString (encodeCBStatus status)
-      let ln = BL.toStrict $ Encode.toLazyByteString (encodeVarInt . B.length $ bs)
+      let bs = BL.toStrict . Encode.toLazyByteString . encodeCBStatus $ status
+      let ln = BL.toStrict . Encode.toLazyByteString . encodeVarInt . B.length $ bs
       yield (ln `B.append` bs)
-
 
 deserializeLogin :: Conduit B.ByteString (StateT ProtocolState IO) (Either String SBLogin)
 deserializeLogin = do
@@ -164,35 +167,68 @@ deserializeLogin = do
         Left err -> yield (Left err) >> leftover bs
         Right login -> yield (Right login)
 
-
-serializeLogin :: Conduit CBLogin (StateT ProtocolState IO) B.ByteString
-serializeLogin = do
+serializeLogin :: Config -> Conduit CBLogin (StateT ProtocolState IO) B.ByteString
+serializeLogin config = do
   maybeLogin <- await
   case maybeLogin of
     Nothing -> return ()
+    Just (CBLoginSuccess a b) -> do
+      let uncompressedBS = Encode.toLazyByteString (encodeCBLogin (CBLoginSuccess a b))
+      if srvCompression config
+        then do
+          let dataLn = encodeVarInt . B.length . BL.toStrict $ uncompressedBS
+          let compressedBS = Encode.lazyByteString . Zlib.compress $ uncompressedBS
+          let packetData = BL.toStrict $ Encode.toLazyByteString (dataLn <> compressedBS)
+          let packetLn = BL.toStrict $ Encode.toLazyByteString (encodeVarInt . B.length $ packetData)
+          yield (packetLn `B.append` packetData)
+        else do
+          let bs = BL.toStrict . Encode.toLazyByteString . encodeCBLogin $ (CBLoginSuccess a b)
+          let ln = BL.toStrict . Encode.toLazyByteString . encodeVarInt . B.length $ bs
+          yield (ln `B.append` bs)
     Just login -> do
       let bs = BL.toStrict . Encode.toLazyByteString . encodeCBLogin $ login
       let ln = BL.toStrict . Encode.toLazyByteString . encodeVarInt . B.length $ bs
       yield (ln `B.append` bs)
 
-deserializePlay :: Conduit B.ByteString (StateT ProtocolState IO) (Either String [SBPlay])
-deserializePlay = awaitForever (\bs -> yield $ Decode.parseOnly decodePackets bs)
+deserializePlay :: Config -> Conduit B.ByteString (StateT ProtocolState IO) (Either String [SBPlay])
+deserializePlay config = awaitForever (\bs -> yield $ Decode.parseOnly decodePackets bs)
   where
   decodePackets = Decode.many1 $ do
-    ln <- decodeVarInt
-    bs' <- Decode.take ln
-    case Decode.parseOnly decodeSBPlay bs' of
+    case srvCompression config of
+      False -> do
+        ln <- decodeVarInt
+        bs' <- Decode.take ln
+        case Decode.parseOnly decodeSBPlay bs' of
+          Left err -> fail err
+          Right packet -> return packet
+      True -> do
+        ln <- decodeVarInt
+        bs' <- Decode.take ln
+        case Decode.parseOnly decodeCompressed bs' of
+          Left err -> fail err
+          Right packet -> return packet
+  decodeCompressed = do
+    uncompressedLn <- decodeVarInt
+    compressedBS <- Decode.takeLazyByteString
+    let uncompressedBS = BL.toStrict $ Zlib.decompress compressedBS
+    case Decode.parseOnly decodeSBPlay uncompressedBS of
       Left err -> fail err
       Right packet -> return packet
 
-
-serializePlay :: Conduit CBPlay (StateT ProtocolState IO) B.ByteString
-serializePlay = awaitForever (\play -> do
+serializePlay :: Config -> Conduit CBPlay (StateT ProtocolState IO) B.ByteString
+serializePlay config = awaitForever $ \play -> do
+  let uncompressedBS = Encode.toLazyByteString (encodeCBPlay play)
+  if srvCompression config
+    then do
+      let dataLn = encodeVarInt . B.length . BL.toStrict $ uncompressedBS
+      let compressedBS = Encode.lazyByteString . Zlib.compress $ uncompressedBS
+      let packetData = BL.toStrict $ Encode.toLazyByteString (dataLn <> compressedBS)
+      let packetLn = BL.toStrict $ Encode.toLazyByteString (encodeVarInt . B.length $ packetData)
+      yield (packetLn `B.append` packetData)
+    else do
       let bs = BL.toStrict . Encode.toLazyByteString . encodeCBPlay $ play
       let ln = BL.toStrict . Encode.toLazyByteString . encodeVarInt . B.length $ bs
       yield (ln `B.append` bs)
-  )
-
 
 handleHandshaking :: Config -> Logger -> Conduit (Either String (SBHandshaking,Maybe SBStatus)) (StateT ProtocolState IO) (Either String SBStatus)
 handleHandshaking config logger = do
@@ -218,7 +254,6 @@ handleHandshaking config logger = do
         Right (SBLegacyServerListPing,_)-> do
           return ()
 
-
 handleStatus  :: Config -> Logger -> Conduit (Either String SBStatus) (StateT ProtocolState IO) CBStatus
 handleStatus config logger = do
   maybeStatus <- await
@@ -227,26 +262,23 @@ handleStatus config logger = do
     Just eitherStatus -> do
       case eitherStatus of
         Left parseErr -> liftIO $ logMsg logger LvlError $ parseErr
-
         Right SBRequest -> do
-          let responsePacket = CBResponse
-                                snapshotVersion
-                                (toEnum protocolVersion)
-                                0
-                                (toEnum . fromEnum . srvMaxPlayers $ config)
-                                (srvMotd config)
-
+          let responsePacket =
+                CBResponse
+                  snapshotVersion
+                  (toEnum protocolVersion)
+                  0
+                  (toEnum . fromEnum . srvMaxPlayers $ config)
+                  (srvMotd config)
           liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show responsePacket
           yield responsePacket
-
         Right (SBPing payload) -> do
           let pongPacket = CBPong payload
           liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show pongPacket
           yield pongPacket
 
-
-handleLogin :: Logger -> Conduit (Either String SBLogin) (StateT ProtocolState IO) CBLogin
-handleLogin logger = do
+handleLogin :: Config -> Logger -> Encryption -> Conduit (Either String SBLogin) (StateT ProtocolState IO) CBLogin
+handleLogin config logger encryption = do
   maybeLoginStart <- await
   liftIO $ logMsg logger LvlDebug $ "Recieving: " ++ show maybeLoginStart
   case maybeLoginStart of
@@ -254,32 +286,58 @@ handleLogin logger = do
     Just eitherLogin -> do
       case eitherLogin of
         Left parseErr -> liftIO $ logMsg logger LvlError $ parseErr
-
         Right (SBLoginStart username) -> do
           someUUID <- liftIO nextRandom
           liftIO $ logMsg logger LvlDebug $ "Switching protocol state to PLAY"
           lift $ put ProtocolPlay
-          let loginSuccess = CBLoginSuccess someUUID username
-          liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show loginSuccess
-          yield loginSuccess
+          if srvEncryption config
+            then do
+              let encryptionRequest = CBEncryptionRequest "" (getCert encryption) (getVerifyToken encryption)
+              liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show encryptionRequest
+              yield encryptionRequest
+              maybeEitherEncryptionResponse <- await
+              case maybeEitherEncryptionResponse of
+                Nothing -> return ()
+                Just eitherEncryptionResponse -> do
+                  case eitherEncryptionResponse of
+                    Left err -> liftIO $ logMsg logger LvlError $ err
+                    Right (SBEncryptionResponse sharedSecret verifyToken) -> do
+                      liftIO $ logMsg logger LvlDebug $ "Got an encryption request!"
+                      when (srvCompression config) $ do
+                        let setCompression = CBSetCompression 0
+                        liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show setCompression
+                        yield setCompression
+                      let loginSuccess = CBLoginSuccess someUUID username
+                      liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show loginSuccess
+                      yield loginSuccess
+            else do
+              when (srvCompression config) $ do
+                let setCompression = CBSetCompression 0
+                liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show setCompression
+                yield setCompression
+              let loginSuccess = CBLoginSuccess someUUID username
+              liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show loginSuccess
+              yield loginSuccess
 
         Right (SBEncryptionResponse sharedSecret verifyToken) -> do
-          liftIO $ logMsg logger LvlDebug $ "Got an encryption request!"
+          liftIO $ logMsg logger LvlError $ "Got an encryption request out of order!"
           return ()
-
 
 handlePlay  :: Config -> Logger -> Conduit (Either String [SBPlay]) (StateT ProtocolState IO) CBPlay
 handlePlay config logger = do
   someUUID <- liftIO $ nextRandom
-  --liftIO $ writeTo logger Debug $ "Starting PLAY session"
-  let loginPacket = CBJoinGame
-                      2566
-                      (toEnum . fromEnum $ srvGameMode config)
-                      (toEnum . fromEnum $ srvDimension config)
-                      (toEnum . fromEnum $ srvDifficulty config)
-                      (toEnum . fromEnum $ srvMaxPlayers config)
-                      (T.pack . show $ srvWorldType config)
-                      True
+  return ()
+{-
+  liftIO $ logMsg logger LvlDebug $ "Starting PLAY session"
+  let loginPacket =
+        CBJoinGame
+          2566
+          (toEnum . fromEnum $ srvGameMode config)
+          (toEnum . fromEnum $ srvDimension config)
+          (toEnum . fromEnum $ srvDifficulty config)
+          (toEnum . fromEnum $ srvMaxPlayers config)
+          (T.pack . show $ srvWorldType config)
+          True
 
   --liftIO $ writeTo logger Debug $ "Sending: " ++ show loginPacket
   yield loginPacket
@@ -347,3 +405,4 @@ handlePlay config logger = do
   awaitForever $ \packets -> do
     liftIO $ threadDelay 10000
     liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show packets
+-}

@@ -53,6 +53,7 @@ library
                             ekg-core,
                             exceptions,
                             fast-logger,
+                            memory,
                             minecraft-nbt,
                             monad-logger,
                             optparse-applicative,
@@ -66,7 +67,8 @@ library
                             uuid,
                             vector,
                             x509,
-                            yaml
+                            yaml,
+                            zlib
     default-language:       Haskell2010
 
 executable server
