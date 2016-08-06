@@ -5,4 +5,4 @@ packages:
     git: http://github.com/oldmanmike/hs-minecraft-nbt
     commit: 2ac6813af4dd7b749065b19946d21a650a93de49
 extra-deps: []
-resolver: nightly-2016-06-30
+resolver: nightly-2016-08-05
