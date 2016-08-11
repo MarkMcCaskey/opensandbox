@@ -62,6 +62,7 @@ main = do
       then return ()
       else writeDefaultConfig (toFilePath configFilePath) config2
 
+
     potentialConfig <- loadConfig configFilePath
     case potentialConfig of
         Left err -> print err

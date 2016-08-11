@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.Data.Block
@@ -99,14 +100,13 @@ import            Data.Data
 import qualified  Data.HashMap.Strict as H
 import            Data.Scientific
 import            Data.Text as T
-import            Data.Typeable
 import            Data.Word
 import            Control.DeepSeq
 import            GHC.Generics (Generic)
 import            Prelude hiding (id)
 
 data Block = Block
-  { id            :: Word32
+  { id            :: Word16
   , displayName   :: Text
   , name          :: Text
   , hardness      :: Double
@@ -114,6 +114,7 @@ data Block = Block
   , diggable      :: Bool
   , material      :: Maybe Material
   , harvestTools  :: Maybe [Word32]
+  , variations    :: Maybe [Variation]
   , drops         :: [Drop]
   , transparent   :: Bool
   , emitLight     :: Word8
@@ -130,6 +131,7 @@ instance FromJSON Block where
       <*> v .: "diggable"
       <*> v .:? "material"
       <*> (fmap . fmap) extractIds (v .:? "harvestTools" :: Parser (Maybe Object))
+      <*> v .:? "variations"
       <*> v .: "drops"
       <*> v .: "transparent"
       <*> v .: "emitLight"
@@ -196,6 +198,15 @@ data DropBody = DropBody
 
 instance FromJSON DropBody
 instance NFData DropBody
+
+data Variation = Variation
+  { metadata      :: Word8
+  , displayName   :: Text
+  } deriving (Show,Eq,Ord,Generic,Data,Typeable)
+
+instance ToJSON Variation
+instance FromJSON Variation
+instance NFData Variation
 
 data BlockID
   = Air

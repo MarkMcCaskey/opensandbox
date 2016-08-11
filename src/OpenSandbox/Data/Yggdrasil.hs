@@ -3,6 +3,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE BangPatterns #-}
+{-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.Data.Yggdrasil
@@ -44,7 +45,6 @@ import qualified  Data.ByteString.Builder as Encode
 import            Data.Monoid
 import qualified  Data.Text as T
 import            Data.Word
-import            Debug.Trace
 import            GHC.Generics (Generic)
 
 data ClientAuth = ClientAuth

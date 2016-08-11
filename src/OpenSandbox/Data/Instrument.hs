@@ -19,7 +19,6 @@ module OpenSandbox.Data.Instrument
 import          Control.DeepSeq
 import          Data.Aeson
 import          Data.Data
-import          Data.Typeable
 import          Data.Text as T
 import          Data.Word
 import          GHC.Generics (Generic)

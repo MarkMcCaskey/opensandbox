@@ -2,6 +2,7 @@
 {-# OPTIONS_GHC -fno-warn-unused-binds #-}
 {-# OPTIONS_GHC -fno-warn-unused-matches #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLists #-}
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.Data.Protocol.Packet
@@ -37,6 +38,7 @@ module OpenSandbox.Data.Protocol.Packet
   , debugNetCode
   ) where
 
+import            Debug.Trace
 import            Prelude hiding (max)
 import qualified  Data.Aeson as Aeson
 import qualified  Data.Attoparsec.ByteString as Decode
@@ -52,12 +54,13 @@ import            Data.Word
 
 import            OpenSandbox.Data.Protocol.Types
 
-debugNetCode :: CBPlay -> IO ()
-debugNetCode packet = do
-  let encoded = BL.toStrict . Encode.toLazyByteString $ encodeCBPlay packet
-  let decoded = Decode.parseOnly decodeCBPlay encoded :: Either String CBPlay
+debugNetCode :: ChunkSection -> IO ()
+debugNetCode dat = do
+  let encoded = BL.toStrict . Encode.toLazyByteString
+                  $ (encodeVarInt ln) <> bs
+  let decoded = Decode.parseOnly parser' encoded :: Either String ChunkSection
   putStrLn "==================================================================="
-  putStrLn $ "Packet: " ++ show packet
+  putStrLn $ "Packet: " ++ show dat
   putStrLn "-------------------------------------------------------------------"
   putStrLn $ "Encoded:"
   putStrLn $ show encoded
@@ -66,8 +69,19 @@ debugNetCode packet = do
   putStrLn $ show decoded
   putStrLn "-------------------------------------------------------------------"
   putStrLn $ "Should be:"
-  putStrLn $ show (Right packet :: Either String CBPlay)
+  putStrLn $ show (Right dat :: Either String ChunkSection)
   putStrLn "==================================================================="
+  where
+  bs = V.foldl' (<>) mempty $ fmap encodeChunkSection [dat]
+  ln = B.length . BL.toStrict . Encode.toLazyByteString $ bs
+  parser' :: Decode.Parser ChunkSection
+  parser' = do
+    ln' <- decodeVarInt
+    bs' <- Decode.take (traceShow ("Got to Decode.take " ++ show ln') ln')
+    let result = Decode.parseOnly decodeChunkSection (traceShowId bs') :: Either String ChunkSection
+    case (traceShowId result) of
+      Left err -> fail err
+      Right result' -> return result'
 
 data SBHandshaking
   -- | __Handshake:__
@@ -423,7 +437,7 @@ data CBPlay
 
   -- | __Chunk Data:__
   -- The server only sends skylight information for chunk pillars in the Overworld, it's up to the client to know in which dimenison the player is currently located. You can also infer this information from the primary bitmask and the amount of uncompressed bytes sent. This packet also sends all block entities in the chunk (though sending them is not required; it is still legal to send them with Update Block Entity later).
-  | CBChunkData Int32 Int32 Int ChunkSections (Maybe B.ByteString) (V.Vector NBT)
+  | CBChunkData {-Int32 Int32 Int-} (V.Vector ChunkSection) {-(Maybe B.ByteString)-} {-(V.Vector NBT)-}
 
   -- | __Effect:__
   -- Sent when a client is to play a sound or particle effect.
@@ -872,21 +886,26 @@ encodeCBPlay (CBKeepAlive keepAliveID) =
   Encode.word8 0x1F
   <> encodeVarInt keepAliveID
 
-encodeCBPlay (CBChunkData chunkX chunkZ primaryBitMask dat maybeBiomes blockEntities) =
+encodeCBPlay (CBChunkData {-chunkX chunkZ primaryBitMask-} dat {-maybeBiomes-} {-blockEntities-}) =
   Encode.word8 0x20
-  <> Encode.int32BE chunkX
-  <> Encode.int32BE chunkZ
+  -- <> Encode.int32BE chunkX
+  -- <> Encode.int32BE chunkZ
+  {-
   <> case maybeBiomes of
       Just _ -> encodeBool True
       Nothing -> encodeBool False
-  <> encodeVarInt primaryBitMask
-  <> (encodeVarInt . (+256) . B.length . BL.toStrict . Encode.toLazyByteString $ (encodeChunkSections dat))
-  <> encodeChunkSections dat
+  -}
+  -- <> encodeVarInt primaryBitMask
+  <> (encodeVarInt . B.length . BL.toStrict . Encode.toLazyByteString
+      $ V.foldl' (<>) mempty $ fmap encodeChunkSection dat)
+  <> (V.foldl' (<>) mempty $ fmap encodeChunkSection dat)
+  {-
   <> case maybeBiomes of
       Just b -> Encode.byteString b
       Nothing -> mempty
-  <> (encodeVarInt . V.length $ blockEntities)
-  <> V.foldl' (<>) mempty (fmap encodeNBT blockEntities)
+      -}
+  -- <> (encodeVarInt . V.length $ blockEntities)
+  -- <> (V.foldl' (<>) mempty $ fmap encodeNBT blockEntities)
 
 -- (NOTE) Should be better typed to Effect IDs that actually exist
 encodeCBPlay (CBEffect effectID location dat disableRelativeVolume) =
@@ -1533,44 +1552,42 @@ decodeCBPlay = do
       return $ CBKeepAlive keepAliveID
 
     0x20 -> do
-      chunkX <- decodeInt32BE
-      chunkZ <- decodeInt32BE
-      groundUp <- decodeBool
-      primaryBitMask <- decodeVarInt
-      if groundUp
-        then do
-          size <- decodeVarInt
-          bs <- Decode.take (size - 256)
-          let dat = Decode.parseOnly ((decodeChunkSections primaryBitMask) <* Decode.endOfInput) bs
-          biomes <- Decode.take 256
-          count <- decodeVarInt
-          blockEntities <- V.replicateM count decodeNBT
-          case dat of
-            Left err -> fail $ "Ops: " ++ err
-            Right dat' -> return $
-                            CBChunkData
-                              chunkX
-                              chunkZ
-                              primaryBitMask
-                              dat'
-                              (Just biomes)
-                              blockEntities
-        else do
-          size <- decodeVarInt
-          bs <- Decode.take size
-          let dat = Decode.parseOnly ((decodeChunkSections primaryBitMask) <* Decode.endOfInput) bs
-          count <- decodeVarInt
-          blockEntities <- V.replicateM count decodeNBT
-          case dat of
-            Left err -> fail $ "Ops: " ++ err
-            Right dat' -> return $
-                            CBChunkData
-                              chunkX
-                              chunkZ
-                              primaryBitMask
-                              dat'
-                              Nothing
-                              blockEntities
+      --chunkX <- decodeInt32BE
+      --chunkZ <- decodeInt32BE
+      --groundUp <- decodeBool
+      --primaryBitMask <- decodeVarInt
+      size <- decodeVarInt
+      bs <- Decode.take size
+      let dat = traceShowId $ fmap V.fromList $ Decode.parseOnly (Decode.many' decodeChunkSection) bs
+      {-
+      biomes <- case groundUp of
+                  False -> return Nothing
+                  True -> do
+                    b <- Decode.take 256
+                    return $ Just b
+      -}
+      --count <- decodeVarInt
+      --blockEntities <- V.replicateM count decodeNBT
+      case dat of
+        Left err -> fail $ "Error: " ++ err
+        Right dat' -> return $
+                        CBChunkData
+                          --chunkX
+                          --chunkZ
+                          --primaryBitMask
+                          dat'
+                          --biomes
+                          --blockEntities
+                          {-
+      return $
+        CBChunkData
+          --chunkX
+          --chunkZ
+          --primaryBitMask
+          --dat'
+          biomes
+          --blockEntities
+-}
 
     0x21 -> do
       effectID <- decodeInt32BE

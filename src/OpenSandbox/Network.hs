@@ -15,34 +15,27 @@ module OpenSandbox.Network
   ) where
 
 import qualified  Codec.Compression.Zlib as Zlib
-import            Control.Concurrent (threadDelay)
 import            Control.Monad
 import            Control.Monad.IO.Class
 import            Control.Monad.Trans.Class
 import            Control.Monad.Trans.State.Lazy
 import qualified  Data.Attoparsec.ByteString as Decode
-import            Data.Bits
 import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Lazy as BL
 import qualified  Data.ByteString.Builder as Encode
 import            Data.Conduit
 import            Data.Conduit.Network
-import            Data.Conduit.Zlib
-import            Data.Int
-import            Data.List
 import            Data.Monoid
 import qualified  Data.Text as T
 import            Data.Text.Encoding
 import            Data.UUID.V4
 import qualified  Data.Vector as V
-import            Debug.Trace
 import            OpenSandbox.Config
 import            OpenSandbox.Logger
 import            OpenSandbox.Data.Protocol
 import            OpenSandbox.Version
-import            OpenSandbox.World
 
-logMsg :: MonadIO m => Logger -> Lvl -> String -> m ()
+logMsg :: Logger -> Lvl -> String -> IO ()
 logMsg logger lvl msg = logIO logger "OpenSandbox.Network" lvl (T.pack msg)
 
 runOpenSandboxServer :: Config -> Logger -> Encryption -> IO ()
@@ -51,21 +44,21 @@ runOpenSandboxServer config logger encryption =
       firstState <- flip execStateT ProtocolHandshake
         $ packetSource app
         $$ deserializeHandshaking
-        =$= handleHandshaking config logger
+        =$= handleHandshaking logger
         =$= handleStatus config logger
         =$= serializeStatus
         =$= packetSink app
       liftIO $ logMsg logger LvlDebug $ "Somebody's handshaking!"
       case firstState of
         ProtocolStatus -> do
-          logMsg logger LvlDebug $ "Beginning Status handling..."
-          secondState <- flip execStateT ProtocolStatus
+          liftIO $ logMsg logger LvlDebug $ "Beginning Status handling..."
+          _ <- flip execStateT ProtocolStatus
             $ packetSource app
             $$ deserializeStatus
             =$= handleStatus config logger
             =$= serializeStatus
             =$= packetSink app
-          logMsg logger LvlDebug $ "Somebody's pinging!"
+          liftIO $ logMsg logger LvlDebug $ "Somebody's pinging!"
           _ <- flip execStateT ProtocolStatus
             $ packetSource app
             $$ deserializeStatus
@@ -74,7 +67,7 @@ runOpenSandboxServer config logger encryption =
             =$= packetSink app
           return ()
         ProtocolLogin -> do
-          logMsg logger LvlDebug $ "Beginning Login handling..."
+          liftIO $ logMsg logger LvlDebug $ "Beginning Login handling..."
           thirdState <- flip execStateT ProtocolLogin
             $ packetSource app
             $$ deserializeLogin
@@ -83,28 +76,29 @@ runOpenSandboxServer config logger encryption =
             =$= packetSink app
           if thirdState == ProtocolPlay
             then do
-              logMsg logger LvlDebug $ "Beginning Play handling..."
+              liftIO $ logMsg logger LvlDebug $ "Beginning Play handling..."
               void $ flip execStateT ProtocolPlay
                 $ packetSource app
                 $$ deserializePlay config
                 =$= handlePlay config logger
                 =$= serializePlay config
                 =$= packetSink app
-            else logMsg logger LvlDebug $ "Somebody failed login"
+            else liftIO $ logMsg logger LvlDebug $ "Somebody failed login"
         _ -> return ()
 
 packetSource  :: AppData -> Source (StateT ProtocolState IO) B.ByteString
-packetSource app = transPipe lift $ appSource app
+packetSource app = transPipe liftIO $ appSource app
 
 packetSink  :: AppData -> Sink B.ByteString (StateT ProtocolState IO) ()
-packetSink app = transPipe lift $ appSink app
+packetSink app = transPipe liftIO $ appSink app
 
+{-
 compressPlay :: Conduit B.ByteString (StateT ProtocolState IO) B.ByteString
 compressPlay = awaitForever $ \play -> yield (BL.toStrict $ Zlib.compress (BL.fromStrict $ play))
 
 decompressPlay :: Conduit B.ByteString (StateT ProtocolState IO) B.ByteString
 decompressPlay = awaitForever $ \play -> yield (BL.toStrict $ Zlib.decompress (BL.fromStrict $ play))
-
+-}
 deserializeHandshaking :: Conduit B.ByteString (StateT ProtocolState IO) (Either String (SBHandshaking,Maybe SBStatus))
 deserializeHandshaking = do
     maybeBS <- await
@@ -119,7 +113,7 @@ deserializeHandshaking = do
           else do
             case Decode.parseOnly (Decode.takeByteString <* Decode.endOfInput) (B.tail bs) of
               Left err -> yield (Left err) >> leftover bs
-              Right handshake -> yield $ Right (SBLegacyServerListPing,Nothing)
+              Right _ -> yield $ Right (SBLegacyServerListPing,Nothing)
   where
   decodeSBHandshaking' = do
     ln <- decodeVarInt
@@ -134,7 +128,7 @@ deserializeHandshaking = do
             ln' <- decodeVarInt
             earlyBs <- Decode.take ln'
             case Decode.parseOnly decodeSBStatus earlyBs of
-              Left err -> return (handshake,Nothing)
+              Left _ -> return (handshake,Nothing)
               Right earlyStatus -> return (handshake,Just earlyStatus)
 
 deserializeStatus :: Conduit B.ByteString (StateT ProtocolState IO) (Either String SBStatus)
@@ -208,7 +202,7 @@ deserializePlay config = awaitForever (\bs -> yield $ Decode.parseOnly decodePac
           Left err -> fail err
           Right packet -> return packet
   decodeCompressed = do
-    uncompressedLn <- decodeVarInt
+    _ <- decodeVarInt
     compressedBS <- Decode.takeLazyByteString
     let uncompressedBS = BL.toStrict $ Zlib.decompress compressedBS
     case Decode.parseOnly decodeSBPlay uncompressedBS of
@@ -230,8 +224,8 @@ serializePlay config = awaitForever $ \play -> do
       let ln = BL.toStrict . Encode.toLazyByteString . encodeVarInt . B.length $ bs
       yield (ln `B.append` bs)
 
-handleHandshaking :: Config -> Logger -> Conduit (Either String (SBHandshaking,Maybe SBStatus)) (StateT ProtocolState IO) (Either String SBStatus)
-handleHandshaking config logger = do
+handleHandshaking :: Logger -> Conduit (Either String (SBHandshaking,Maybe SBStatus)) (StateT ProtocolState IO) (Either String SBStatus)
+handleHandshaking logger = do
   maybeHandshake <- await
   liftIO $ logMsg logger LvlDebug $ "Recieving: " ++ show maybeHandshake
   case maybeHandshake of
@@ -301,7 +295,7 @@ handleLogin config logger encryption = do
                 Just eitherEncryptionResponse -> do
                   case eitherEncryptionResponse of
                     Left err -> liftIO $ logMsg logger LvlError $ err
-                    Right (SBEncryptionResponse sharedSecret verifyToken) -> do
+                    Right (SBEncryptionResponse _ _) -> do
                       liftIO $ logMsg logger LvlDebug $ "Got an encryption request!"
                       when (srvCompression config) $ do
                         let setCompression = CBSetCompression 0
@@ -319,15 +313,13 @@ handleLogin config logger encryption = do
               liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show loginSuccess
               yield loginSuccess
 
-        Right (SBEncryptionResponse sharedSecret verifyToken) -> do
+        Right (SBEncryptionResponse _ _) -> do
           liftIO $ logMsg logger LvlError $ "Got an encryption request out of order!"
           return ()
 
 handlePlay  :: Config -> Logger -> Conduit (Either String [SBPlay]) (StateT ProtocolState IO) CBPlay
 handlePlay config logger = do
   someUUID <- liftIO $ nextRandom
-  return ()
-{-
   liftIO $ logMsg logger LvlDebug $ "Starting PLAY session"
   let loginPacket =
         CBJoinGame
@@ -339,67 +331,67 @@ handlePlay config logger = do
           (T.pack . show $ srvWorldType config)
           True
 
-  --liftIO $ writeTo logger Debug $ "Sending: " ++ show loginPacket
+  liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show loginPacket
   yield loginPacket
 
   let customPayloadPacket1 = CBPluginMessage "MC|Brand" (encodeUtf8 "opensandbox")
-  --liftIO $ writeTo logger Debug $ "Sending: " ++ show customPayloadPacket1
+  liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show customPayloadPacket1
   yield customPayloadPacket1
 
   let customPayloadPacket2 = CBPluginMessage "REGISTER" (encodeUtf8 "MC|Brand")
-  --liftIO $ writeTo logger Debug $ "Sending: " ++ show customPayloadPacket2
+  liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show customPayloadPacket2
   yield customPayloadPacket2
 
   let difficultyPacket = CBServerDifficulty (toEnum . fromEnum $ srvDifficulty config)
-  --liftIO $ writeTo logger Debug $ "Sending: " ++ show difficultyPacket
+  liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show difficultyPacket
   yield difficultyPacket
 
   let spawnPositionPacket = CBSpawnPosition 0
-  --liftIO $ writeTo logger Debug $ "Sending: " ++ show spawnPositionPacket
+  liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show spawnPositionPacket
   yield spawnPositionPacket
 
   let playerAbilitiesPacket = CBPlayerAbilities 0 1028443341 1036831949
-  --liftIO $ writeTo logger Debug $ "Sending: " ++ show playerAbilitiesPacket
+  liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show playerAbilitiesPacket
   yield playerAbilitiesPacket
 
   let heldItemChangePacket = CBHeldItemChange 0
-  --liftIO $ writeTo logger Debug $ "Sending: " ++ show heldItemChangePacket
+  liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show heldItemChangePacket
   yield heldItemChangePacket
 
   let entityStatusPacket = CBEntityStatus 32 AnimalInLove
-  --liftIO $ writeTo logger Debug $ "Sending: " ++ show entityStatusPacket
+  liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show entityStatusPacket
   yield entityStatusPacket
 
   let statisticsPacket = CBStatistics []
-  --liftIO $ writeTo logger Debug $ "Sending: " ++ show statisticsPacket
+  liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show statisticsPacket
   yield statisticsPacket
 
   let testAction = PlayerListAdd someUUID "oldmanmike" [] Survival 0 Nothing
   let playerListItemPacket = CBPlayerListItem (PlayerListAdds [testAction])
-  --liftIO $ writeTo logger Debug $ "Sending: " ++ show playerListItemPacket
+  liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show playerListItemPacket
   yield playerListItemPacket
 
   let playerPositionAndLookPacket = CBPlayerPositionAndLook 0 4 0 0 0 0 777
-  --liftIO $ writeTo logger Debug $ "Sending: " ++ show playerPositionAndLookPacket
+  liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show playerPositionAndLookPacket
   yield playerPositionAndLookPacket
 
   let worldBorderAction = Initialize 0 0 4723321873536909312 4723321873536909312 0 29999984 5 15
   let worldBorderPacket = CBWorldBorder worldBorderAction
-  --liftIO $ writeTo logger Debug $ "Sending: " ++ show worldBorderPacket
+  liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show worldBorderPacket
   yield worldBorderPacket
 
   let updateTimePacket = CBTimeUpdate 1000 25
-  --liftIO $ writeTo logger Debug $ "Sending: " ++ show updateTimePacket
+  liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show updateTimePacket
   yield updateTimePacket
 
   let windowItemsPacket = CBWindowItems 0 (V.replicate 46 (mkSlot (-1) 1 1 (TagByte "" 0)))
-  --liftIO $ writeTo logger Debug $ "Sending: " ++ show windowItemsPacket
+  liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show windowItemsPacket
   yield windowItemsPacket
 
   let setSlotPacket = CBSetSlot (-1) (-1) (mkSlot (-1) 1 1 (TagByte "" 0))
-  --liftIO $ writeTo logger Debug $ "Sending: " ++ show setSlotPacket
+  liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show setSlotPacket
   yield setSlotPacket
-
+{-
   let keepAlivePacket = CBKeepAlive 100
   mapM_ yield $ genFlatWorld (toEnum . fromEnum . srvViewDistance $ config)
   awaitForever $ \packets -> do

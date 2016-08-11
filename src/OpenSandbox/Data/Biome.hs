@@ -21,7 +21,6 @@ import Data.Aeson
 import Data.Data
 import Data.Scientific
 import Data.Text as T
-import Data.Typeable
 import Data.Word
 import GHC.Generics (Generic)
 import Prelude hiding (id)

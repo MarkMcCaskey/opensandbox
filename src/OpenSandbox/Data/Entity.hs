@@ -20,9 +20,9 @@ module OpenSandbox.Data.Entity
 
 import          Control.DeepSeq
 import          Data.Aeson
+import          Data.Aeson.Types
 import          Data.Data
 import          Data.Monoid
-import          Data.Typeable
 import          Data.Text as T
 import          Data.Word
 import          GHC.Generics (Generic)
@@ -82,8 +82,9 @@ instance FromJSON EntityType where
     case s of
       "mob" -> return EntityMob
       "object" -> return EntityObject
+      _ -> undefined
 
-  parseJSON _ = mempty
+  parseJSON x = typeMismatch "Error: invalid JSON for EntityType!" x
 
 instance NFData EntityType
 
@@ -124,5 +125,8 @@ instance FromJSON EntityCategory where
       "Hostile mobs"  -> return EntityCat_HostileMobs
       "Passive mobs"  -> return EntityCat_PassiveMobs
       "Generic"       -> return EntityCat_Generic
+      _               -> undefined
 
+  parseJSON x = typeMismatch "Error: invalid JSON for EntityCategory!" x
+        
 instance NFData EntityCategory

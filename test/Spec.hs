@@ -1,15 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE FlexibleInstances #-}
 import            Control.Monad
 import qualified  Data.Array.IArray as IA
 import            Data.Array.Unboxed (listArray)
-import            Data.Attoparsec.ByteString
+import qualified  Data.Attoparsec.ByteString as Decode
 import            Data.Bits
 import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Lazy as BL
-import qualified  Data.ByteString.Builder as BB
+import qualified  Data.ByteString.Builder as Encode
 import            Data.Either
 import            Data.Int
+import            Data.Monoid
 import            Data.NBT
 import qualified  Data.Text as T
 import            Data.Text.Encoding
@@ -21,7 +23,13 @@ import            OpenSandbox
 import            Test.Hspec
 import            Test.QuickCheck
 import            GHC.Generics
+import            Debug.Trace
 
+instance Arbitrary BitsPerBlockOption where
+  arbitrary = fmap toEnum (choose (4,13) :: Gen Int)
+
+instance Arbitrary BitsPerBlock where
+  arbitrary = fmap mkBitsPerBlock (arbitrary :: Gen BitsPerBlockOption)
 
 instance Arbitrary (U.Vector Int32) where
   arbitrary = do
@@ -29,13 +37,11 @@ instance Arbitrary (U.Vector Int32) where
     e <- vectorOf (fromEnum ln) arbitrary
     return $ U.fromList e
 
-
 instance Arbitrary (U.Vector Int8) where
   arbitrary = do
     ln <- choose (0,10) :: Gen Int32
     e <- vectorOf (fromEnum ln) arbitrary
     return $ U.fromList e
-
 
 instance Arbitrary UpdatedColumns where
   arbitrary = do
@@ -44,14 +50,12 @@ instance Arbitrary UpdatedColumns where
       then UpdatedColumns <$> return columns <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       else return NoUpdatedColumns
 
-
 instance Arbitrary UpdateScoreAction where
   arbitrary = do
     action <- arbitrary :: Gen Bool
     if action
       then CreateOrUpdateScoreItem <$> arbitrary <*> arbitrary <*> arbitrary
       else RemoveScoreItem <$> arbitrary <*> arbitrary
-
 
 instance Arbitrary NBT where
   arbitrary = sized nbt'
@@ -72,7 +76,6 @@ instance Arbitrary NBT where
               0x0a -> TagCompound <$> arbitrary <*> vectorOf (n `div` 30) arbitrary
               0x0b -> TagIntArray <$> arbitrary <*> arbitrary
 
-
 instance Arbitrary NBTList where
   arbitrary = sized nbtlst'
     where nbtlst' 0 = return $ NBTList TypeByte [NTagByte 0]
@@ -92,10 +95,8 @@ instance Arbitrary NBTList where
               0x0a -> NBTList <$> return TypeCompound <*> vectorOf (n `div` 30) (NTagCompound <$> vectorOf (n `div` 30) (arbitrary :: Gen NBT))
               0x0b -> NBTList <$> return TypeIntArray <*> vectorOf (n `div` 20) (NTagIntArray <$> (arbitrary :: Gen (U.Vector Int32)))
 
-
 instance Arbitrary a => Arbitrary (V.Vector a) where
   arbitrary = fmap V.fromList $ listOf arbitrary
-
 
 instance Arbitrary UUID where
   arbitrary = do
@@ -104,7 +105,6 @@ instance Arbitrary UUID where
     c <- arbitrary
     d <- arbitrary
     return $ fromWords a b c d
-
 
 instance Arbitrary TitleAction where
   arbitrary = do
@@ -115,7 +115,6 @@ instance Arbitrary TitleAction where
       3 -> SetTimesAndDisplay <$> arbitrary <*> arbitrary <*> arbitrary
       4 -> return Hide
       5 -> return Reset
-
 
 instance Arbitrary TeamMode where
   arbitrary = do
@@ -142,10 +141,8 @@ instance Arbitrary TeamMode where
       4 -> AddPlayers <$> arbitrary
       5 -> RemovePlayers <$> arbitrary
 
-
 instance Arbitrary EntityProperty where
   arbitrary = EntityProperty <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
 
 instance Arbitrary WorldBorderAction where
   arbitrary = do
@@ -166,10 +163,8 @@ instance Arbitrary WorldBorderAction where
       5 -> SetWarningTime <$> arbitrary
       6 -> SetWarningBlocks <$> arbitrary
 
-
 instance Arbitrary Icon where
   arbitrary = Icon <$> arbitrary <*> arbitrary <*> arbitrary
-
 
 instance Arbitrary CombatEvent where
   arbitrary = do
@@ -179,59 +174,38 @@ instance Arbitrary CombatEvent where
       2 -> EndCombat <$> arbitrary <*> arbitrary
       3 -> EntityDead <$> arbitrary <*> arbitrary <*> arbitrary
 
-
 instance Arbitrary EntityStatus where
   arbitrary = fmap toEnum (choose (0,34) :: Gen Int)
-
 
 instance Arbitrary BlockChange where
   arbitrary = BlockChange <$> arbitrary <*> arbitrary <*> arbitrary
 
-
 instance Arbitrary GameChangeReason where
   arbitrary = fmap toEnum (choose (0,9) :: Gen Int)
 
-
-instance Arbitrary ChunkSections where
+instance Arbitrary ChunkSection where
   arbitrary = do
-    light <- choose (True,False)
-    if light
-      then OverWorldChunkSections <$> arbitrary
-      else OtherWorldChunkSections <$> arbitrary
-
-
-instance Arbitrary OverWorldChunkSection where
-  arbitrary = OverWorldChunkSection
-                <$> arbitrary
-                <*> arbitrary
-                <*> arbitrary
-                <*> (fmap B.pack $ vectorOf 2048 (arbitrary :: Gen Word8))
-                <*> (fmap B.pack $ vectorOf 2048 (arbitrary :: Gen Word8))
-
-
-instance Arbitrary OtherWorldChunkSection where
-  arbitrary = OtherWorldChunkSection
-                <$> arbitrary
-                <*> arbitrary
-                <*> arbitrary
-                <*> (fmap B.pack $ vectorOf 2048 (arbitrary :: Gen Word8))
-
+    m <- arbitrary :: Gen Bool
+    ChunkSection
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> (fmap B.pack $ vectorOf 2048 (arbitrary :: Gen Word8))
+      <*> case m of
+          False -> return Nothing
+          True -> fmap Just (fmap B.pack $ vectorOf 2048 (arbitrary :: Gen Word8))
 
 instance Arbitrary Difficulty where
   arbitrary = fmap toEnum (choose (0,3) :: Gen Int)
 
-
 instance Arbitrary GameMode where
   arbitrary = elements [Survival,Creative,Adventure,Spectator]
-
 
 instance Arbitrary Dimension where
   arbitrary = elements [Overworld,Nether,End]
 
-
 instance Arbitrary WorldType where
   arbitrary = elements [Default,Flat,LargeBiomes,Amplified]
-
 
 instance Arbitrary Statistic where
   arbitrary = do
@@ -239,14 +213,12 @@ instance Arbitrary Statistic where
     b <- arbitrary :: Gen Int
     return $ Statistic a b
 
-
 instance Arbitrary ProtocolState where
   arbitrary = do
     switch <- choose (1,2) :: Gen Int
     case switch of
       1 -> return ProtocolStatus
       2 -> return ProtocolLogin
-
 
 instance Arbitrary PlayerListEntries where
   arbitrary = do
@@ -298,14 +270,11 @@ instance Arbitrary PlayerProperty where
     c <- arbitrary
     return $ PlayerProperty a b c
 
-
 instance Arbitrary T.Text where
   arbitrary = fmap T.pack arbitrary
 
-
 instance Arbitrary B.ByteString where
   arbitrary = fmap B.pack arbitrary
-
 
 instance Arbitrary EntityMetadataEntry where
   arbitrary = do
@@ -315,18 +284,14 @@ instance Arbitrary EntityMetadataEntry where
       then return MetadataEnd
       else Entry <$> return w <*> arbitrary <*> arbitrary
 
-
 instance Arbitrary MetadataType where
   arbitrary = fmap toEnum (choose (0,12) :: Gen Int)
-
 
 instance Arbitrary Animation where
   arbitrary = fmap toEnum (choose (0,5) :: Gen Int)
 
-
 instance Arbitrary UpdateBlockEntityAction where
   arbitrary = fmap toEnum (choose (1,9) :: Gen Int)
-
 
 instance Arbitrary BlockAction where
   arbitrary = do
@@ -336,22 +301,17 @@ instance Arbitrary BlockAction where
       1 -> PistonBlockAction <$> arbitrary <*> arbitrary
       2 -> ChestBlockAction <$> arbitrary
 
-
 instance Arbitrary InstrumentType where
   arbitrary = fmap toEnum (choose (0,4) :: Gen Int)
-
 
 instance Arbitrary NotePitch where
   arbitrary = fmap toEnum (choose (0,24) :: Gen Int)
 
-
 instance Arbitrary PistonState where
   arbitrary = fmap toEnum (choose (0,1) :: Gen Int)
 
-
 instance Arbitrary PistonDirection where
   arbitrary = fmap toEnum (choose (0,5) :: Gen Int)
-
 
 instance Arbitrary BossBarAction where
   arbitrary = do
@@ -364,10 +324,8 @@ instance Arbitrary BossBarAction where
       4 -> BossBarUpdateStyle <$> arbitrary <*> arbitrary
       5 -> BossBarUpdateFlags <$> arbitrary
 
-
 instance Arbitrary Slot where
   arbitrary = mkSlot <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
 
 instance Arbitrary UseEntityType where
   arbitrary = do
@@ -377,10 +335,8 @@ instance Arbitrary UseEntityType where
       1 -> return AttackEntity
       2 -> InteractAtEntity <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-
 instance Arbitrary EntityHand where
   arbitrary = fmap toEnum (choose (0,1) :: Gen Int)
-
 
 instance Arbitrary ScoreboardMode where
   arbitrary = do
@@ -390,7 +346,6 @@ instance Arbitrary ScoreboardMode where
       1 -> return RemoveScoreboard
       2 -> UpdateDisplayText <$> arbitrary <*> arbitrary
 
-
 instance Arbitrary SBHandshaking where
   arbitrary = do
     v <- arbitrary
@@ -398,7 +353,6 @@ instance Arbitrary SBHandshaking where
     p <- arbitrary
     s <- arbitrary
     return $ SBHandshake v a p s
-
 
 instance Arbitrary SBStatus where
   arbitrary = do
@@ -411,7 +365,6 @@ instance Arbitrary SBStatus where
       0x01 -> do
         a <- arbitrary
         return $ SBPing a
-
 
 instance Arbitrary CBStatus where
   arbitrary = do
@@ -429,7 +382,6 @@ instance Arbitrary CBStatus where
       0x01  -> do
         a <- arbitrary
         return $ CBPong a
-
 
 instance Arbitrary CBLogin where
   arbitrary = do
@@ -455,7 +407,6 @@ instance Arbitrary CBLogin where
         a <- arbitrary
         return $ CBSetCompression a
 
-
 instance Arbitrary SBLogin where
   arbitrary = do
     packetID <- choose (0x00,0x01) :: Gen Word8
@@ -469,7 +420,6 @@ instance Arbitrary SBLogin where
         a <- fmap B.pack arbitrary
         b <- fmap B.pack arbitrary
         return $ SBEncryptionResponse a b
-
 
 instance Arbitrary CBPlay where
   arbitrary = do
@@ -685,13 +635,18 @@ instance Arbitrary CBPlay where
         return $ CBKeepAlive a
 
       0x20 -> do
-        a <- arbitrary
-        b <- arbitrary
-        c <- arbitrary
+        --a <- arbitrary
+        --b <- arbitrary
+        --c <- arbitrary
         d <- arbitrary
-        e <- (fmap . fmap) (B.take 256) (arbitrary :: Gen (Maybe B.ByteString))
-        f <- arbitrary
-        return $ CBChunkData a b c d e f
+        {-
+        rand <- arbitrary :: Gen Bool
+        e <- case rand of
+              True -> fmap (Just . B.pack) $ vectorOf 256 (arbitrary :: Gen Word8)
+              False -> return Nothing
+        -}
+        --f <- arbitrary
+        return $ CBChunkData {-a b c-} d {-e-} {-f-}
 
       0x21 -> do
         a <- arbitrary
@@ -955,7 +910,6 @@ instance Arbitrary CBPlay where
         e <- arbitrary
         return $ CBEntityEffect a b c d e
 
-
 instance Arbitrary SBPlay where
   arbitrary = do
     packetID <- choose (0x00,0x1D) :: Gen Word8
@@ -1133,187 +1087,173 @@ instance Arbitrary SBPlay where
 prop_varIntEq :: [VarInt] -> Bool
 prop_varIntEq [] = True
 prop_varIntEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeVarInt x)) lst
-  let decoded = fmap (parseOnly decodeVarInt) encoded :: [Either String VarInt]
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeVarInt x)) lst
+  let decoded = fmap (Decode.parseOnly decodeVarInt) encoded :: [Either String VarInt]
   lst == (rights decoded)
-
 
 prop_varLongEq :: [VarLong] -> Bool
 prop_varLongEq [] = True
 prop_varLongEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeVarLong x)) lst
-  let decoded = fmap (parseOnly decodeVarLong) encoded :: [Either String VarLong]
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeVarLong x)) lst
+  let decoded = fmap (Decode.parseOnly decodeVarLong) encoded :: [Either String VarLong]
   lst == (rights decoded)
-
 
 prop_textEq :: [T.Text] -> Bool
 prop_textEq [] = True
 prop_textEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeText x)) lst
-  let decoded = fmap (parseOnly decodeText) encoded :: [Either String T.Text]
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeText x)) lst
+  let decoded = fmap (Decode.parseOnly decodeText) encoded :: [Either String T.Text]
   lst == (rights decoded)
-
 
 prop_entityMetadataEq :: [EntityMetadata] -> Bool
 prop_entityMetadataEq [] = True
 prop_entityMetadataEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeEntityMetadata x)) lst
-  let decoded = fmap (parseOnly decodeEntityMetadata) encoded :: [Either String EntityMetadata]
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeEntityMetadata x)) lst
+  let decoded = fmap (Decode.parseOnly decodeEntityMetadata) encoded :: [Either String EntityMetadata]
   lst == (rights decoded)
-
 
 prop_slotEq :: [Slot] -> Bool
 prop_slotEq [] = True
 prop_slotEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeSlot x)) lst
-  let decoded = fmap (parseOnly decodeSlot) encoded :: [Either String Slot]
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeSlot x)) lst
+  let decoded = fmap (Decode.parseOnly decodeSlot) encoded :: [Either String Slot]
   lst == (rights decoded)
 
-
-prop_chunkSectionsEq :: [ChunkSections] -> Bool
-prop_chunkSectionsEq [] = True
-prop_chunkSectionsEq lst = foldr (==) True $ (go lst)
-  where
-  go [] = []
-  go (x:xs) =
-    case x of
-      OverWorldChunkSections chunks -> do
-        let encoded = BL.toStrict . BB.toLazyByteString $ encodeChunkSections x
-        let decoded = parseOnly (decodeChunkSections (complementBit (0 :: Int) (V.length chunks))) encoded :: Either String ChunkSections
-        (Right x == decoded):(go xs)
-      OtherWorldChunkSections chunks -> do
-        let encoded = BL.toStrict . BB.toLazyByteString $ encodeChunkSections x
-        let decoded = parseOnly (decodeChunkSections (complementBit (0 :: Int) (V.length chunks))) encoded :: Either String ChunkSections
-        (Right x == decoded):(go xs)
-
+prop_chunkSectionEq :: [ChunkSection] -> Bool
+prop_chunkSectionEq [] = True
+prop_chunkSectionEq lst = do
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeChunkSection x)) lst
+  let decoded = fmap (Decode.parseOnly decodeChunkSection) encoded :: [Either String ChunkSection]
+  lst == (rights decoded)
 
 prop_positionEq :: [Position] -> Bool
 prop_positionEq [] = True
 prop_positionEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodePosition x)) lst
-  let decoded = fmap (parseOnly decodePosition) encoded :: [Either String Position]
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodePosition x)) lst
+  let decoded = fmap (Decode.parseOnly decodePosition) encoded :: [Either String Position]
   lst == (rights decoded)
-
 
 prop_angleEq :: [Angle] -> Bool
 prop_angleEq [] = True
 prop_angleEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeAngle x)) lst
-  let decoded = fmap (parseOnly decodeAngle) encoded :: [Either String Angle]
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeAngle x)) lst
+  let decoded = fmap (Decode.parseOnly decodeAngle) encoded :: [Either String Angle]
   lst == (rights decoded)
-
 
 prop_uuidEq :: [UUID] -> Bool
 prop_uuidEq [] = True
 prop_uuidEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeUUID x)) lst
-  let decoded = fmap (parseOnly decodeUUID) encoded :: [Either String UUID]
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeUUID x)) lst
+  let decoded = fmap (Decode.parseOnly decodeUUID) encoded :: [Either String UUID]
   lst == (rights decoded)
-
 
 prop_byteStringEq :: [B.ByteString] -> Bool
 prop_byteStringEq [] = True
 prop_byteStringEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeByteString x)) lst
-  let decoded = fmap (parseOnly decodeByteString) encoded :: [Either String B.ByteString]
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeByteString x)) lst
+  let decoded = fmap (Decode.parseOnly decodeByteString) encoded :: [Either String B.ByteString]
   lst == (rights decoded)
-
 
 prop_statisticEq :: [Statistic] -> Bool
 prop_statisticEq [] = True
 prop_statisticEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeStatistic x)) lst
-  let decoded = fmap (parseOnly decodeStatistic) encoded :: [Either String Statistic]
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeStatistic x)) lst
+  let decoded = fmap (Decode.parseOnly decodeStatistic) encoded :: [Either String Statistic]
   lst == (rights decoded)
-
 
 prop_playerPropertyEq :: [PlayerProperty] -> Bool
 prop_playerPropertyEq [] = True
 prop_playerPropertyEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodePlayerProperty x)) lst
-  let decoded = fmap (parseOnly decodePlayerProperty) encoded :: [Either String PlayerProperty]
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodePlayerProperty x)) lst
+  let decoded = fmap (Decode.parseOnly decodePlayerProperty) encoded :: [Either String PlayerProperty]
   lst == (rights decoded)
-
 
 prop_playerListEntriesEq :: [PlayerListEntries] -> Bool
 prop_playerListEntriesEq [] = True
 prop_playerListEntriesEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodePlayerListEntries x)) lst
-  let decoded = fmap (parseOnly decodePlayerListEntries) encoded :: [Either String PlayerListEntries]
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodePlayerListEntries x)) lst
+  let decoded = fmap (Decode.parseOnly decodePlayerListEntries) encoded :: [Either String PlayerListEntries]
   lst == (rights decoded)
-
 
 prop_iconEq :: [Icon] -> Bool
 prop_iconEq [] = True
 prop_iconEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeIcon x)) lst
-  let decoded = fmap (parseOnly decodeIcon) encoded :: [Either String Icon]
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeIcon x)) lst
+  let decoded = fmap (Decode.parseOnly decodeIcon) encoded :: [Either String Icon]
   lst == (rights decoded)
-
 
 prop_entityPropertyEq :: [EntityProperty] -> Bool
 prop_entityPropertyEq [] = True
 prop_entityPropertyEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeEntityProperty x)) lst
-  let decoded = fmap (parseOnly decodeEntityProperty) encoded :: [Either String EntityProperty]
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeEntityProperty x)) lst
+  let decoded = fmap (Decode.parseOnly decodeEntityProperty) encoded :: [Either String EntityProperty]
   lst == (rights decoded)
-
 
 prop_SBHandshakingEq :: [SBHandshaking] -> Bool
 prop_SBHandshakingEq [] = True
 prop_SBHandshakingEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeSBHandshaking x)) lst
-  let decoded = fmap (parseOnly decodeSBHandshaking) encoded :: [Either String SBHandshaking]
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeSBHandshaking x)) lst
+  let decoded = fmap (Decode.parseOnly decodeSBHandshaking) encoded :: [Either String SBHandshaking]
   lst == (rights decoded)
-
 
 prop_CBStatusEq :: [CBStatus] -> Bool
 prop_CBStatusEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeCBStatus x)) lst
-  let decoded = fmap (parseOnly decodeCBStatus) encoded :: [Either String CBStatus]
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeCBStatus x)) lst
+  let decoded = fmap (Decode.parseOnly decodeCBStatus) encoded :: [Either String CBStatus]
   lst == (rights decoded)
-
 
 prop_SBStatusEq :: [SBStatus] -> Bool
 prop_SBStatusEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeSBStatus x)) lst
-  let decoded = fmap (parseOnly decodeSBStatus) encoded :: [Either String SBStatus]
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeSBStatus x)) lst
+  let decoded = fmap (Decode.parseOnly decodeSBStatus) encoded :: [Either String SBStatus]
   lst == (rights decoded)
-
 
 prop_CBLoginEq :: [CBLogin] -> Bool
 prop_CBLoginEq [] = True
 prop_CBLoginEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeCBLogin x)) lst
-  let decoded = fmap (parseOnly decodeCBLogin) encoded :: [Either String CBLogin]
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeCBLogin x)) lst
+  let decoded = fmap (Decode.parseOnly decodeCBLogin) encoded :: [Either String CBLogin]
   lst == (rights decoded)
-
 
 prop_SBLoginEq :: [SBLogin] -> Bool
 prop_SBLoginEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeSBLogin x)) lst
-  let decoded = fmap (parseOnly decodeSBLogin) encoded :: [Either String SBLogin]
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeSBLogin x)) lst
+  let decoded = fmap (Decode.parseOnly decodeSBLogin) encoded :: [Either String SBLogin]
   lst == (rights decoded)
-
 
 prop_CBPlayEq :: [CBPlay] -> Bool
 prop_CBPlayEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeCBPlay x)) lst
-  let decoded = fmap (parseOnly decodeCBPlay) encoded :: [Either String CBPlay]
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeCBPlay x)) lst
+  let decoded = fmap (Decode.parseOnly decodeCBPlay) encoded :: [Either String CBPlay]
   lst == (rights decoded)
-
 
 prop_SBPlayEq :: [SBPlay] -> Bool
 prop_SBPlayEq [] = True
 prop_SBPlayEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . BB.toLazyByteString $ (encodeSBPlay x)) lst
-  let decoded = fmap (parseOnly decodeSBPlay) encoded :: [Either String SBPlay]
+  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeSBPlay x)) lst
+  let decoded = fmap (Decode.parseOnly decodeSBPlay) encoded :: [Either String SBPlay]
   lst == (rights decoded)
 
+prop_ChunkSectionFieldEq :: ChunkSection -> Bool
+prop_ChunkSectionFieldEq dat = do
+  let encoded = BL.toStrict . Encode.toLazyByteString
+                  $ (encodeVarInt ln) <> bs
+  let decoded = Decode.parseOnly parser' encoded :: Either String ChunkSection
+  [dat] == (rights [decoded])
+  where
+  bs = V.foldl' (<>) mempty $ fmap encodeChunkSection [dat]
+  ln = B.length . BL.toStrict . Encode.toLazyByteString $ bs
+  parser' :: Decode.Parser ChunkSection
+  parser' = do
+    ln' <- decodeVarInt
+    bs' <- Decode.take ln'
+    let result = Decode.parseOnly decodeChunkSection bs' :: Either String ChunkSection
+    case result of
+      Left err -> fail err
+      Right result' -> return result'
 
 main :: IO ()
 main = hspec $ do
-
   describe "Minecraft Protocol Core Types" $ do
     context "VarInt:" $ do
       it "Identity" $ property prop_varIntEq
@@ -1325,8 +1265,8 @@ main = hspec $ do
       it "Identity" $ property prop_entityMetadataEq
     context "Slot:" $ do
       it "Identity" $ property prop_slotEq
-    context "ChunkSections:" $ do
-      it "Identity" $ property prop_chunkSectionsEq
+    context "ChunkSection:" $ do
+      it "Identity" $ property prop_chunkSectionEq
     context "Position:" $ do
       it "Identity" $ property prop_positionEq
     context "Angle:" $ do
@@ -1347,6 +1287,8 @@ main = hspec $ do
       it "Identity" $ property prop_iconEq
     context "EntityProperty:" $ do
       it "Identity" $ property prop_entityPropertyEq
+    context "ChunkSectionField:" $ do
+      it "Identity" $ property prop_ChunkSectionFieldEq
 
   describe "Minecraft Protocol Packets" $ do
     context "Server bound handshaking packets:" $ do
