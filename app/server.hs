@@ -11,6 +11,7 @@
 --
 -------------------------------------------------------------------------------
 
+import            Control.Monad
 import qualified  Data.Aeson as A
 import qualified  Data.ByteString as B
 import            Data.Maybe
@@ -97,7 +98,7 @@ main = do
           encryption <- configEncryption
           logMsg logger LvlInfo "Generating keypair..."
 
-          logMsg logger LvlInfo "Starting Minecraft server on " ++ show (srvPort config)
+          logMsg logger LvlInfo $ "Starting Minecraft server on " ++ show (srvPort config)
 
           -- World Gen Step
           logMsg logger LvlInfo "Generating world..."
