@@ -140,31 +140,31 @@ instance FromJSON Block where
     extractIds obj = case sequence (fmap extractId (H.keys obj)) of
                       Left err -> fail err
                       Right lst -> lst
-    extractId x = (A.parseOnly A.decimal x :: Either String Word32)
-  parseJSON x = typeMismatch "Block" x
+    extractId x = A.parseOnly A.decimal x :: Either String Word32
+  parseJSON x = typeMismatch "Error: Invalid Block!" x
 
 instance NFData Block
 
 data Material
-  = Material_Rock
-  | Material_Dirt
-  | Material_Wood
-  | Material_Plant
-  | Material_Leaves
-  | Material_Web
-  | Material_Wool
+  = MaterialRock
+  | MaterialDirt
+  | MaterialWood
+  | MaterialPlant
+  | MaterialLeaves
+  | MaterialWeb
+  | MaterialWool
   deriving (Show,Eq,Generic,Data,Typeable)
 
 instance FromJSON Material where
   parseJSON (String s) =
     case s of
-      "rock" -> return Material_Rock
-      "dirt" -> return Material_Dirt
-      "wood" -> return Material_Wood
-      "plant" -> return Material_Plant
-      "leaves" -> return Material_Leaves
-      "web" -> return Material_Web
-      "wool" -> return Material_Wool
+      "rock" -> return MaterialRock
+      "dirt" -> return MaterialDirt
+      "wood" -> return MaterialWood
+      "plant" -> return MaterialPlant
+      "leaves" -> return MaterialLeaves
+      "web" -> return MaterialWeb
+      "wool" -> return MaterialWool
       x       -> fail $ "ERROR => Aeson => failed to pattern match text to Material: " ++ show x
 
   parseJSON x = typeMismatch ("ERROR => Aeson => Material => not a String, got " ++ show x) x
@@ -188,6 +188,7 @@ instance FromJSON DropEntry where
   parseJSON (Object o) = fmap (DropEntry . Right) $ DropBody
     <$> o .: "id"
     <*> o .: "metadata"
+  parseJSON x = typeMismatch "Error: Invalid DropEntry!" x
 
 instance NFData DropEntry
 
@@ -721,28 +722,28 @@ data YellowFlowersType = FlowerDandelion
 instance NFData YellowFlowersType
 
 data FlowerPotContents
-  = FPC_Empty
-  | FPC_Rose
-  | FPC_BlueOrchid
-  | FPC_Allium
-  | FPC_Houstonia
-  | FPC_RedTulip
-  | FPC_OrangeTulip
-  | FPC_WhiteTulip
-  | FPC_PinkTulip
-  | FPC_OxeyeDaisy
-  | FPC_Dandelion
-  | FPC_OakSapling
-  | FPC_SpruceSapling
-  | FPC_BirchSapling
-  | FPC_JungleSapling
-  | FPC_AcaciaSapling
-  | FPC_DarkOakSapling
-  | FPC_MushroomRed
-  | FPC_MushroomBrown
-  | FPC_DeadBush
-  | FPC_Fern
-  | FPC_Cactus
+  = FPCEmpty
+  | FPCRose
+  | FPCBlueOrchid
+  | FPCAllium
+  | FPCHoustonia
+  | FPCRedTulip
+  | FPCOrangeTulip
+  | FPCWhiteTulip
+  | FPCPinkTulip
+  | FPCOxeyeDaisy
+  | FPCDandelion
+  | FPCOakSapling
+  | FPCSpruceSapling
+  | FPCBirchSapling
+  | FPCJungleSapling
+  | FPCAcaciaSapling
+  | FPCDarkOakSapling
+  | FPCMushroomRed
+  | FPCMushroomBrown
+  | FPCDeadBush
+  | FPCern
+  | FPCCactus
   deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData FlowerPotContents

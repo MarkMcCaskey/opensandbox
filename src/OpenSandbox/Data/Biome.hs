@@ -18,6 +18,7 @@ module OpenSandbox.Data.Biome
 
 import Control.DeepSeq
 import Data.Aeson
+import Data.Aeson.Types
 import Data.Data
 import Data.Scientific
 import Data.Text as T
@@ -108,5 +109,6 @@ instance ToJSON BiomeID where
 
 instance FromJSON BiomeID where
   parseJSON (Number n) = return (toEnum (base10Exponent n))
+  parseJSON x = typeMismatch "Error: Invalid BiomeID!" x
 
 instance NFData BiomeID

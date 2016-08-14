@@ -39,7 +39,6 @@ import            Data.Aeson.Types
 import            Data.Bits
 import            Data.ByteArray
 import qualified  Data.ByteString as B
-import qualified  Data.ByteString.Char8 as BC
 import qualified  Data.ByteString.Lazy as BL
 import qualified  Data.ByteString.Builder as Encode
 import            Data.Monoid
@@ -67,10 +66,10 @@ data AuthProperty = AuthProperty
 
 authDigest :: B.ByteString -> B.ByteString
 authDigest bs = do
-  let bs' = B.pack . unpack . (hashWith SHA1) $ bs
-  if ((B.index bs' 0) .&. 0x80) == 0x80
-    then (B.dropWhile (==0) . twosComplement $ bs')
-    else (B.dropWhile (==0) bs')
+  let bs' = B.pack . unpack . hashWith SHA1 $ bs
+  if (B.index bs' 0 .&. 0x80) == 0x80
+    then B.dropWhile (==0) . twosComplement $ bs'
+    else B.dropWhile (==0) bs'
 
 twosComplement :: B.ByteString -> B.ByteString
 twosComplement bs = BL.toStrict $ Encode.toLazyByteString (go (B.length bs - 1) True mempty)
@@ -174,5 +173,6 @@ instance FromJSON YggdrasilError where
       "ForbiddenOperationException"   -> return ForbiddenOperationException
       "IllegalArgumentException"      -> return IllegalArgumentException
       "Unsupported Media Type"        -> return UnsupportedMediaType
+      _                               -> undefined
 
   parseJSON x = typeMismatch "Unknown Yggdrasil error!" x

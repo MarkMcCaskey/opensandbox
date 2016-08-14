@@ -26,12 +26,11 @@ logMsg logger lvl msg = logIO logger "Main" lvl (T.pack msg)
 main :: IO ()
 main = do
     args <- getOpts
-    if getVersionFlag args
-      then do print $ "OpenSandbox Version:   " `T.append` openSandboxVersion
-              print $ "MC Stable Version:     " `T.append` majorVersion
-              print $ "MC Snapshot Version:   " `T.append` snapshotVersion
-              exitSuccess
-      else return ()
+    when (getVersionFlag args) $ do
+      print $ "OpenSandbox Version:   " `T.append` openSandboxVersion
+      print $ "MC Stable Version:     " `T.append` majorVersion
+      print $ "MC Snapshot Version:   " `T.append` snapshotVersion
+      exitSuccess
 
     (rootDir,config1) <-
       case getCustomRootDir args of
@@ -50,17 +49,15 @@ main = do
           configDir <- parseRelDir "config"
           configFile <- parseRelFile "opensandboxd.yaml"
           createDirectoryIfMissing True $ toFilePath $ rootDir </> configDir
-          return $ (rootDir </> configDir </> configFile, config1)
+          return (rootDir </> configDir </> configFile, config1)
         Just customPath -> do
           configDir <- parseRelDir customPath
           configFile <- parseRelFile "opensandboxd.yaml"
           createDirectoryIfMissing True $ toFilePath $ rootDir </> configDir
-          return $ (rootDir </> configDir </> configFile, config1 {srvConfigDir = configDir})
+          return (rootDir </> configDir </> configFile, config1 {srvConfigDir = configDir})
 
     configFileExists <- doesFileExist (toFilePath configFilePath)
-    if configFileExists
-      then return ()
-      else writeDefaultConfig (toFilePath configFilePath) config2
+    unless configFileExists $ writeDefaultConfig (toFilePath configFilePath) config2
 
 
     potentialConfig <- loadConfig configFilePath
@@ -74,12 +71,12 @@ main = do
                 logDir <- parseRelDir "logs"
                 logFile <- parseRelFile "latest.log"
                 createDirectoryIfMissing True $ toFilePath $ rootDir </> logDir
-                return $ (rootDir </> logDir </> logFile,baseConfig)
+                return (rootDir </> logDir </> logFile,baseConfig)
               Just customPath -> do
                 logDir <- parseRelDir customPath
                 logFile <- parseRelFile "latest.log"
                 createDirectoryIfMissing True $ toFilePath $ rootDir </> logDir
-                return $ (rootDir </> logDir </> logFile,baseConfig {srvLogDir = logDir})
+                return (rootDir </> logDir </> logFile,baseConfig {srvLogDir = logDir})
 
           let spec = FileLogSpec (toFilePath logFilePath) 1000000 10
 
@@ -98,15 +95,15 @@ main = do
 
           -- Encryption Step
           encryption <- configEncryption
-          logMsg logger LvlInfo $ "Generating keypair..."
+          logMsg logger LvlInfo "Generating keypair..."
 
-          logMsg logger LvlInfo $ "Starting Minecraft server on " ++ show (srvPort config)
+          logMsg logger LvlInfo "Starting Minecraft server on " ++ show (srvPort config)
 
           -- World Gen Step
-          logMsg logger LvlInfo $ "Generating world..."
+          logMsg logger LvlInfo "Generating world..."
           --world <- genWorld logger
 
-          logMsg logger LvlInfo $ "Done!"
+          logMsg logger LvlInfo "Done!"
 
           rawBiomes <- B.readFile "data/biomes.json"
           rawBlocks <- B.readFile "data/blocks.json"

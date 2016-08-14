@@ -89,44 +89,44 @@ instance FromJSON EntityType where
 instance NFData EntityType
 
 data EntityCategory
-  = EntityCat_Drops
-  | EntityCat_Immobile
-  | EntityCat_Projectiles
-  | EntityCat_Blocks
-  | EntityCat_Vehicles
-  | EntityCat_NPCs
-  | EntityCat_HostileMobs
-  | EntityCat_PassiveMobs
-  | EntityCat_Generic
+  = EntityCatDrops
+  | EntityCatImmobile
+  | EntityCatProjectiles
+  | EntityCatBlocks
+  | EntityCatVehicles
+  | EntityCatNPCs
+  | EntityCatHostileMobs
+  | EntityCatPassiveMobs
+  | EntityCatGeneric
   deriving (Show,Eq,Ord,Generic,Data,Typeable)
 
 instance ToJSON EntityCategory where
   toJSON ec =
     case ec of
-      EntityCat_Drops       -> String "Drops"
-      EntityCat_Immobile    -> String "Immobile"
-      EntityCat_Projectiles -> String "Projectiles"
-      EntityCat_Blocks      -> String "Blocks"
-      EntityCat_Vehicles    -> String "Vehicles"
-      EntityCat_NPCs        -> String "NPCs"
-      EntityCat_HostileMobs -> String "Hostile mobs"
-      EntityCat_PassiveMobs -> String "Passive mobs"
-      EntityCat_Generic     -> String "Generic"
+      EntityCatDrops       -> String "Drops"
+      EntityCatImmobile    -> String "Immobile"
+      EntityCatProjectiles -> String "Projectiles"
+      EntityCatBlocks      -> String "Blocks"
+      EntityCatVehicles    -> String "Vehicles"
+      EntityCatNPCs        -> String "NPCs"
+      EntityCatHostileMobs -> String "Hostile mobs"
+      EntityCatPassiveMobs -> String "Passive mobs"
+      EntityCatGeneric     -> String "Generic"
 
 instance FromJSON EntityCategory where
   parseJSON (String s) =
     case s of
-      "Drops"         -> return EntityCat_Drops
-      "Immobile"      -> return EntityCat_Immobile
-      "Projectiles"   -> return EntityCat_Projectiles
-      "Blocks"        -> return EntityCat_Blocks
-      "Vehicles"      -> return EntityCat_Vehicles
-      "NPCs"          -> return EntityCat_NPCs
-      "Hostile mobs"  -> return EntityCat_HostileMobs
-      "Passive mobs"  -> return EntityCat_PassiveMobs
-      "Generic"       -> return EntityCat_Generic
+      "Drops"         -> return EntityCatDrops
+      "Immobile"      -> return EntityCatImmobile
+      "Projectiles"   -> return EntityCatProjectiles
+      "Blocks"        -> return EntityCatBlocks
+      "Vehicles"      -> return EntityCatVehicles
+      "NPCs"          -> return EntityCatNPCs
+      "Hostile mobs"  -> return EntityCatHostileMobs
+      "Passive mobs"  -> return EntityCatPassiveMobs
+      "Generic"       -> return EntityCatGeneric
       _               -> undefined
 
   parseJSON x = typeMismatch "Error: invalid JSON for EntityCategory!" x
-        
+
 instance NFData EntityCategory

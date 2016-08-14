@@ -19,8 +19,8 @@ module OpenSandbox.Data.Effect
 
 import          Control.DeepSeq
 import          Data.Aeson
+import          Data.Aeson.Types
 import          Data.Data
-import          Data.Monoid
 import          Data.Text as T
 import          Data.Word
 import          GHC.Generics (Generic)
@@ -49,7 +49,7 @@ instance FromJSON Effect where
       <*> v .: "displayName"
       <*> v .: "type"
 
-  parseJSON _ = mempty
+  parseJSON x = typeMismatch "Error: Invalid Effect!" x
 
 instance NFData Effect
 
@@ -65,5 +65,7 @@ instance FromJSON EffectType where
     case s of
       "good"  -> return GoodEffect
       "bad"   -> return BadEffect
+      _       -> undefined
+  parseJSON x = typeMismatch "Error: Invalid EffectType!" x
 
 instance NFData EffectType

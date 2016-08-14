@@ -146,7 +146,7 @@ import            Data.Array.Unsafe (castSTUArray)
 import            Data.Bits
 import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Lazy as BL
-import qualified  Data.ByteString.Unsafe as B
+import qualified  Data.ByteString.Unsafe as BU
 import qualified  Data.ByteString.Builder as Encode
 import            Data.Int
 import            Data.List
@@ -161,7 +161,7 @@ import            Data.UUID
 import qualified  Data.Vector as V
 import            Data.Word
 import            GHC.Generics
-import            OpenSandbox.Data.Block (Block,BlockID)
+import            OpenSandbox.Data.Block (BlockID)
 import            Prelude hiding (max)
 
 
@@ -191,75 +191,66 @@ data Encryption = Encryption
 -- | Core Protocol Types
 -------------------------------------------------------------------------------
 
--- Bool
 encodeBool :: Bool -> Encode.Builder
 encodeBool b = Encode.word8 (toEnum . fromEnum $ b)
 
 decodeBool :: Decode.Parser Bool
 decodeBool = fmap (toEnum . fromEnum) Decode.anyWord8
 
--- Byte
 decodeInt8 :: Decode.Parser Int8
 decodeInt8 = do
   bs <- Decode.take 1
-  return $! fromIntegral (B.unsafeHead bs)
+  return $! fromIntegral (BU.unsafeHead bs)
 
--- Short
 type Short = Int16
 
 decodeInt16BE :: Decode.Parser Short
 decodeInt16BE = do
     bs <- Decode.take 2
-    return $! (fromIntegral (bs `B.unsafeIndex` 0) `shiftL` 8) .|.
-              (fromIntegral (bs `B.unsafeIndex` 1))
+    return $! fromIntegral (bs `BU.unsafeIndex` 0) `shiftL` 8 .|.
+              fromIntegral (bs `BU.unsafeIndex` 1)
 
--- Unsigned Short
 decodeWord16BE :: Decode.Parser Word16
 decodeWord16BE = do
     bs <- Decode.take 2
     return $!
-      (fromIntegral (bs `B.unsafeIndex` 0) `shiftL` 8) .|.
-      (fromIntegral (bs `B.unsafeIndex` 1))
+      fromIntegral (bs `BU.unsafeIndex` 0) `shiftL` 8 .|.
+      fromIntegral (bs `BU.unsafeIndex` 1)
 
--- Int
 decodeInt32BE :: Decode.Parser Int32
 decodeInt32BE = do
     bs <- Decode.take 4
     return $!
-      (fromIntegral (bs `B.unsafeIndex` 0) `shiftL` 24) .|.
-      (fromIntegral (bs `B.unsafeIndex` 1) `shiftL` 16) .|.
-      (fromIntegral (bs `B.unsafeIndex` 2) `shiftL`  8) .|.
-      (fromIntegral (bs `B.unsafeIndex` 3))
+      fromIntegral (bs `BU.unsafeIndex` 0) `shiftL` 24 .|.
+      fromIntegral (bs `BU.unsafeIndex` 1) `shiftL` 16 .|.
+      fromIntegral (bs `BU.unsafeIndex` 2) `shiftL`  8 .|.
+      fromIntegral (bs `BU.unsafeIndex` 3)
 
--- Long
 decodeInt64BE :: Decode.Parser Int64
 decodeInt64BE = do
     bs <- Decode.take 8
     return $!
-      (fromIntegral (bs `B.unsafeIndex` 0) `shiftL` 56) .|.
-      (fromIntegral (bs `B.unsafeIndex` 1) `shiftL` 48) .|.
-      (fromIntegral (bs `B.unsafeIndex` 2) `shiftL` 40) .|.
-      (fromIntegral (bs `B.unsafeIndex` 3) `shiftL` 32) .|.
-      (fromIntegral (bs `B.unsafeIndex` 4) `shiftL` 24) .|.
-      (fromIntegral (bs `B.unsafeIndex` 5) `shiftL` 16) .|.
-      (fromIntegral (bs `B.unsafeIndex` 6) `shiftL`  8) .|.
-      (fromIntegral (bs `B.unsafeIndex` 7))
+      fromIntegral (bs `BU.unsafeIndex` 0) `shiftL` 56 .|.
+      fromIntegral (bs `BU.unsafeIndex` 1) `shiftL` 48 .|.
+      fromIntegral (bs `BU.unsafeIndex` 2) `shiftL` 40 .|.
+      fromIntegral (bs `BU.unsafeIndex` 3) `shiftL` 32 .|.
+      fromIntegral (bs `BU.unsafeIndex` 4) `shiftL` 24 .|.
+      fromIntegral (bs `BU.unsafeIndex` 5) `shiftL` 16 .|.
+      fromIntegral (bs `BU.unsafeIndex` 6) `shiftL`  8 .|.
+      fromIntegral (bs `BU.unsafeIndex` 7)
 
--- Float
 decodeFloatBE :: Decode.Parser Float
 decodeFloatBE = wordToFloat <$> decodeWord32BE
 
 wordToFloat :: Word32 -> Float
 wordToFloat x = runST (cast x)
 
--- Double
 decodeDoubleBE :: Decode.Parser Double
 decodeDoubleBE = wordToDouble <$> decodeWord64BE
 
 wordToDouble :: Word64 -> Double
 wordToDouble x = runST (cast x)
 
--- String
 encodeText :: T.Text -> Encode.Builder
 encodeText t =
   (encodeVarInt . B.length . encodeUtf8 $ t)
@@ -272,15 +263,13 @@ decodeText = do
     then fmap decodeUtf8 (Decode.take ln)
     else return ""
 
--- Chat
 type Chat = T.Text
 
--- VarInt ---------------------------------------------------------------------
 type VarInt = Int
 
 encodeVarInt :: VarInt -> Encode.Builder
 encodeVarInt i
-    | i < 0     = encodeVarInt ((abs i) + (2^31 :: Int))
+    | i < 0     = encodeVarInt (abs i + (2^31 :: Int))
     | i < 0x80  = Encode.word8 (fromIntegral i)
     | otherwise = Encode.word8 (fromIntegral (i .&. 0x7F) .|. 0x80) <> encodeVarInt (i `shiftR` 7)
 
@@ -292,23 +281,22 @@ decodeVarInt = do
         result <- go 7 (fromIntegral (w .&. 0x7F))
         if result <= (2^31)
           then return result
-          else return (0 - (result - (2^31)))
+          else return (negate (result - (2^31)))
       else return (fromIntegral w)
   where
     go n val = do
       w' <- Decode.anyWord8
       if testBit w' 7
-        then go (n+7) (val .|. ((fromIntegral (w' .&. 0x7F)) `shiftL` n))
-        else return (val .|. ((fromIntegral w') `shiftL` n))
+        then go (n+7) (val .|. (fromIntegral (w' .&. 0x7F) `shiftL` n))
+        else return (val .|. (fromIntegral w' `shiftL` n))
 
--- VarLong --------------------------------------------------------------------
 type VarLong = Int64
 
 encodeVarLong :: VarLong -> Encode.Builder
 encodeVarLong i
-    | i < 0     = encodeVarLong ((abs i) + (2^62 :: Int64))
-    | i < 0x80  = Encode.word8 (fromIntegral i)
-    | otherwise = Encode.word8 (fromIntegral (i .&. 0x7F) .|. 0x80) <> encodeVarLong (i `shiftR` 7)
+  | i < 0     = encodeVarLong (abs i + (2^62 :: Int64))
+  | i < 0x80  = Encode.word8 (fromIntegral i)
+  | otherwise = Encode.word8 (fromIntegral (i .&. 0x7F) .|. 0x80) <> encodeVarLong (i `shiftR` 7)
 
 decodeVarLong :: Decode.Parser VarLong
 decodeVarLong = do
@@ -318,17 +306,17 @@ decodeVarLong = do
         result <- go 7 (fromIntegral (w .&. 0x7F))
         if result <= (2^62)
           then return result
-          else return (0 - (result - (2^62 :: Int64)))
+          else return (negate (result - (2^62 :: Int64)))
       else return (fromIntegral w)
   where
     go n val = do
       w' <- Decode.anyWord8
       if testBit w' 7
-        then go (n+7) (val .|. ((fromIntegral (w' .&. 0x7F)) `shiftL` n))
-        else return (val .|. ((fromIntegral w') `shiftL` n))
+        then go (n+7) (val .|. (fromIntegral (w' .&. 0x7F) `shiftL` n))
+        else return (val .|. (fromIntegral w' `shiftL` n))
 
 encodeBlockState :: BlockID -> Word8 -> Encode.Builder
-encodeBlockState bid metadata = encodeVarInt (((fromEnum bid) `shiftL` 4) .|. ((fromEnum metadata) .&. 0xF))
+encodeBlockState bid metadata = encodeVarInt ((fromEnum bid `shiftL` 4) .|. (fromEnum metadata .&. 0xF))
 
 decodeBlockState :: Decode.Parser (BlockID,Word8)
 decodeBlockState = do
@@ -367,46 +355,53 @@ mkChunkSection' blocks bLight sLight = ChunkSection' (V.fromList $  ) bLight (Ju
 
 encodeIndices :: Int -> Word64 -> Int -> [Word64] -> [Word64]
 encodeIndices _ partialL offsetL [] = [partialL `shift` (64 - offsetL)]
-encodeIndices bpbI partialL offsetL indices = do
-      case uncons encodeNext of
-        Nothing -> [partialL `shift` (64 - offsetL) .|. go n encodeFull]
-        Just (partialR,encodeLater) -> do
-          let encodedLong = partialL `shift` (64 - offsetL)
-                              .|. go n encodeFull
-                              .|. partialR `shiftR` ((64 - (offsetL + n * bpbI)))
-          encodedLong : encodeIndices bpbI partialR (bpbI - offsetR) encodeLater
-  where (n,offsetR) = (64 - offsetL) `quotRem` bpbI :: (Int,Int)
-        (encodeFull,encodeNext) = splitAt n indices :: ([Word64],[Word64])
-        go :: Int -> [Word64] -> Word64
-        go _ [] = 0
-        go 1 [x] = x `shift` (64 - offsetL - ((n * bpbI)))
-        go i (x:xs) = x `shift` (64 - offsetL - ((n - i + 1) * bpbI))
-                        .|. go (i - 1) xs
+encodeIndices bpbI partialL offsetL indices =
+  case uncons encodeNext of
+    Nothing -> [partialL `shift` (64 - offsetL) .|. go n encodeFull]
+    Just (partialR,encodeLater) -> do
+      let encodedLeft = partialL `shift` (64 - offsetL)
+      let encodedCenter = go n encodeFull
+      let encodedRight = partialR `shiftR` (64 - (offsetL + n * bpbI))
+      let encodedLong = encodedLeft .|. encodedCenter .|. encodedRight
+      traceShowM ("encodeLeft: " ++ show encodedLeft)
+      traceShowM ("encodeCenter: " ++ show encodedCenter)
+      traceShowM ("encodeRight: " ++ show encodedRight)
+      traceShowM ("encodedLong: " ++ show encodedLong)
+      encodedLong : encodeIndices bpbI partialR (bpbI - offsetR) encodeLater
+  where
+    (n,offsetR) = (64 - offsetL) `quotRem` bpbI :: (Int,Int)
+    (encodeFull,encodeNext) = splitAt n indices :: ([Word64],[Word64])
+    go :: Int -> [Word64] -> Word64
+    go _ [] = 0
+    go 1 [x] = traceShowId (x `shift` (64 - offsetL - (n * bpbI)))
+    go i (x:xs) = traceShowId (x `shift` (64 - offsetL - ((n - i + 1) * bpbI)))
+                  .|. go (i - 1) xs
 
 decodeIndices :: Int -> Word64 -> Int -> [Word64] -> [Word64]
+decodeIndices bpbI partialL offestL [] = undefined
 decodeIndices bpbI partialL offsetL (x:xs) = decoded
-  where -- Truths
-        decoded = if offsetL > 0
-                    then (rejoinedL : go n x) -- ++ (decodeIndices bpbI partialR (bpbI - offsetR) xs)
-                    else traceShowId (go n x) -- ++ (decodeIndices bpbI partialR (bpbI - offsetR) xs)
-        (n,offsetR) = traceShowId $ (64 - offsetL) `quotRem` bpbI
-        partialR = (x `shiftL` (64 - offsetR)) `shiftR` (64 - offsetR)
-        rejoinedL = (partialL `shiftL` offsetL) .|. (x `shiftL` (64 - offsetL))
+  where
+    decoded = if offsetL > 0
+                then rejoinedL : go n x -- ++ (decodeIndices bpbI partialR (bpbI - offsetR) xs)
+                else go n x -- ++ (decodeIndices bpbI partialR (bpbI - offsetR) xs)
+    (n,offsetR) = (64 - offsetL) `quotRem` bpbI
+    partialR = (x `shiftL` (64 - offsetR)) `shiftR` (64 - offsetR)
+    rejoinedL = (partialL `shiftL` offsetL) .|. (x `shiftL` (64 - offsetL))
 
-        go :: Int -> Word64 -> [Word64]
-        go 1 x = [(x `shiftL` (64 - bpbI)) `shiftR` (64 - bpbI)]
-        go i x = ((x `shiftL` (64 - (i * bpbI))) `shiftR` (64 - bpbI)) : (go (i - 1) x)
+    go :: Int -> Word64 -> [Word64]
+    go 1 x = [traceShowId $ (x `shiftL` (64 - bpbI)) `shiftR` (64 - bpbI)]
+    go i x = traceShowId (x `shiftL` (64 - (i * bpbI))) `shiftR` (64 - bpbI) : go (i - 1) x
 
 encodeChunkSection' :: ChunkSection' -> Encode.Builder
 encodeChunkSection' (ChunkSection' bpb pal datArr bLight sLight) =
   Encode.word8 bpb
   <> encodeVarInt (V.length pal)
-  <> (V.foldl' (<>) mempty (fmap encodeVarInt pal))
+  <> V.foldl' (<>) mempty (fmap encodeVarInt pal)
   <> encodeVarInt (V.length datArr)
-  <> (V.foldl' (<>) mempty (fmap Encode.int64BE datArr))
-  <> (V.foldl' (<>) mempty (fmap Encode.word8 bLight))
+  <> V.foldl' (<>) mempty (fmap Encode.int64BE datArr)
+  <> V.foldl' (<>) mempty (fmap Encode.word8 bLight)
   <> case sLight of
-      Just sLight' -> (V.foldl' (<>) mempty (fmap Encode.word8 sLight'))
+      Just sLight' -> V.foldl' (<>) mempty (fmap Encode.word8 sLight')
       Nothing -> mempty
 
 decodeChunkSection' :: Bool -> Decode.Parser ChunkSection'
@@ -417,18 +412,18 @@ decodeChunkSection' isOverWorld = do
   dataArrLn <- decodeVarInt
   dataArr <- V.replicateM dataArrLn decodeInt64BE
   blockLight <- V.replicateM 2048 Decode.anyWord8
-  skyLight <- case isOverWorld of
-                True -> fmap Just $ V.replicateM 2048 Decode.anyWord8
-                False -> return $ Nothing
+  skyLight <- if isOverWorld
+                then Just <$> V.replicateM 2048 Decode.anyWord8
+                else return Nothing
   return $ ChunkSection' bpb palette dataArr blockLight skyLight
 
 encodeChunkSection :: ChunkSection -> Encode.Builder
 encodeChunkSection (ChunkSection (BitsPerBlock bpb) pal datArr bLight sLight) =
   Encode.word8 bpb
   <> encodeVarInt (V.length pal)
-  <> (V.foldl' (<>) mempty (fmap encodeVarInt pal))
+  <> V.foldl' (<>) mempty (fmap encodeVarInt pal)
   <> encodeVarInt (V.length datArr)
-  <> (V.foldl' (<>) mempty (fmap Encode.int64BE datArr))
+  <> V.foldl' (<>) mempty (fmap Encode.int64BE datArr)
   <> Encode.byteString bLight
   <> case sLight of
       Nothing -> mempty
@@ -443,9 +438,9 @@ decodeChunkSection = do
   dataArray <- V.replicateM dataCount decodeInt64BE
   blockLight <- Decode.take 2048
   skyLight <- Decode.takeByteString
-  case B.length skyLight > 0 of
-    True -> return $ ChunkSection bitsPerBlock palette dataArray blockLight (Just skyLight)
-    False -> return $ ChunkSection bitsPerBlock palette dataArray blockLight Nothing
+  if B.length skyLight > 0
+    then return $ ChunkSection bitsPerBlock palette dataArray blockLight (Just skyLight)
+    else return $ ChunkSection bitsPerBlock palette dataArray blockLight Nothing
 
 newtype BitsPerBlock = BitsPerBlock Word8
   deriving (Show,Eq,Ord)
@@ -497,11 +492,11 @@ instance Enum BitsPerBlockOption where
   toEnum 11 = BitsPerBlock11
   toEnum 12 = BitsPerBlock12
   toEnum 13 = BitsPerBlock13
+  toEnum _ = undefined
 
 encodeBitsPerBlock :: BitsPerBlock -> Encode.Builder
 encodeBitsPerBlock (BitsPerBlock bpb) = Encode.word8 bpb
 
--- Entity Metadata
 type EntityMetadata = V.Vector EntityMetadataEntry
 
 encodeEntityMetadata :: EntityMetadata -> Encode.Builder
@@ -547,13 +542,12 @@ decodeEntityMetadataEntry :: Decode.Parser EntityMetadataEntry
 decodeEntityMetadataEntry = do
   i <- Decode.anyWord8
   case i of
-    0xff -> return $ MetadataEnd
+    0xff -> return MetadataEnd
     _ -> do
       t <- decodeInt8
       v <- fmap (toEnum . fromEnum) Decode.anyWord8
       return $ Entry i t v
 
--- Slot
 data Slot = Slot
   { blockID     :: !Int16
   , slotData    :: !(Maybe SlotData)
@@ -577,8 +571,8 @@ encodeSlot (Slot blockID slotDat) =
     <> case blockID of
           (-1) -> mempty
           _ -> Encode.int8 (itemCount slotDat')
-                <> (Encode.int16BE (itemDamage slotDat'))
-                <> (encodeNBT (nbt slotDat'))
+                <> Encode.int16BE (itemDamage slotDat')
+                <> encodeNBT (nbt slotDat')
   where slotDat' = fromJust slotDat
 
 decodeSlot :: Decode.Parser Slot
@@ -592,10 +586,6 @@ decodeSlot = do
       nbt <- decodeNBT
       return $ Slot blockID (Just (SlotData itemCount itemDamage nbt))
 
--- NBT Tag
--- nbt library
-
--- Position -------------------------------------------------------------------
 type Position = Word64
 
 encodePosition :: Position -> Encode.Builder
@@ -604,16 +594,14 @@ encodePosition = Encode.word64BE
 decodePosition :: Decode.Parser Position
 decodePosition = decodeWord64BE
 
--- Angle ----------------------------------------------------------------------
 type Angle = Word8
 
 encodeAngle :: Angle -> Encode.Builder
-encodeAngle a = Encode.word8 a
+encodeAngle = Encode.word8
 
 decodeAngle :: Decode.Parser Angle
 decodeAngle = Decode.anyWord8
 
--- UUID -----------------------------------------------------------------------
 encodeUUID :: UUID -> Encode.Builder
 encodeUUID u = encodeText (toText u)
 
@@ -630,11 +618,10 @@ encodeUUID' u = Encode.lazyByteString (toByteString u)
 decodeUUID' :: Decode.Parser UUID
 decodeUUID' = do
   raw <- Decode.take 16
-  case (fromByteString . BL.fromStrict $ raw) of
+  case fromByteString . BL.fromStrict $ raw of
     Just uuid -> return uuid
     Nothing   -> fail "Error: Could not decode UUID!"
 
--- ByteArray ------------------------------------------------------------------
 encodeByteString :: B.ByteString -> Encode.Builder
 encodeByteString b =
   (encodeVarInt . toEnum . B.length $ b)
@@ -649,7 +636,6 @@ decodeByteString = do
 -- | Protocol Enums
 -------------------------------------------------------------------------------
 
--- Animation
 data Animation
   = SwingArm
   | TakeDamage
@@ -659,7 +645,6 @@ data Animation
   | MagicCriticalEffect
   deriving (Show,Eq,Enum)
 
--- BlockAction
 data BlockAction
   = NoteBlockAction !InstrumentType !NotePitch
   | PistonBlockAction !PistonState !PistonDirection
@@ -716,7 +701,6 @@ data PistonDirection
   | PistonEast
   deriving (Show,Eq,Enum)
 
--- BlockChange
 data BlockChange = BlockChange
   { hPosition     :: !Word8
   , yCoord        :: !Word8
@@ -736,7 +720,6 @@ decodeRecord = do
   bid <- decodeVarInt
   return $ BlockChange hp yc bid
 
--- BossBarAction
 data BossBarAction
   = BossBarAdd !Chat !Float !Int !Int !Word8
   | BossBarRemove
@@ -746,7 +729,6 @@ data BossBarAction
   | BossBarUpdateFlags !Word8
   deriving (Show,Eq)
 
--- Difficulty
 data Difficulty = Peaceful | Easy | Normal | Hard
   deriving (Show,Enum,Eq,Generic)
 
@@ -754,7 +736,6 @@ instance FromJSON Difficulty
 instance ToJSON Difficulty
 instance NFData Difficulty
 
--- Dimension
 data Dimension = Overworld | Nether | End
   deriving (Show,Eq,Generic)
 
@@ -765,12 +746,12 @@ instance Enum Dimension where
     toEnum 0 = Overworld
     toEnum (-1) = Nether
     toEnum 1 = End
+    toEnum _ = undefined
 
 instance ToJSON Dimension
 instance FromJSON Dimension
 instance NFData Dimension
 
--- GameMode
 data GameMode = Survival | Creative | Adventure | Spectator
   deriving (Show,Enum,Eq,Generic)
 
@@ -778,7 +759,6 @@ instance FromJSON GameMode
 instance ToJSON GameMode
 instance NFData GameMode
 
--- ProtocolState
 data ProtocolState = ProtocolHandshake | ProtocolStatus | ProtocolLogin | ProtocolPlay
   deriving (Show,Eq,Enum)
 
@@ -814,6 +794,7 @@ instance Enum UpdateBlockEntityAction where
   toEnum 7 = SetStuctureTileEntity
   toEnum 8 = SetGateway
   toEnum 9 = SetSign
+  toEnum _ = undefined
 
 data WindowProperty
   = WindowFurnace FurnaceProperty
@@ -1076,30 +1057,30 @@ encodePlayerListEntries :: PlayerListEntries -> Encode.Builder
 encodePlayerListEntries (PlayerListAdds lst) =
   encodeVarInt 0
   <> (encodeVarInt . V.length $ lst)
-  <> (V.foldl' (<>) mempty (fmap encodePlayerListAdd lst))
+  <> V.foldl' (<>) mempty (fmap encodePlayerListAdd lst)
 encodePlayerListEntries (PlayerListUpdateGameModes lst) =
   encodeVarInt 1
   <> (encodeVarInt . V.length $ lst)
-  <> (V.foldl' (<>) mempty (fmap encodePlayerListUpdateGameMode lst))
+  <> V.foldl' (<>) mempty (fmap encodePlayerListUpdateGameMode lst)
 encodePlayerListEntries (PlayerListUpdateLatencies lst) =
   encodeVarInt 2
   <> (encodeVarInt . V.length $ lst)
-  <> (V.foldl' (<>) mempty (fmap encodePlayerListUpdateLatency lst))
+  <> V.foldl' (<>) mempty (fmap encodePlayerListUpdateLatency lst)
 encodePlayerListEntries (PlayerListUpdateDisplayNames lst) =
   encodeVarInt 3
   <> (encodeVarInt . V.length $ lst)
-  <> (V.foldl' (<>) mempty (fmap encodePlayerListUpdateDisplayName lst))
+  <> V.foldl' (<>) mempty (fmap encodePlayerListUpdateDisplayName lst)
 encodePlayerListEntries (PlayerListRemovePlayers lst) =
   encodeVarInt 4
   <> (encodeVarInt . V.length $ lst)
-  <> (V.foldl' (<>) mempty (fmap encodePlayerListRemovePlayer lst))
+  <> V.foldl' (<>) mempty (fmap encodePlayerListRemovePlayer lst)
 
 encodePlayerListAdd :: PlayerListAdd -> Encode.Builder
 encodePlayerListAdd (PlayerListAdd uuid name properties gamemode ping maybeDisplayName) =
   encodeUUID' uuid
   <> encodeText name
   <> (encodeVarInt . V.length $ properties)
-  <> (V.foldl' (<>) mempty (fmap encodePlayerProperty properties))
+  <> V.foldl' (<>) mempty (fmap encodePlayerProperty properties)
   <> encodeVarInt (fromEnum gamemode)
   <> encodeVarInt ping
   <> case maybeDisplayName of
@@ -1152,13 +1133,13 @@ decodePlayerListAdd = do
     then do
       displayName <- decodeText
       return $ PlayerListAdd uuid name properties gameMode ping (Just displayName)
-    else do
+    else
       return $ PlayerListAdd uuid name properties gameMode ping Nothing
 
 decodePlayerListUpdateGameMode :: Decode.Parser PlayerListUpdateGameMode
 decodePlayerListUpdateGameMode = do
   uuid <- decodeUUID'
-  gamemode <- (fmap toEnum decodeVarInt)
+  gamemode <- fmap toEnum decodeVarInt
   return $ PlayerListUpdateGameMode uuid gamemode
 
 decodePlayerListUpdateLatency :: Decode.Parser PlayerListUpdateLatency
@@ -1175,7 +1156,7 @@ decodePlayerListUpdateDisplayName = do
     then do
       displayName <- decodeText
       return $ PlayerListUpdateDisplayName uuid (Just displayName)
-    else do
+    else
       return $ PlayerListUpdateDisplayName uuid Nothing
 
 decodePlayerListRemovePlayer :: Decode.Parser PlayerListRemovePlayer
@@ -1206,7 +1187,7 @@ decodePlayerProperty = do
     then do
       sig <- decodeText
       return $ PlayerProperty name value (Just sig)
-    else do
+    else
       return $ PlayerProperty name value Nothing
 
 data Icon = Icon
@@ -1263,7 +1244,7 @@ data EntityProperty = EntityProperty
   } deriving (Show,Eq)
 
 encodeEntityProperty :: EntityProperty -> Encode.Builder
-encodeEntityProperty (EntityProperty k v n m) = do
+encodeEntityProperty (EntityProperty k v n m) =
   encodeText k
   <> Encode.doubleBE v
   <> encodeVarInt n
@@ -1285,23 +1266,23 @@ decodeWord32BE :: Decode.Parser Word32
 decodeWord32BE = do
     bs <- Decode.take 4
     return $!
-      (fromIntegral (bs `B.unsafeIndex` 0) `shiftL` 24) .|.
-      (fromIntegral (bs `B.unsafeIndex` 1) `shiftL` 16) .|.
-      (fromIntegral (bs `B.unsafeIndex` 2) `shiftL` 8) .|.
-      (fromIntegral (bs `B.unsafeIndex` 3))
+      fromIntegral (bs `BU.unsafeIndex` 0) `shiftL` 24 .|.
+      fromIntegral (bs `BU.unsafeIndex` 1) `shiftL` 16 .|.
+      fromIntegral (bs `BU.unsafeIndex` 2) `shiftL` 8 .|.
+      fromIntegral (bs `BU.unsafeIndex` 3)
 
 decodeWord64BE :: Decode.Parser Word64
 decodeWord64BE = do
     bs <- Decode.take 8
     return $!
-      (fromIntegral (bs `B.unsafeIndex` 0) `shiftL` 56) .|.
-      (fromIntegral (bs `B.unsafeIndex` 1) `shiftL` 48) .|.
-      (fromIntegral (bs `B.unsafeIndex` 2) `shiftL` 40) .|.
-      (fromIntegral (bs `B.unsafeIndex` 3) `shiftL` 32) .|.
-      (fromIntegral (bs `B.unsafeIndex` 4) `shiftL` 24) .|.
-      (fromIntegral (bs `B.unsafeIndex` 5) `shiftL` 16) .|.
-      (fromIntegral (bs `B.unsafeIndex` 6) `shiftL`  8) .|.
-      (fromIntegral (bs `B.unsafeIndex` 7))
+      fromIntegral (bs `BU.unsafeIndex` 0) `shiftL` 56 .|.
+      fromIntegral (bs `BU.unsafeIndex` 1) `shiftL` 48 .|.
+      fromIntegral (bs `BU.unsafeIndex` 2) `shiftL` 40 .|.
+      fromIntegral (bs `BU.unsafeIndex` 3) `shiftL` 32 .|.
+      fromIntegral (bs `BU.unsafeIndex` 4) `shiftL` 24 .|.
+      fromIntegral (bs `BU.unsafeIndex` 5) `shiftL` 16 .|.
+      fromIntegral (bs `BU.unsafeIndex` 6) `shiftL`  8 .|.
+      fromIntegral (bs `BU.unsafeIndex` 7)
 
 encodeStatusPayload :: T.Text -> Word8 -> Word8 -> Word8 -> T.Text -> Encode.Builder
 encodeStatusPayload mcVersion versionID currentPlayers maxPlayers motd =
