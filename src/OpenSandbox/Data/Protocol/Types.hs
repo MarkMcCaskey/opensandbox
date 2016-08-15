@@ -344,7 +344,7 @@ mkChunkSection' blocks bLight sLight = ChunkSection' (V.fromList $  ) bLight (Ju
   finalizedBPB
     | bpb < 5               = 4
     | (bpb > 4) && (bpb < 9) = bpb
-    | otherwise             = 13 -- (NOTE) Vanilla
+    | otherwise             = 13 -- NOTE(oldmanmike) Vanilla upper limit
   bpb :: Word8
   bpb = (\x -> 16 - x)
       . (toEnum :: Int -> Word8)
@@ -362,35 +362,36 @@ encodeIndices bpbI partialL offsetL indices =
       let encodedLeft = partialL `shift` (64 - offsetL)
       let encodedCenter = go n encodeFull
       let encodedRight = partialR `shiftR` (64 - (offsetL + n * bpbI))
-      let encodedLong = encodedLeft .|. encodedCenter .|. encodedRight
-      traceShowM ("encodeLeft: " ++ show encodedLeft)
-      traceShowM ("encodeCenter: " ++ show encodedCenter)
-      traceShowM ("encodeRight: " ++ show encodedRight)
-      traceShowM ("encodedLong: " ++ show encodedLong)
+      let encodedLong = if offsetR > 0
+                           then encodedLeft .|. encodedCenter .|. encodedRight
+                           else encodedLeft .|. encodedCenter
+      --traceShowM ("encodeLeft: " ++ show encodedLeft)
+      --traceShowM ("encodeCenter: " ++ show encodedCenter)
+      --traceShowM ("encodeRight: " ++ show encodedRight)
+      --traceShowM ("encodedLong: " ++ show encodedLong)
       encodedLong : encodeIndices bpbI partialR (bpbI - offsetR) encodeLater
   where
     (n,offsetR) = (64 - offsetL) `quotRem` bpbI :: (Int,Int)
     (encodeFull,encodeNext) = splitAt n indices :: ([Word64],[Word64])
     go :: Int -> [Word64] -> Word64
     go _ [] = 0
-    go 1 [x] = traceShowId (x `shift` (64 - offsetL - (n * bpbI)))
-    go i (x:xs) = traceShowId (x `shift` (64 - offsetL - ((n - i + 1) * bpbI)))
+    go 1 [x] = x `shift` (64 - offsetL - (n * bpbI))
+    go i (x:xs) = x `shift` (64 - offsetL - ((n - i + 1) * bpbI))
                   .|. go (i - 1) xs
 
 decodeIndices :: Int -> Word64 -> Int -> [Word64] -> [Word64]
-decodeIndices bpbI partialL offestL [] = undefined
+decodeIndices bpbI partialL offestL [] = []
 decodeIndices bpbI partialL offsetL (x:xs) = decoded
   where
     decoded = if offsetL > 0
-                then rejoinedL : go n x -- ++ (decodeIndices bpbI partialR (bpbI - offsetR) xs)
-                else go n x -- ++ (decodeIndices bpbI partialR (bpbI - offsetR) xs)
-    (n,offsetR) = (64 - offsetL) `quotRem` bpbI
+                then rejoinedL : go n x ++ decodeIndices bpbI partialR (bpbI - offsetR) xs
+                else go n x ++ decodeIndices bpbI partialR (bpbI - offsetR) xs
+    (n,offsetR) = traceShowId $ (64 - offsetL) `quotRem` bpbI
     partialR = (x `shiftL` (64 - offsetR)) `shiftR` (64 - offsetR)
     rejoinedL = (partialL `shiftL` offsetL) .|. (x `shiftL` (64 - offsetL))
-
     go :: Int -> Word64 -> [Word64]
     go 1 x = [traceShowId $ (x `shiftL` (64 - bpbI)) `shiftR` (64 - bpbI)]
-    go i x = traceShowId (x `shiftL` (64 - (i * bpbI))) `shiftR` (64 - bpbI) : go (i - 1) x
+    go i x = traceShowId ((x `shiftL` (64 - (i * bpbI))) `shiftR` (64 - bpbI)) : go (i - 1) x
 
 encodeChunkSection' :: ChunkSection' -> Encode.Builder
 encodeChunkSection' (ChunkSection' bpb pal datArr bLight sLight) =
