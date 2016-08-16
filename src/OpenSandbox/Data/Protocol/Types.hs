@@ -327,11 +327,11 @@ data ChunkSection = ChunkSection !BitsPerBlock !(V.Vector Int) !(V.Vector Int64)
   deriving (Show,Eq)
 
 data ChunkSection' = ChunkSection'
-  { _bpb        :: !Word8
-  , _palette    :: !(V.Vector Int)
-  , _dataArray  :: !(V.Vector Int64)
+  { _bpb :: !Word8
+  , _palette :: !(V.Vector Int)
+  , _dataArray :: !(V.Vector Int64)
   , _blockLight :: !(V.Vector Word8)
-  , _skyLight   :: !(Maybe (V.Vector Word8))
+  , _skyLight :: !(Maybe (V.Vector Word8))
   } deriving (Show,Eq)
 
 {-
@@ -357,41 +357,39 @@ encodeIndices :: Int -> Word64 -> Int -> [Word64] -> [Word64]
 encodeIndices _ partialL offsetL [] = [partialL `shift` (64 - offsetL)]
 encodeIndices bpbI partialL offsetL indices =
   case uncons encodeNext of
-    Nothing -> [partialL `shift` (64 - offsetL) .|. go n encodeFull]
+    Nothing -> [partialL `shift` (64 - offsetL) .|. center n encodeFull]
     Just (partialR,encodeLater) -> do
       let encodedLeft = partialL `shift` (64 - offsetL)
-      let encodedCenter = go n encodeFull
+      let encodedCenter = center n encodeFull
       let encodedRight = partialR `shiftR` (64 - (offsetL + n * bpbI))
       let encodedLong = if offsetR > 0
                            then encodedLeft .|. encodedCenter .|. encodedRight
                            else encodedLeft .|. encodedCenter
-      --traceShowM ("encodeLeft: " ++ show encodedLeft)
-      --traceShowM ("encodeCenter: " ++ show encodedCenter)
-      --traceShowM ("encodeRight: " ++ show encodedRight)
-      --traceShowM ("encodedLong: " ++ show encodedLong)
       encodedLong : encodeIndices bpbI partialR (bpbI - offsetR) encodeLater
   where
     (n,offsetR) = (64 - offsetL) `quotRem` bpbI :: (Int,Int)
     (encodeFull,encodeNext) = splitAt n indices :: ([Word64],[Word64])
-    go :: Int -> [Word64] -> Word64
-    go _ [] = 0
-    go 1 [x] = x `shift` (64 - offsetL - (n * bpbI))
-    go i (x:xs) = x `shift` (64 - offsetL - ((n - i + 1) * bpbI))
-                  .|. go (i - 1) xs
+    center :: Int -> [Word64] -> Word64
+    center _ [] = 0
+    center 1 [x] = x `shift` (64 - offsetL - (n * bpbI))
+    center i (x:xs) = x `shift` (64 - offsetL - ((n - i + 1) * bpbI))
+                      .|. center (i - 1) xs
 
 decodeIndices :: Int -> Word64 -> Int -> [Word64] -> [Word64]
 decodeIndices bpbI partialL offestL [] = []
-decodeIndices bpbI partialL offsetL (x:xs) = decoded
+decodeIndices bpbI partialL offsetL (x:xs)
+  | (offsetL == 0) && (offsetR == 0) = center n x ++ decodeIndices bpbI 0 0 xs
+  | offsetL == 0 = center n x ++ decodeIndices bpbI partialR (bpbI - offsetR) xs
+  | offsetR == 0 = rejoinedL : center n x ++ decodeIndices bpbI 0 0 xs
+  | otherwise = rejoinedL : center n x ++ decodeIndices bpbI partialR (bpbI - offsetR) xs
   where
-    decoded = if offsetL > 0
-                then rejoinedL : go n x ++ decodeIndices bpbI partialR (bpbI - offsetR) xs
-                else go n x ++ decodeIndices bpbI partialR (bpbI - offsetR) xs
-    (n,offsetR) = traceShowId $ (64 - offsetL) `quotRem` bpbI
+    (n,offsetR) = (64 - offsetL) `quotRem` bpbI
     partialR = (x `shiftL` (64 - offsetR)) `shiftR` (64 - offsetR)
-    rejoinedL = (partialL `shiftL` offsetL) .|. (x `shiftL` (64 - offsetL))
-    go :: Int -> Word64 -> [Word64]
-    go 1 x = [traceShowId $ (x `shiftL` (64 - bpbI)) `shiftR` (64 - bpbI)]
-    go i x = traceShowId ((x `shiftL` (64 - (i * bpbI))) `shiftR` (64 - bpbI)) : go (i - 1) x
+    rejoinedL = (partialL `shiftL` offsetL) .|. (x `shiftR` (64 - offsetL))
+    center :: Int -> Word64 -> [Word64]
+    center _ 0 = replicate n 0
+    center 0 _ = []
+    center i x = ((x `shiftL` (64 - offsetR - (i * bpbI))) `shiftR` (64 - bpbI)) : center (i - 1) x
 
 encodeChunkSection' :: ChunkSection' -> Encode.Builder
 encodeChunkSection' (ChunkSection' bpb pal datArr bLight sLight) =
