@@ -333,7 +333,6 @@ data ChunkSection' = ChunkSection'
   , _blockLight :: !(V.Vector Word8)
   , _skyLight :: !(Maybe (V.Vector Word8))
   } deriving (Show,Eq)
-
 {-
 mkChunkSection' :: [Block] -> V.Vector Word8 -> V.Vector Word8 -> ChunkSection'
 mkChunkSection' blocks bLight sLight = ChunkSection' (V.fromList $  ) bLight (Just sLight)
@@ -361,7 +360,7 @@ encodeIndices bpbI partialL offsetL indices =
     Just (partialR,encodeLater) -> do
       let encodedLeft = partialL `shift` (64 - offsetL)
       let encodedCenter = center n encodeFull
-      let encodedRight = partialR `shiftR` (64 - (offsetL + n * bpbI))
+      let encodedRight = partialR `shiftR` (bpbI - (64 - (offsetL + n * bpbI)))
       let encodedLong = if offsetR > 0
                            then encodedLeft .|. encodedCenter .|. encodedRight
                            else encodedLeft .|. encodedCenter
