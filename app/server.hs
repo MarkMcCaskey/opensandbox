@@ -106,18 +106,20 @@ main = do
 
           logMsg logger LvlInfo "Done!"
 
-          rawBiomes <- B.readFile "data/biomes.json"
-          rawBlocks <- B.readFile "data/blocks.json"
-          rawEffects <- B.readFile "data/effects.json"
-          rawEntity <- B.readFile "data/entities.json"
-          rawInstruments <- B.readFile "data/instruments.json"
-          rawItems <- B.readFile "data/items.json"
+          --rawBiomes <- B.readFile "data/biomes.json"
+          --rawBlocks <- B.readFile "data/blocks.json"
+          --rawEffects <- B.readFile "data/effects.json"
+          --rawEntity <- B.readFile "data/entities.json"
+          --rawInstruments <- B.readFile "data/instruments.json"
+          --rawItems <- B.readFile "data/items.json"
 
-          let !biomes = A.eitherDecodeStrict' rawBiomes :: Either String [Biome]
-          let !blocks = A.eitherDecodeStrict' rawBlocks :: Either String [Block]
-          let !effects = A.eitherDecodeStrict' rawEffects :: Either String [Effect]
-          let !entities = A.eitherDecodeStrict' rawEntity :: Either String [Entity]
-          let !instruments = A.eitherDecodeStrict' rawInstruments :: Either String [Instrument]
-          let !items = A.eitherDecodeStrict' rawItems :: Either String [Item]
+          --let !biomes = A.eitherDecodeStrict' rawBiomes :: Either String [Biome]
+          --let !blocks = A.eitherDecodeStrict' rawBlocks :: Either String [BlockImport]
+          --let !effects = A.eitherDecodeStrict' rawEffects :: Either String [Effect]
+          --let !entities = A.eitherDecodeStrict' rawEntity :: Either String [Entity]
+          --let !instruments = A.eitherDecodeStrict' rawInstruments :: Either String [Instrument]
+          --let !items = A.eitherDecodeStrict' rawItems :: Either String [Item]
+
+          --let !globalPalette = fmap mkGlobalPalette blocks
 
           runOpenSandboxServer config logger encryption

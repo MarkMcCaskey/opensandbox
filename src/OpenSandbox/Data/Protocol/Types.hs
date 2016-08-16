@@ -61,8 +61,6 @@ module OpenSandbox.Data.Protocol.Types
   , SlotData (..)
   , EntityProperty (..)
   , ChunkSection (..)
-  , BitsPerBlock
-  , BitsPerBlockOption (..)
   , VarInt
   , VarLong
   , UpdateBlockEntityAction (..)
@@ -116,8 +114,6 @@ module OpenSandbox.Data.Protocol.Types
   , decodeSlot
   , encodeChunkSection
   , decodeChunkSection
-  , mkBitsPerBlock
-  , encodeBitsPerBlock
   , encodeIcon
   , decodeIcon
   , encodePlayerListEntries
@@ -130,11 +126,8 @@ module OpenSandbox.Data.Protocol.Types
   , decodeByteString
   , encodeStatusPayload
   , encodeScoreboardMode
-  , encodeIndices
-  , decodeIndices
   ) where
 
-import            Debug.Trace
 import            Control.DeepSeq
 import            Control.Monad.ST (runST,ST)
 import            Crypto.PubKey.RSA
@@ -155,15 +148,19 @@ import            Data.Monoid
 import            Data.NBT.Encode (encodeNBT)
 import            Data.NBT.Decode (decodeNBT)
 import            Data.NBT.Types (NBT (..), NamelessNBT (..),NBTList (..),TagType(..))
+import qualified  Data.Set as S
 import qualified  Data.Text as T
 import            Data.Text.Encoding
 import            Data.UUID
 import qualified  Data.Vector as V
 import            Data.Word
 import            GHC.Generics
-import            OpenSandbox.Data.Block (BlockID)
+import            OpenSandbox.Data.Block (Block
+                                         ,BlockID
+                                         ,BitsPerBlock
+                                         ,BitsPerBlockOption (..)
+                                         ,mkBitsPerBlock)
 import            Prelude hiding (max)
-
 
 data WorldType = Default | Flat | LargeBiomes | Amplified
   deriving (Eq,Enum,Generic)
@@ -327,7 +324,7 @@ data ChunkSection = ChunkSection !BitsPerBlock !(V.Vector Int) !(V.Vector Int64)
   deriving (Show,Eq)
 
 data ChunkSection' = ChunkSection'
-  { _bpb :: !Word8
+  { _bpb :: !BitsPerBlock
   , _palette :: !(V.Vector Int)
   , _dataArray :: !(V.Vector Int64)
   , _blockLight :: !(V.Vector Word8)
@@ -335,64 +332,26 @@ data ChunkSection' = ChunkSection'
   } deriving (Show,Eq)
 {-
 mkChunkSection' :: [Block] -> V.Vector Word8 -> V.Vector Word8 -> ChunkSection'
-mkChunkSection' blocks bLight sLight = ChunkSection' (V.fromList $  ) bLight (Just sLight)
+mkChunkSection' blocks bLight sLight = ChunkSection' finalizedBPB palette datArr bLight (Just sLight)
   where
+  datArr :: V.Vector Word64
+  datArr = V.fromList $ encodeIndices finalizedBPB 0 0 $ fmap encodeBlock blocks
   palette :: V.Vector Int
-  palette = V.fromList . S.fromAscList . sort $ blocks
-  finalizedBPB :: Word8
+  palette = V.fromList . (fmap encodeBlock) . S.fromAscList . sort $ blocks
+  finalizedBPB :: Int
   finalizedBPB
-    | bpb < 5               = 4
+    | bpb < 5                = 4
     | (bpb > 4) && (bpb < 9) = bpb
-    | otherwise             = 13 -- NOTE(oldmanmike) Vanilla upper limit
-  bpb :: Word8
+    | otherwise              = 13
+  bpb :: Int
   bpb = (\x -> 16 - x)
-      . (toEnum :: Int -> Word8)
       . countLeadingZeros
       . (toEnum :: Int -> Word16)
       . V.length $ palette
 -}
-
-encodeIndices :: Int -> Word64 -> Int -> [Word64] -> [Word64]
-encodeIndices _ partialL offsetL [] = [partialL `shift` (64 - offsetL)]
-encodeIndices bpbI partialL offsetL indices =
-  case uncons encodeNext of
-    Nothing -> [partialL `shift` (64 - offsetL) .|. center n encodeFull]
-    Just (partialR,encodeLater) -> do
-      let encodedLeft = partialL `shift` (64 - offsetL)
-      let encodedCenter = center n encodeFull
-      let encodedRight = partialR `shiftR` (bpbI - (64 - (offsetL + n * bpbI)))
-      let encodedLong = if offsetR > 0
-                           then encodedLeft .|. encodedCenter .|. encodedRight
-                           else encodedLeft .|. encodedCenter
-      encodedLong : encodeIndices bpbI partialR (bpbI - offsetR) encodeLater
-  where
-    (n,offsetR) = (64 - offsetL) `quotRem` bpbI :: (Int,Int)
-    (encodeFull,encodeNext) = splitAt n indices :: ([Word64],[Word64])
-    center :: Int -> [Word64] -> Word64
-    center _ [] = 0
-    center 1 [x] = x `shift` (64 - offsetL - (n * bpbI))
-    center i (x:xs) = x `shift` (64 - offsetL - ((n - i + 1) * bpbI))
-                      .|. center (i - 1) xs
-
-decodeIndices :: Int -> Word64 -> Int -> [Word64] -> [Word64]
-decodeIndices bpbI partialL offestL [] = []
-decodeIndices bpbI partialL offsetL (x:xs)
-  | (offsetL == 0) && (offsetR == 0) = center n x ++ decodeIndices bpbI 0 0 xs
-  | offsetL == 0 = center n x ++ decodeIndices bpbI partialR (bpbI - offsetR) xs
-  | offsetR == 0 = rejoinedL : center n x ++ decodeIndices bpbI 0 0 xs
-  | otherwise = rejoinedL : center n x ++ decodeIndices bpbI partialR (bpbI - offsetR) xs
-  where
-    (n,offsetR) = (64 - offsetL) `quotRem` bpbI
-    partialR = (x `shiftL` (64 - offsetR)) `shiftR` (64 - offsetR)
-    rejoinedL = (partialL `shiftL` offsetL) .|. (x `shiftR` (64 - offsetL))
-    center :: Int -> Word64 -> [Word64]
-    center _ 0 = replicate n 0
-    center 0 _ = []
-    center i x = ((x `shiftL` (64 - offsetR - (i * bpbI))) `shiftR` (64 - bpbI)) : center (i - 1) x
-
 encodeChunkSection' :: ChunkSection' -> Encode.Builder
 encodeChunkSection' (ChunkSection' bpb pal datArr bLight sLight) =
-  Encode.word8 bpb
+  Encode.word8 (toEnum . fromEnum $ bpb)
   <> encodeVarInt (V.length pal)
   <> V.foldl' (<>) mempty (fmap encodeVarInt pal)
   <> encodeVarInt (V.length datArr)
@@ -404,7 +363,7 @@ encodeChunkSection' (ChunkSection' bpb pal datArr bLight sLight) =
 
 decodeChunkSection' :: Bool -> Decode.Parser ChunkSection'
 decodeChunkSection' isOverWorld = do
-  bpb <- Decode.anyWord8
+  bpb <- fmap (mkBitsPerBlock . toEnum . fromEnum) Decode.anyWord8
   paletteLn <- decodeVarInt
   palette <- V.replicateM paletteLn decodeVarInt
   dataArrLn <- decodeVarInt
@@ -416,8 +375,8 @@ decodeChunkSection' isOverWorld = do
   return $ ChunkSection' bpb palette dataArr blockLight skyLight
 
 encodeChunkSection :: ChunkSection -> Encode.Builder
-encodeChunkSection (ChunkSection (BitsPerBlock bpb) pal datArr bLight sLight) =
-  Encode.word8 bpb
+encodeChunkSection (ChunkSection bpb pal datArr bLight sLight) =
+  Encode.word8 (toEnum . fromEnum $ bpb)
   <> encodeVarInt (V.length pal)
   <> V.foldl' (<>) mempty (fmap encodeVarInt pal)
   <> encodeVarInt (V.length datArr)
@@ -429,7 +388,7 @@ encodeChunkSection (ChunkSection (BitsPerBlock bpb) pal datArr bLight sLight) =
 
 decodeChunkSection :: Decode.Parser ChunkSection
 decodeChunkSection = do
-  bitsPerBlock <- fmap BitsPerBlock Decode.anyWord8
+  bitsPerBlock <- fmap (mkBitsPerBlock . toEnum . fromEnum) Decode.anyWord8
   paletteCount <- decodeVarInt
   palette <- V.replicateM paletteCount decodeVarInt
   dataCount <- decodeVarInt
@@ -439,61 +398,6 @@ decodeChunkSection = do
   if B.length skyLight > 0
     then return $ ChunkSection bitsPerBlock palette dataArray blockLight (Just skyLight)
     else return $ ChunkSection bitsPerBlock palette dataArray blockLight Nothing
-
-newtype BitsPerBlock = BitsPerBlock Word8
-  deriving (Show,Eq,Ord)
-
-mkBitsPerBlock :: BitsPerBlockOption -> BitsPerBlock
-mkBitsPerBlock BitsPerBlock4 = BitsPerBlock 4
-mkBitsPerBlock BitsPerBlock5 = BitsPerBlock 5
-mkBitsPerBlock BitsPerBlock6 = BitsPerBlock 6
-mkBitsPerBlock BitsPerBlock7 = BitsPerBlock 7
-mkBitsPerBlock BitsPerBlock8 = BitsPerBlock 8
-mkBitsPerBlock BitsPerBlock9 = BitsPerBlock 9
-mkBitsPerBlock BitsPerBlock10 = BitsPerBlock 10
-mkBitsPerBlock BitsPerBlock11 = BitsPerBlock 11
-mkBitsPerBlock BitsPerBlock12 = BitsPerBlock 12
-mkBitsPerBlock BitsPerBlock13 = BitsPerBlock 13
-
-data BitsPerBlockOption
-  = BitsPerBlock4
-  | BitsPerBlock5
-  | BitsPerBlock6
-  | BitsPerBlock7
-  | BitsPerBlock8
-  | BitsPerBlock9
-  | BitsPerBlock10
-  | BitsPerBlock11
-  | BitsPerBlock12
-  | BitsPerBlock13
-  deriving (Show,Eq,Ord)
-
-instance Enum BitsPerBlockOption where
-  fromEnum BitsPerBlock4 = 4
-  fromEnum BitsPerBlock5 = 5
-  fromEnum BitsPerBlock6 = 6
-  fromEnum BitsPerBlock7 = 7
-  fromEnum BitsPerBlock8 = 8
-  fromEnum BitsPerBlock9 = 9
-  fromEnum BitsPerBlock10 = 10
-  fromEnum BitsPerBlock11 = 11
-  fromEnum BitsPerBlock12 = 12
-  fromEnum BitsPerBlock13 = 13
-
-  toEnum 4 = BitsPerBlock4
-  toEnum 5 = BitsPerBlock5
-  toEnum 6 = BitsPerBlock6
-  toEnum 7 = BitsPerBlock7
-  toEnum 8 = BitsPerBlock8
-  toEnum 9 = BitsPerBlock9
-  toEnum 10 = BitsPerBlock10
-  toEnum 11 = BitsPerBlock11
-  toEnum 12 = BitsPerBlock12
-  toEnum 13 = BitsPerBlock13
-  toEnum _ = undefined
-
-encodeBitsPerBlock :: BitsPerBlock -> Encode.Builder
-encodeBitsPerBlock (BitsPerBlock bpb) = Encode.word8 bpb
 
 type EntityMetadata = V.Vector EntityMetadataEntry
 
