@@ -92,9 +92,7 @@ module OpenSandbox.Data.Protocol.Types
   , decodeVarLong
   , encodeText
   , decodeText
-  , encodeBool
-  , decodeBool
-  , encodeUUID
+  , encodeBool , decodeBool , encodeUUID
   , decodeUUID
   , encodeUUID'
   , decodeUUID'
@@ -156,10 +154,11 @@ import qualified  Data.Vector as V
 import            Data.Word
 import            GHC.Generics
 import            OpenSandbox.Data.Block (Block
-                                         ,BlockID
                                          ,BitsPerBlock
                                          ,BitsPerBlockOption (..)
-                                         ,mkBitsPerBlock)
+                                         ,mkBitsPerBlock
+                                         ,encodeBitsPerBlock
+                                         ,decodeBitsPerBlock)
 import            Prelude hiding (max)
 
 data WorldType = Default | Flat | LargeBiomes | Amplified
@@ -312,50 +311,43 @@ decodeVarLong = do
         then go (n+7) (val .|. (fromIntegral (w' .&. 0x7F) `shiftL` n))
         else return (val .|. (fromIntegral w' `shiftL` n))
 
-encodeBlockState :: BlockID -> Word8 -> Encode.Builder
-encodeBlockState bid metadata = encodeVarInt ((fromEnum bid `shiftL` 4) .|. (fromEnum metadata .&. 0xF))
-
-decodeBlockState :: Decode.Parser (BlockID,Word8)
-decodeBlockState = do
-  raw <- decodeVarInt
-  return (toEnum (raw `shiftR` 4), toEnum (raw .&. 0xF))
-
 data ChunkSection = ChunkSection !BitsPerBlock !(V.Vector Int) !(V.Vector Int64) !B.ByteString !(Maybe B.ByteString)
   deriving (Show,Eq)
 
 data ChunkSection' = ChunkSection'
   { _bpb :: !BitsPerBlock
   , _palette :: !(V.Vector Int)
-  , _dataArray :: !(V.Vector Int64)
+  , _dataArray :: !(V.Vector Word64)
   , _blockLight :: !(V.Vector Word8)
   , _skyLight :: !(Maybe (V.Vector Word8))
   } deriving (Show,Eq)
+
 {-
-mkChunkSection' :: [Block] -> V.Vector Word8 -> V.Vector Word8 -> ChunkSection'
-mkChunkSection' blocks bLight sLight = ChunkSection' finalizedBPB palette datArr bLight (Just sLight)
+mkChunkSection' :: [BlockID] -> V.Vector Word8 -> V.Vector Word8 -> ChunkSection'
+mkChunkSection' blocks bLight sLight = ChunkSection' bpb palette datArr bLight (Just sLight)
   where
-  datArr :: V.Vector Word64
-  datArr = V.fromList $ encodeIndices finalizedBPB 0 0 $ fmap encodeBlock blocks
-  palette :: V.Vector Int
-  palette = V.fromList . (fmap encodeBlock) . S.fromAscList . sort $ blocks
-  finalizedBPB :: Int
-  finalizedBPB
-    | bpb < 5                = 4
-    | (bpb > 4) && (bpb < 9) = bpb
-    | otherwise              = 13
-  bpb :: Int
-  bpb = (\x -> 16 - x)
+    datArr :: V.Vector Word64
+    datArr = V.fromList $ encodeIndices bpb 0 0 $ fmap encodeBlock blocks
+    palette :: V.Vector Int
+    palette = S.fromAscList . sort
+    bpb :: Int
+    bpb
+      | unboundedBPB < 5 = 4
+      | (unboundedBPB > 4) && (unboundedBPB < 9) = unboundedBPB
+      | otherwise = 13
+    unboundedBPB :: Int
+    unboundedBPB = (\x -> 16 - x)
       . countLeadingZeros
       . (toEnum :: Int -> Word16)
       . V.length $ palette
 -}
 encodeChunkSection' :: ChunkSection' -> Encode.Builder
 encodeChunkSection' (ChunkSection' bpb pal datArr bLight sLight) =
-  Encode.word8 (toEnum . fromEnum $ bpb)
+  encodeBitsPerBlock bpb
   <> encodeVarInt (V.length pal)
   <> V.foldl' (<>) mempty (fmap encodeVarInt pal)
   <> encodeVarInt (V.length datArr)
-  <> V.foldl' (<>) mempty (fmap Encode.int64BE datArr)
+  <> V.foldl' (<>) mempty (fmap Encode.word64BE datArr)
   <> V.foldl' (<>) mempty (fmap Encode.word8 bLight)
   <> case sLight of
       Just sLight' -> V.foldl' (<>) mempty (fmap Encode.word8 sLight')
@@ -363,11 +355,11 @@ encodeChunkSection' (ChunkSection' bpb pal datArr bLight sLight) =
 
 decodeChunkSection' :: Bool -> Decode.Parser ChunkSection'
 decodeChunkSection' isOverWorld = do
-  bpb <- fmap (mkBitsPerBlock . toEnum . fromEnum) Decode.anyWord8
+  bpb <- decodeBitsPerBlock
   paletteLn <- decodeVarInt
   palette <- V.replicateM paletteLn decodeVarInt
   dataArrLn <- decodeVarInt
-  dataArr <- V.replicateM dataArrLn decodeInt64BE
+  dataArr <- V.replicateM dataArrLn decodeWord64BE
   blockLight <- V.replicateM 2048 Decode.anyWord8
   skyLight <- if isOverWorld
                 then Just <$> V.replicateM 2048 Decode.anyWord8

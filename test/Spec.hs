@@ -26,7 +26,7 @@ import            GHC.Generics
 import            Debug.Trace
 
 instance Arbitrary BitsPerBlockOption where
-  arbitrary = fmap toEnum (choose (4,13) :: Gen Int)
+  arbitrary = fmap toEnum (choose (4,16) :: Gen Int)
 
 instance Arbitrary BitsPerBlock where
   arbitrary = fmap mkBitsPerBlock (arbitrary :: Gen BitsPerBlockOption)
