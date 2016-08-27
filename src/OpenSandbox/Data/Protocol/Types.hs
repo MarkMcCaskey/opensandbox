@@ -61,6 +61,7 @@ module OpenSandbox.Data.Protocol.Types
   , SlotData (..)
   , EntityProperty (..)
   , ChunkSection (..)
+  , ChunkSection' (..)
   , VarInt
   , VarLong
   , UpdateBlockEntityAction (..)
@@ -110,8 +111,11 @@ module OpenSandbox.Data.Protocol.Types
   , decodeRecord
   , encodeSlot
   , decodeSlot
+  , mkChunkSection'
   , encodeChunkSection
   , decodeChunkSection
+  , encodeChunkSection'
+  , decodeChunkSection'
   , encodeIcon
   , decodeIcon
   , encodePlayerListEntries
@@ -127,6 +131,7 @@ module OpenSandbox.Data.Protocol.Types
   ) where
 
 import            Control.DeepSeq
+import            Control.Monad
 import            Control.Monad.ST (runST,ST)
 import            Crypto.PubKey.RSA
 import            Data.Aeson as Aeson
@@ -153,12 +158,18 @@ import            Data.UUID
 import qualified  Data.Vector as V
 import            Data.Word
 import            GHC.Generics
-import            OpenSandbox.Data.Block (Block
-                                         ,BitsPerBlock
-                                         ,BitsPerBlockOption (..)
-                                         ,mkBitsPerBlock
-                                         ,encodeBitsPerBlock
-                                         ,decodeBitsPerBlock)
+import            OpenSandbox.Data.Block ( BlockStateID
+                                         , ChunkSectionIndices
+                                         , mkChunkSectionIndices
+                                         , BitsPerBlock
+                                         , BitsPerBlockOption (..)
+                                         , mkBitsPerBlock
+                                         , encodeBitsPerBlock
+                                         , decodeBitsPerBlock
+                                         , mkLocalPalette
+                                         , genIndices
+                                         , encodeIndices
+                                         , decodeIndices)
 import            Prelude hiding (max)
 
 data WorldType = Default | Flat | LargeBiomes | Amplified
@@ -316,36 +327,29 @@ data ChunkSection = ChunkSection !BitsPerBlock !(V.Vector Int) !(V.Vector Int64)
 
 data ChunkSection' = ChunkSection'
   { _bpb :: !BitsPerBlock
-  , _palette :: !(V.Vector Int)
+  , _palette :: !(V.Vector BlockStateID)
   , _dataArray :: !(V.Vector Word64)
   , _blockLight :: !(V.Vector Word8)
   , _skyLight :: !(Maybe (V.Vector Word8))
   } deriving (Show,Eq)
 
-{-
-mkChunkSection' :: [BlockID] -> V.Vector Word8 -> V.Vector Word8 -> ChunkSection'
-mkChunkSection' blocks bLight sLight = ChunkSection' bpb palette datArr bLight (Just sLight)
+mkChunkSection' :: V.Vector Word8 -> V.Vector Word8 -> [BlockStateID] -> Either String ChunkSection'
+mkChunkSection' bLight sLight blocks =
+  case eitherDatVect of
+    Left err -> Left err
+    Right datVert -> Right $ ChunkSection' bpb palette datVert bLight (Just sLight)
   where
-    datArr :: V.Vector Word64
-    datArr = V.fromList $ encodeIndices bpb 0 0 $ fmap encodeBlock blocks
-    palette :: V.Vector Int
-    palette = S.fromAscList . sort
-    bpb :: Int
-    bpb
-      | unboundedBPB < 5 = 4
-      | (unboundedBPB > 4) && (unboundedBPB < 9) = unboundedBPB
-      | otherwise = 13
-    unboundedBPB :: Int
-    unboundedBPB = (\x -> 16 - x)
-      . countLeadingZeros
-      . (toEnum :: Int -> Word16)
-      . V.length $ palette
--}
+    eitherChunkSectionIndices = mkChunkSectionIndices blocks
+    eitherDatVect = eitherChunkSectionIndices
+                    >>= genIndices palette
+                    >>= Right . V.fromList . encodeIndices bpb 0 0
+    (palette,bpb) = mkLocalPalette blocks
+
 encodeChunkSection' :: ChunkSection' -> Encode.Builder
 encodeChunkSection' (ChunkSection' bpb pal datArr bLight sLight) =
   encodeBitsPerBlock bpb
   <> encodeVarInt (V.length pal)
-  <> V.foldl' (<>) mempty (fmap encodeVarInt pal)
+  <> V.foldl' (<>) mempty (fmap (encodeVarInt . fromEnum) pal)
   <> encodeVarInt (V.length datArr)
   <> V.foldl' (<>) mempty (fmap Encode.word64BE datArr)
   <> V.foldl' (<>) mempty (fmap Encode.word8 bLight)
@@ -357,7 +361,7 @@ decodeChunkSection' :: Bool -> Decode.Parser ChunkSection'
 decodeChunkSection' isOverWorld = do
   bpb <- decodeBitsPerBlock
   paletteLn <- decodeVarInt
-  palette <- V.replicateM paletteLn decodeVarInt
+  palette <- V.replicateM paletteLn (fmap toEnum decodeVarInt)
   dataArrLn <- decodeVarInt
   dataArr <- V.replicateM dataArrLn decodeWord64BE
   blockLight <- V.replicateM 2048 Decode.anyWord8

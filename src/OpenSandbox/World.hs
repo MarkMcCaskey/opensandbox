@@ -10,15 +10,13 @@
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.World where
---  ( genFlatWorld
---  ) where
-{-
+
 import            Data.Bits
 import qualified  Data.ByteString as B
 import            Data.Int
 import qualified  Data.Vector as V
 import            OpenSandbox.Data.Protocol
--}
+
 {-
 genFlatWorld :: Int32 -> [CBPlay]
 genFlatWorld radius = [chunkDataPacket1 x z | x <- [(-radius)..radius], z <- [(-radius)..radius]]
@@ -58,4 +56,5 @@ genFlatWorld radius = [chunkDataPacket1 x z | x <- [(-radius)..radius], z <- [(-
     V.zipWith setBit
       (V.replicate 16 (0 :: Int64))
       [0,4,8,12,16,20,24,28,32,36,40,44,48,52,56,60]
+
 -}

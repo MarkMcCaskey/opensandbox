@@ -25,6 +25,17 @@ import            Test.QuickCheck
 import            GHC.Generics
 import            Debug.Trace
 
+instance Arbitrary BlockStateID where
+  arbitrary = fromIntegral <$> (arbitrary :: Gen Word8) :: Gen BlockStateID
+
+instance Arbitrary ChunkSectionIndices where
+  arbitrary = do
+    --k <- choose (1,64) :: Gen Int
+    arr <- vectorOf 64 arbitrary
+    case mkChunkSectionIndices arr of
+      Left err -> undefined
+      Right indices -> return indices
+
 instance Arbitrary BitsPerBlockOption where
   arbitrary = fmap toEnum (choose (4,16) :: Gen Int)
 
@@ -1252,8 +1263,27 @@ prop_ChunkSectionFieldEq dat = do
       Left err -> fail err
       Right result' -> return result'
 
+prop_IndicesEq :: [ChunkSectionIndices] -> Bool
+prop_IndicesEq = all (==True) . fmap checkChunkIndice
+  where
+    checkChunkIndice :: ChunkSectionIndices -> Bool
+    checkChunkIndice chunkSectionIndices =
+      case eitherIndices of
+        Left err -> False
+        Right indices -> do
+          let encoded = traceShowId $ encodeIndices bpb 0 0 indices
+          let indices' = traceShowId $ decodeIndices bpb 0 0 encoded
+          indices == indices'
+      where
+        (palette,bpb) = (mkLocalPalette . unChunkSectionIndices) chunkSectionIndices
+        eitherIndices = genIndices palette chunkSectionIndices
+
 main :: IO ()
 main = hspec $ do
+  describe "Mincraft Data Blocks" $ do
+    context "ChunkSectionIndices" $ do
+      it "Identity" $ property prop_IndicesEq
+
   describe "Minecraft Protocol Core Types" $ do
     context "VarInt:" $ do
       it "Identity" $ property prop_varIntEq
@@ -1289,7 +1319,7 @@ main = hspec $ do
       it "Identity" $ property prop_entityPropertyEq
     context "ChunkSectionField:" $ do
       it "Identity" $ property prop_ChunkSectionFieldEq
-
+{-
   describe "Minecraft Protocol Packets" $ do
     context "Server bound handshaking packets:" $ do
       it "Identity" $ property prop_SBHandshakingEq
@@ -1305,3 +1335,4 @@ main = hspec $ do
       it "Identity" $ property prop_CBPlayEq
     context "Server bound play packets:" $ do
       it "Identity" $ property prop_SBPlayEq
+-}
