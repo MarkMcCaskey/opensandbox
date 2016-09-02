@@ -18,7 +18,11 @@ module OpenSandbox.World
   , mkBitsPerBlock
   , encodeBitsPerBlock
   , decodeBitsPerBlock
-  )where
+  , OverWorldChunkBlock (..)
+  , OtherWorldChunkBlock (..)
+  , ChunkBlockData (..)
+  , BiomeIndices (..)
+  ) where
 
 import Control.DeepSeq
 import Control.Monad
@@ -205,9 +209,6 @@ mkBitsPerBlock BitsPerBlock10 = BitsPerBlock 10
 mkBitsPerBlock BitsPerBlock11 = BitsPerBlock 11
 mkBitsPerBlock BitsPerBlock12 = BitsPerBlock 12
 mkBitsPerBlock BitsPerBlock13 = BitsPerBlock 13
-mkBitsPerBlock BitsPerBlock14 = BitsPerBlock 14
-mkBitsPerBlock BitsPerBlock15 = BitsPerBlock 15
-mkBitsPerBlock BitsPerBlock16 = BitsPerBlock 16
 
 data BitsPerBlockOption
   = BitsPerBlock4
@@ -220,9 +221,6 @@ data BitsPerBlockOption
   | BitsPerBlock11
   | BitsPerBlock12
   | BitsPerBlock13
-  | BitsPerBlock14
-  | BitsPerBlock15
-  | BitsPerBlock16
   deriving (Show,Eq,Ord)
 
 instance Enum BitsPerBlockOption where
@@ -236,9 +234,6 @@ instance Enum BitsPerBlockOption where
   fromEnum BitsPerBlock11 = 11
   fromEnum BitsPerBlock12 = 12
   fromEnum BitsPerBlock13 = 13
-  fromEnum BitsPerBlock14 = 14
-  fromEnum BitsPerBlock15 = 15
-  fromEnum BitsPerBlock16 = 16
 
   toEnum 4 = BitsPerBlock4
   toEnum 5 = BitsPerBlock5
@@ -250,9 +245,6 @@ instance Enum BitsPerBlockOption where
   toEnum 11 = BitsPerBlock11
   toEnum 12 = BitsPerBlock12
   toEnum 13 = BitsPerBlock13
-  toEnum 14 = BitsPerBlock14
-  toEnum 15 = BitsPerBlock15
-  toEnum 16 = BitsPerBlock16
   toEnum _ = undefined
 
 encodeBitsPerBlock :: BitsPerBlock -> Encode.Builder
@@ -261,7 +253,7 @@ encodeBitsPerBlock (BitsPerBlock bpb) = Encode.word8 bpb
 decodeBitsPerBlock :: Decode.Parser BitsPerBlock
 decodeBitsPerBlock = do
   rawBPB <- Decode.anyWord8
-  if (rawBPB >= 4) && (rawBPB <= 16)
+  if (rawBPB >= 4) && (rawBPB <= 13)
     then return $ BitsPerBlock rawBPB
     else fail "Error: Invalid BitsPerBlock value"
 
