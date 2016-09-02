@@ -22,6 +22,8 @@ module OpenSandbox.World
   , OtherWorldChunkBlock (..)
   , ChunkBlockData (..)
   , BiomeIndices (..)
+  , packIndices
+  , unpackIndices
   ) where
 
 import Control.DeepSeq
@@ -39,7 +41,7 @@ import Data.Word
 import GHC.Generics (Generic)
 import OpenSandbox.Data.Block (BlockStateID)
 import OpenSandbox.Protocol.Serialize
-
+import Debug.Trace
 
 data OverWorldChunkBlock = OverWorldChunkBlock
   { chunkDataArray :: ChunkBlockData
@@ -57,19 +59,19 @@ instance Serialize OverWorldChunkBlock where
     when ((V.length palette > 0) && (bpb < 13)) $
       V.mapM_ (putVarInt . fromEnum) palette
     V.mapM_ putWord8 blockLight
-    forM_ skyLight putWord8
+    V.mapM_ putWord8 skyLight
     where
-      (palette,bpb) = mkLocalPalette datArray
+      (palette,bpb) = traceShowId $ mkLocalPalette datArray
   get = do
     bpb <- fromIntegral <$> getWord8
     paletteLn <- getVarInt
-    palette <- V.replicateM paletteLn (toEnum <$> getVarInt)
+    palette <- V.replicateM paletteLn (toEnum <$> getVarInt) :: Get (V.Vector BlockStateID)
     datArrayLn <- getVarInt
     datArray <- replicateM datArrayLn getWord64be
     blockLight <- V.replicateM 2048 getWord8
     skyLight <- V.replicateM 2048 getWord8
     let unpacked = unpackIndices (BitsPerBlock bpb) 0 0 datArray :: [Word64]
-    let datArray' = ChunkBlockData $ V.fromList $ decodeIndices palette unpacked
+    let datArray' = ChunkBlockData $ V.fromList $ decodeIndices (traceShowId palette) unpacked
     return $ OverWorldChunkBlock datArray' blockLight skyLight
 
 data OtherWorldChunkBlock = OtherWorldChunkBlock
@@ -88,16 +90,16 @@ instance Serialize OtherWorldChunkBlock where
       V.mapM_ (putVarInt . fromEnum) palette
     V.mapM_ putWord8 blockLight
     where
-      (palette,bpb) = mkLocalPalette datArray
+      (palette,bpb) = traceShowId $ mkLocalPalette datArray
   get = do
     bpb <- fromIntegral <$> getWord8
     paletteLn <- getVarInt
-    palette <- V.replicateM paletteLn (toEnum <$> getVarInt)
+    palette <- V.replicateM paletteLn (toEnum <$> getVarInt) :: Get (V.Vector BlockStateID)
     datArrayLn <- getVarInt
     datArray <- replicateM datArrayLn getWord64be
     blockLight <- V.replicateM 2048 getWord8
     let unpacked = unpackIndices (BitsPerBlock bpb) 0 0 datArray :: [Word64]
-    let datArray' = ChunkBlockData $ V.fromList $ decodeIndices palette unpacked
+    let datArray' = ChunkBlockData $ V.fromList $ decodeIndices (traceShowId palette) unpacked
     return $ OtherWorldChunkBlock datArray' blockLight
 
 --------------------------------------------------------------------------------
@@ -281,7 +283,7 @@ mkGlobalPalette = V.fromList . L.sort . L.concatMap encodeBlockImport
 
 mkLocalPalette :: ChunkBlockData -> (LocalPalette,BitsPerBlock)
 mkLocalPalette (ChunkBlockData blocks) = (localPalette,checkedBPB)
-  where localPalette = V.fromList . L.nub . V.toList $ blocks
+  where localPalette = V.fromList . L.sort . L.nub . V.toList $ blocks
         checkedBPB :: BitsPerBlock
         checkedBPB
           | uncheckedBPB < 5 = BitsPerBlock 4

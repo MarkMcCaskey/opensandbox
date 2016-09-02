@@ -1,7 +1,11 @@
 {-# LANGUAGE FlexibleInstances #-}
 module OpenSandbox.WorldSpec (main,spec) where
 
+import Control.Monad
+import Data.Either
+import Data.Serialize
 import qualified Data.Vector as V
+import Data.Word
 import Test.Hspec
 import Test.QuickCheck
 import OpenSandbox.Data.BlockSpec()
@@ -31,8 +35,70 @@ instance Arbitrary BitsPerBlock where
 instance Arbitrary BitsPerBlockOption where
   arbitrary = fmap toEnum (choose (4,13) :: Gen Int)
 
+prop_IdentityOverWorldChunkBlock :: [OverWorldChunkBlock] -> Bool
+prop_IdentityOverWorldChunkBlock [] = True
+prop_IdentityOverWorldChunkBlock lst = do
+  let encoded = encode lst
+  let decoded = decode encoded :: Either String [OverWorldChunkBlock]
+  case decoded of
+    Left _ -> False
+    Right lst' -> lst == lst'
+
+prop_IdentityOtherWorldChunkBlock :: [OtherWorldChunkBlock] -> Bool
+prop_IdentityOtherWorldChunkBlock [] = True
+prop_IdentityOtherWorldChunkBlock lst = do
+  let encoded = encode lst
+  let decoded = decode encoded :: Either String [OtherWorldChunkBlock]
+  case decoded of
+    Left _ -> False
+    Right lst' -> lst == lst'
+
+prop_IdentityChunkBlockData :: [ChunkBlockData] -> Bool
+prop_IdentityChunkBlockData [] = True
+prop_IdentityChunkBlockData lst = do
+  let encoded = encode lst
+  let decoded = decode encoded :: Either String [ChunkBlockData]
+  case decoded of
+    Left _ -> False
+    Right lst' -> lst == lst'
+
+prop_IdentityBiomeIndices :: [BiomeIndices] -> Bool
+prop_IdentityBiomeIndices [] = True
+prop_IdentityBiomeIndices lst = do
+  let encoded = encode lst
+  let decoded = decode encoded :: Either String [BiomeIndices]
+  case decoded of
+    Left _ -> False
+    Right lst' -> lst == lst'
+
+prop_IdentityBitsPerBlock :: [BitsPerBlock] -> Bool
+prop_IdentityBitsPerBlock [] = True
+prop_IdentityBitsPerBlock lst = do
+  let encoded = encode lst
+  let decoded = decode encoded :: Either String [BitsPerBlock]
+  case decoded of
+    Left _ -> False
+    Right lst' -> lst == lst'
+
+prop_IdentityIndices :: BitsPerBlock -> [Word64] -> Bool
+prop_IdentityIndices _ [] = True
+prop_IdentityIndices bpb lst = lst == (unpackIndices bpb 0 0 $ packIndices bpb 0 0 lst)
+ 
+
 spec :: Spec
-spec = return ()
+spec = do
+  describe "OverWorldChunkBlock" $ do
+    it "Identity" $ property prop_IdentityOverWorldChunkBlock
+  describe "OtherWorldChunkBlock" $ do
+    it "Identity" $ property prop_IdentityOtherWorldChunkBlock
+  describe "ChunkBlockData" $ do
+    it "Identity" $ property prop_IdentityChunkBlockData
+  describe "BiomeIndices" $ do
+    it "Identity" $ property prop_IdentityBiomeIndices
+  describe "BitsPerBlock" $ do
+    it "Identity" $ property prop_IdentityBitsPerBlock
+  describe "Packing Indices" $ do
+    it "Identity" $ property prop_IdentityIndices
 
 main :: IO ()
 main = hspec spec
