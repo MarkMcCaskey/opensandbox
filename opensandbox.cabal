@@ -27,12 +27,13 @@ library
                             OpenSandbox.Data.Entity
                             OpenSandbox.Data.Instrument
                             OpenSandbox.Data.Item
-                            OpenSandbox.Data.Protocol
-                            OpenSandbox.Data.Protocol.Packet
-                            OpenSandbox.Data.Protocol.Types
                             OpenSandbox.Data.Yggdrasil
                             OpenSandbox.Logger
                             OpenSandbox.Network
+                            OpenSandbox.Protocol
+                            OpenSandbox.Protocol.Packet
+                            OpenSandbox.Protocol.Serialize
+                            OpenSandbox.Protocol.Types
                             OpenSandbox.User
                             OpenSandbox.Version
                             OpenSandbox.World
@@ -44,6 +45,7 @@ library
                             attoparsec,
                             base,
                             bytestring,
+                            cereal,
                             conduit,
                             conduit-extra,
                             containers,
@@ -56,6 +58,7 @@ library
                             memory,
                             minecraft-nbt,
                             monad-logger,
+                            nbt,
                             optparse-applicative,
                             path,
                             QuickCheck,

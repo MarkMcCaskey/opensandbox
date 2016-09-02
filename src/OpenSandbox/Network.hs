@@ -32,7 +32,7 @@ import            Data.UUID.V4
 import qualified  Data.Vector as V
 import            OpenSandbox.Config
 import            OpenSandbox.Logger
-import            OpenSandbox.Data.Protocol
+import            OpenSandbox.Protocol
 import            OpenSandbox.Version
 
 logMsg :: Logger -> Lvl -> String -> IO ()

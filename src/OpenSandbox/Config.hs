@@ -29,7 +29,7 @@ import qualified  Data.Text as T
 import            Data.Word
 import            Data.X509
 import            Data.Yaml
-import            OpenSandbox.Data.Protocol.Types
+import            OpenSandbox.Protocol.Types
 import            Path
 
 

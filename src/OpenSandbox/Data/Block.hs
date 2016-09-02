@@ -16,21 +16,6 @@
 -------------------------------------------------------------------------------
 module OpenSandbox.Data.Block
   ( BlockStateID
-  , GlobalPalette
-  , mkGlobalPalette
-  , LocalPalette
-  , mkLocalPalette
-  , ChunkSectionIndices
-  , mkChunkSectionIndices
-  , unChunkSectionIndices
-  , genIndices
-  , BitsPerBlock
-  , BitsPerBlockOption (..)
-  , mkBitsPerBlock
-  , encodeBitsPerBlock
-  , decodeBitsPerBlock
-  , encodeIndices
-  , decodeIndices
   , BlockImport (..)
   , BlockState (..)
   , Half (..)
@@ -119,6 +104,7 @@ import            Data.Data
 import qualified  Data.HashMap.Strict as H
 import qualified  Data.List as L
 import            Data.Scientific
+import            Data.Serialize
 import qualified  Data.Text as T
 import qualified  Data.Vector as V
 import            Data.Word
@@ -128,174 +114,13 @@ import            GHC.Generics (Generic)
 import            Prelude hiding (id)
 
 newtype BlockStateID = BlockStateID Word64
-  deriving (Show,Eq,Ord,Bounded,Enum,Bits,Num,Real,Integral,Storable,Generic)
+  deriving (Show,Eq,Ord,Enum,Bounded,Bits,Num,Real,Integral,Storable,Generic)
+
+instance Serialize BlockStateID where
+  put (BlockStateID bid) = putWord64be bid
+  get = BlockStateID <$> getWord64be
 
 instance NFData BlockStateID
-
-data ChunkSectionIndices = ChunkSectionIndices (V.Vector BlockStateID)
-  deriving (Show,Eq,Generic)
-
-instance NFData ChunkSectionIndices
-
-mkChunkSectionIndices :: [BlockStateID] -> Either String ChunkSectionIndices
-mkChunkSectionIndices blocks
-  | length blocks `mod` 64 == 0 = Right $ ChunkSectionIndices (V.fromList blocks)
-  | otherwise = Left "Error: Invalid number of indices, must be divisable by 64!"
-
-unChunkSectionIndices :: ChunkSectionIndices -> [BlockStateID]
-unChunkSectionIndices (ChunkSectionIndices blocks) = V.toList blocks
-
-type GlobalPalette = V.Vector BlockStateID
-type LocalPalette = V.Vector BlockStateID
-
-mkGlobalPalette :: [BlockImport] -> GlobalPalette
-mkGlobalPalette = V.fromList . L.sort . L.concatMap encodeBlockImport
-  where
-    getBlockImportId :: BlockImport -> Word16
-    getBlockImportId = id
-    getMetadata :: Variation -> Word16
-    getMetadata = metadata
-    encodedBlockID :: BlockImport -> Word16
-    encodedBlockID bi = (fromIntegral $ getBlockImportId bi) `shiftL` 4
-    encodeBlockImport :: BlockImport -> [BlockStateID]
-    encodeBlockImport bi =
-      case variations bi of
-        Nothing -> [BlockStateID $ toEnum . fromEnum $ encodedBlockID bi]
-        Just vlst -> fmap (BlockStateID . toEnum . fromEnum . (\x -> encodedBlockID bi .|. x) . toEnum . fromEnum . getMetadata) vlst
-
-mkLocalPalette :: [BlockStateID] -> (LocalPalette,BitsPerBlock)
-mkLocalPalette blocks = (localPalette,checkedBPB)
-  where localPalette = V.fromList . L.nub $ blocks
-        checkedBPB :: BitsPerBlock
-        checkedBPB
-          | uncheckedBPB < 5 = BitsPerBlock 4
-          | (uncheckedBPB > 4) && (uncheckedBPB < 9) = BitsPerBlock (toEnum uncheckedBPB)
-          | otherwise = BitsPerBlock 13
-        uncheckedBPB :: Int
-        uncheckedBPB = (\x -> 64 - x)
-          . countLeadingZeros
-          . (toEnum :: Int -> Word64)
-          . length $ localPalette
-
-genIndices :: LocalPalette -> ChunkSectionIndices -> Either String [Word64]
-genIndices palette (ChunkSectionIndices blocks) =
-  case V.sequence $ fmap (\x -> toEnum <$> V.findIndex (==x) palette) blocks of
-    Nothing -> Left "Error: One of the indices was not in the palette!"
-    Just indices -> Right (V.toList indices)
-
-encodeIndices :: (Bits a, Integral a) => BitsPerBlock -> a -> Int -> [a] -> [Word64]
-encodeIndices (BitsPerBlock bpb) partialL offsetL [] = [(fromIntegral partialL) `shift` (64 - offsetL)]
-encodeIndices (BitsPerBlock bpb) partialL offsetL indices =
-  case L.uncons encodeNext of
-    Nothing -> [(fromIntegral partialL) `shift` (64 - offsetL) .|. center n encodeFull]
-    Just (partialR,encodeLater) -> do
-      let encodedLeft = (fromIntegral partialL) `shift` (64 - offsetL)
-      let encodedCenter = center n encodeFull
-      let encodedRight = (fromIntegral partialR) `shiftR` (bpbI - (64 - (offsetL + n * bpbI)))
-      let encodedLong = if offsetR > 0
-                           then encodedLeft .|. encodedCenter .|. encodedRight
-                           else encodedLeft .|. encodedCenter
-      encodedLong : encodeIndices (BitsPerBlock bpb) partialR (bpbI - offsetR) encodeLater
-  where
-    bpbI = fromEnum bpb
-    (n,offsetR) = (64 - offsetL) `quotRem` bpbI :: (Int,Int)
-    (encodeFull,encodeNext) = L.splitAt n indices
-    center :: (Bits a, Integral a) => Int -> [a] -> Word64
-    center _ [] = 0
-    center 1 [x] = fromIntegral x `shift` (64 - offsetL - (n * bpbI))
-    center i (x:xs) = fromIntegral x `shift` (64 - offsetL - ((n - i + 1) * bpbI))
-                      .|. center (i - 1) xs
-
-decodeIndices :: (Bits a, Integral a) => BitsPerBlock -> Word64 -> Int -> [Word64] -> [a]
-decodeIndices _ _ _ [] = []
-decodeIndices (BitsPerBlock bpb) partialL offsetL (x:xs)
-  | (offsetL == 0) && (offsetR == 0) = center n x ++ decodeIndices (BitsPerBlock bpb) 0 0 xs
-  | offsetL == 0 = center n x ++ decodeIndices (BitsPerBlock bpb) partialR (bpbI - offsetR) xs
-  | offsetR == 0 = fromIntegral rejoinedL : center n x ++ decodeIndices (BitsPerBlock bpb) 0 0 xs
-  | otherwise = fromIntegral rejoinedL : center n x ++ decodeIndices (BitsPerBlock bpb) partialR (bpbI - offsetR) xs
-  where
-    bpbI = fromEnum bpb
-    (n,offsetR) = (64 - offsetL) `quotRem` bpbI
-    partialR = (x `shiftL` (64 - offsetR)) `shiftR` (64 - offsetR)
-    rejoinedL = (partialL `shiftL` offsetL) .|. (x `shiftR` (64 - offsetL))
-    center :: (Bits a, Integral a) => Int -> Word64 -> [a]
-    center _ 0 = L.replicate n 0
-    center 0 _ = []
-    center i x = (fromIntegral (x `shiftL` (64 - offsetR - (i * bpbI))) `shiftR` (64 - bpbI)) : center (i - 1) x
-
-newtype BitsPerBlock = BitsPerBlock Word8
-  deriving (Show,Eq,Ord,Enum,Bits)
-
-mkBitsPerBlock :: BitsPerBlockOption -> BitsPerBlock
-mkBitsPerBlock BitsPerBlock4 = BitsPerBlock 4
-mkBitsPerBlock BitsPerBlock5 = BitsPerBlock 5
-mkBitsPerBlock BitsPerBlock6 = BitsPerBlock 6
-mkBitsPerBlock BitsPerBlock7 = BitsPerBlock 7
-mkBitsPerBlock BitsPerBlock8 = BitsPerBlock 8
-mkBitsPerBlock BitsPerBlock9 = BitsPerBlock 9
-mkBitsPerBlock BitsPerBlock10 = BitsPerBlock 10
-mkBitsPerBlock BitsPerBlock11 = BitsPerBlock 11
-mkBitsPerBlock BitsPerBlock12 = BitsPerBlock 12
-mkBitsPerBlock BitsPerBlock13 = BitsPerBlock 13
-mkBitsPerBlock BitsPerBlock14 = BitsPerBlock 14
-mkBitsPerBlock BitsPerBlock15 = BitsPerBlock 15
-mkBitsPerBlock BitsPerBlock16 = BitsPerBlock 16
-
-data BitsPerBlockOption
-  = BitsPerBlock4
-  | BitsPerBlock5
-  | BitsPerBlock6
-  | BitsPerBlock7
-  | BitsPerBlock8
-  | BitsPerBlock9
-  | BitsPerBlock10
-  | BitsPerBlock11
-  | BitsPerBlock12
-  | BitsPerBlock13
-  | BitsPerBlock14
-  | BitsPerBlock15
-  | BitsPerBlock16
-  deriving (Show,Eq,Ord)
-
-instance Enum BitsPerBlockOption where
-  fromEnum BitsPerBlock4 = 4
-  fromEnum BitsPerBlock5 = 5
-  fromEnum BitsPerBlock6 = 6
-  fromEnum BitsPerBlock7 = 7
-  fromEnum BitsPerBlock8 = 8
-  fromEnum BitsPerBlock9 = 9
-  fromEnum BitsPerBlock10 = 10
-  fromEnum BitsPerBlock11 = 11
-  fromEnum BitsPerBlock12 = 12
-  fromEnum BitsPerBlock13 = 13
-  fromEnum BitsPerBlock14 = 14
-  fromEnum BitsPerBlock15 = 15
-  fromEnum BitsPerBlock16 = 16
-
-  toEnum 4 = BitsPerBlock4
-  toEnum 5 = BitsPerBlock5
-  toEnum 6 = BitsPerBlock6
-  toEnum 7 = BitsPerBlock7
-  toEnum 8 = BitsPerBlock8
-  toEnum 9 = BitsPerBlock9
-  toEnum 10 = BitsPerBlock10
-  toEnum 11 = BitsPerBlock11
-  toEnum 12 = BitsPerBlock12
-  toEnum 13 = BitsPerBlock13
-  toEnum 14 = BitsPerBlock14
-  toEnum 15 = BitsPerBlock15
-  toEnum 16 = BitsPerBlock16
-  toEnum _ = undefined
-
-encodeBitsPerBlock :: BitsPerBlock -> Encode.Builder
-encodeBitsPerBlock (BitsPerBlock bpb) = Encode.word8 bpb
-
-decodeBitsPerBlock :: Decode.Parser BitsPerBlock
-decodeBitsPerBlock = do
-  rawBPB <- Decode.anyWord8
-  if (rawBPB >= 4) && (rawBPB <= 16)
-    then return $ BitsPerBlock rawBPB
-    else fail "Error: Invalid BitsPerBlock value"
 
 data BlockImport = BlockImport
   { id            :: Word16
