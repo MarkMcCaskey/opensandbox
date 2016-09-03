@@ -1,7 +1,9 @@
-module OpenSandbox.Protocol.PacketSpec (main,spec) where
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE FlexibleInstances #-}
+
+module OpenSandbox.Protocol.PacketSpec (main,spec) where
+
 import            Control.Monad
 import qualified  Data.Array.IArray as IA
 import            Data.Array.Unboxed (listArray)
@@ -825,8 +827,8 @@ spec = do
       it "Identity" $ property prop_CBLoginEq
     context "Server bound login packets:" $ do
       it "Identity" $ property prop_SBLoginEq
-    context "Client bound play packets:" $ do
-      it "Identity" $ property prop_CBPlayEq
+--    context "Client bound play packets:" $ do
+--      it "Identity" $ property prop_CBPlayEq
     context "Server bound play packets:" $ do
       it "Identity" $ property prop_SBPlayEq
 

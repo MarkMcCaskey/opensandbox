@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+
 module OpenSandbox.WorldSpec (main,spec) where
 
 import Control.Monad
@@ -80,24 +81,23 @@ prop_IdentityBitsPerBlock lst = do
     Left _ -> False
     Right lst' -> lst == lst'
 
-prop_IdentityIndices :: BitsPerBlock -> [Word64] -> Bool
-prop_IdentityIndices _ [] = True
-prop_IdentityIndices bpb lst = lst == (unpackIndices bpb 0 0 $ packIndices bpb 0 0 lst)
- 
+prop_IdentityIndices :: [ChunkBlockData] -> Bool
+prop_IdentityIndices [] = True
+prop_IdentityIndices lst = lst == fmap (decodeIndices . encodeIndices) lst
 
 spec :: Spec
 spec = do
-  describe "OverWorldChunkBlock" $ do
-    it "Identity" $ property prop_IdentityOverWorldChunkBlock
-  describe "OtherWorldChunkBlock" $ do
-    it "Identity" $ property prop_IdentityOtherWorldChunkBlock
+--  describe "OverWorldChunkBlock" $ do
+--    it "Identity" $ property prop_IdentityOverWorldChunkBlock
+--  describe "OtherWorldChunkBlock" $ do
+--    it "Identity" $ property prop_IdentityOtherWorldChunkBlock
   describe "ChunkBlockData" $ do
     it "Identity" $ property prop_IdentityChunkBlockData
   describe "BiomeIndices" $ do
     it "Identity" $ property prop_IdentityBiomeIndices
   describe "BitsPerBlock" $ do
     it "Identity" $ property prop_IdentityBitsPerBlock
-  describe "Packing Indices" $ do
+  describe "Encoding Indices" $ do
     it "Identity" $ property prop_IdentityIndices
 
 main :: IO ()

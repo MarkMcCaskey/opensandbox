@@ -22,8 +22,8 @@ module OpenSandbox.World
   , OtherWorldChunkBlock (..)
   , ChunkBlockData (..)
   , BiomeIndices (..)
-  , packIndices
-  , unpackIndices
+  , encodeIndices
+  , decodeIndices
   ) where
 
 import Control.DeepSeq
@@ -34,6 +34,7 @@ import qualified Data.ByteString.Builder as Encode
 import Data.Foldable
 import Data.Int
 import qualified Data.List as L
+import Data.Maybe
 import Data.Serialize
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as VU
@@ -61,7 +62,7 @@ instance Serialize OverWorldChunkBlock where
     V.mapM_ putWord8 blockLight
     V.mapM_ putWord8 skyLight
     where
-      (palette,bpb) = traceShowId $ mkLocalPalette datArray
+      (bpb,palette,indices) = encodeIndices datArray
   get = do
     bpb <- fromIntegral <$> getWord8
     paletteLn <- getVarInt
@@ -70,8 +71,7 @@ instance Serialize OverWorldChunkBlock where
     datArray <- replicateM datArrayLn getWord64be
     blockLight <- V.replicateM 2048 getWord8
     skyLight <- V.replicateM 2048 getWord8
-    let unpacked = unpackIndices (BitsPerBlock bpb) 0 0 datArray :: [Word64]
-    let datArray' = ChunkBlockData $ V.fromList $ decodeIndices (traceShowId palette) unpacked
+    let datArray' = decodeIndices (bpb,palette,datArray)
     return $ OverWorldChunkBlock datArray' blockLight skyLight
 
 data OtherWorldChunkBlock = OtherWorldChunkBlock
@@ -90,7 +90,7 @@ instance Serialize OtherWorldChunkBlock where
       V.mapM_ (putVarInt . fromEnum) palette
     V.mapM_ putWord8 blockLight
     where
-      (palette,bpb) = traceShowId $ mkLocalPalette datArray
+      (bpb,palette,indices) = encodeIndices datArray
   get = do
     bpb <- fromIntegral <$> getWord8
     paletteLn <- getVarInt
@@ -98,8 +98,7 @@ instance Serialize OtherWorldChunkBlock where
     datArrayLn <- getVarInt
     datArray <- replicateM datArrayLn getWord64be
     blockLight <- V.replicateM 2048 getWord8
-    let unpacked = unpackIndices (BitsPerBlock bpb) 0 0 datArray :: [Word64]
-    let datArray' = ChunkBlockData $ V.fromList $ decodeIndices (traceShowId palette) unpacked
+    let datArray' = decodeIndices (bpb,palette,datArray)
     return $ OtherWorldChunkBlock datArray' blockLight
 
 --------------------------------------------------------------------------------
@@ -147,12 +146,29 @@ instance Serialize BiomeIndices where
 
 --------------------------------------------------------------------------------
 
-encodeIndices :: LocalPalette -> [BlockStateID] -> [Word64]
-encodeIndices palette blocks = undefined
+encodeIndices :: ChunkBlockData -> (BitsPerBlock,LocalPalette,[Word64])
+encodeIndices (ChunkBlockData blocks) = (bpb,palette,packIndices bpb 0 0 (V.toList encodedBlocks))
+  where
+    encodedBlocks = fmap (\x -> fromJust $ V.elemIndex x palette) blocks
+    palette = V.fromList . L.sort . L.nub . V.toList $ blocks
+    bpb :: BitsPerBlock
+    bpb
+      | uncheckedBPB < 5 = BitsPerBlock 4
+      | (uncheckedBPB > 4) && (uncheckedBPB < 9) = BitsPerBlock (toEnum uncheckedBPB)
+      | otherwise = BitsPerBlock 13
+    uncheckedBPB :: Int
+    uncheckedBPB = (\x -> 64 - x)
+      . countLeadingZeros
+      . (toEnum :: Int -> Word64)
+      . length $ palette
 
-decodeIndices :: LocalPalette -> [Word64] -> [BlockStateID]
-decodeIndices palette longs = undefined
+decodeIndices :: (BitsPerBlock,LocalPalette,[Word64]) -> ChunkBlockData
+decodeIndices (bpb,palette,indices) = ChunkBlockData decodedIndices
+  where
+    unpackedIndices = V.fromList $ unpackIndices bpb 0 0 indices :: V.Vector Word64
+    decodedIndices = V.backpermute palette (fmap fromEnum unpackedIndices)
 
+-- (NOTE) 'a' must also be divisable by BitsPerBlock, otherwise unpacking will pad out the remainder with zeros.
 packIndices :: (Bits a, Integral a) => BitsPerBlock -> a -> Int -> [a] -> [Word64]
 packIndices (BitsPerBlock bpb) partialL offsetL [] = [(fromIntegral partialL) `shift` (64 - offsetL)]
 packIndices (BitsPerBlock bpb) partialL offsetL indices =
@@ -192,6 +208,8 @@ unpackIndices (BitsPerBlock bpb) partialL offsetL (x:xs)
     center _ 0 = L.replicate n 0
     center 0 _ = []
     center i x = (fromIntegral (x `shiftL` (64 - offsetR - (i * bpbI))) `shiftR` (64 - bpbI)) : center (i - 1) x
+
+type LocalPalette = V.Vector BlockStateID
 
 newtype BitsPerBlock = BitsPerBlock Word8
   deriving (Show,Eq,Ord,Bits,Num)
@@ -262,7 +280,6 @@ decodeBitsPerBlock = do
 --------------------------------------------------------------------------------
 
 --type GlobalPalette = V.Vector BlockStateID
-type LocalPalette = V.Vector BlockStateID
 
 {-
 mkGlobalPalette :: [BlockImport] -> GlobalPalette
@@ -280,20 +297,6 @@ mkGlobalPalette = V.fromList . L.sort . L.concatMap encodeBlockImport
         Nothing -> [BlockStateID $ toEnum . fromEnum $ encodedBlockID bi]
         Just vlst -> fmap (BlockStateID . toEnum . fromEnum . (\x -> encodedBlockID bi .|. x) . toEnum . fromEnum . getMetadata) vlst
 -}
-
-mkLocalPalette :: ChunkBlockData -> (LocalPalette,BitsPerBlock)
-mkLocalPalette (ChunkBlockData blocks) = (localPalette,checkedBPB)
-  where localPalette = V.fromList . L.sort . L.nub . V.toList $ blocks
-        checkedBPB :: BitsPerBlock
-        checkedBPB
-          | uncheckedBPB < 5 = BitsPerBlock 4
-          | (uncheckedBPB > 4) && (uncheckedBPB < 9) = BitsPerBlock (toEnum uncheckedBPB)
-          | otherwise = BitsPerBlock 13
-        uncheckedBPB :: Int
-        uncheckedBPB = (\x -> 64 - x)
-          . countLeadingZeros
-          . (toEnum :: Int -> Word64)
-          . length $ localPalette
 
 --------------------------------------------------------------------------------
 
