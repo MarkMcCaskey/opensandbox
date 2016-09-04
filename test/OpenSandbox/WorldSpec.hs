@@ -10,7 +10,7 @@ import Data.Word
 import Test.Hspec
 import Test.QuickCheck
 import OpenSandbox.Data.BlockSpec()
-
+import Debug.Trace
 import OpenSandbox.World
 
 instance Arbitrary OverWorldChunkBlock where
@@ -81,9 +81,9 @@ prop_IdentityBitsPerBlock lst = do
     Left _ -> False
     Right lst' -> lst == lst'
 
-prop_IdentityIndices :: [ChunkBlockData] -> Bool
-prop_IdentityIndices [] = True
-prop_IdentityIndices lst = lst == fmap (decodeIndices . encodeIndices) lst
+prop_IdentityIndices :: ChunkBlockData -> Bool
+--prop_IdentityIndices [] = True
+prop_IdentityIndices x = (traceShowId x) == (decodeIndices . encodeIndices $ x)
 
 spec :: Spec
 spec = do
@@ -98,7 +98,7 @@ spec = do
   describe "BitsPerBlock" $ do
     it "Identity" $ property prop_IdentityBitsPerBlock
   describe "Encoding Indices" $ do
-    it "Identity" $ property prop_IdentityIndices
+    it "Identity" $ verboseCheck prop_IdentityIndices
 
 main :: IO ()
 main = hspec spec

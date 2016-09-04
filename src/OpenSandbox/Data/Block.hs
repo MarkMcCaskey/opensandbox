@@ -101,6 +101,7 @@ import qualified  Data.Attoparsec.Text as A
 import            Data.Bits
 import qualified  Data.ByteString.Builder as Encode
 import            Data.Data
+import            Data.Hashable
 import qualified  Data.HashMap.Strict as H
 import qualified  Data.List as L
 import            Data.Scientific
@@ -114,7 +115,7 @@ import            GHC.Generics (Generic)
 import            Prelude hiding (id)
 
 newtype BlockStateID = BlockStateID Word64
-  deriving (Show,Eq,Ord,Enum,Bounded,Bits,Num,Real,Integral,Storable,Generic)
+  deriving (Show,Eq,Ord,Enum,Bounded,Bits,Num,Real,Integral,Storable,Generic,Hashable)
 
 instance Serialize BlockStateID where
   put (BlockStateID bid) = putWord64be bid

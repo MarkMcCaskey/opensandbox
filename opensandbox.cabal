@@ -55,6 +55,7 @@ library
                             ekg-core,
                             exceptions,
                             fast-logger,
+                            hashable,
                             memory,
                             minecraft-nbt,
                             monad-logger,

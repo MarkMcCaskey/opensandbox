@@ -21,6 +21,7 @@ module OpenSandbox.World
   , OverWorldChunkBlock (..)
   , OtherWorldChunkBlock (..)
   , ChunkBlockData (..)
+  , initChunkBlockData
   , BiomeIndices (..)
   , encodeIndices
   , decodeIndices
@@ -36,6 +37,7 @@ import Data.Int
 import qualified Data.List as L
 import Data.Maybe
 import Data.Serialize
+import qualified Data.HashSet as HS
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as VU
 import Data.Word
@@ -146,11 +148,13 @@ instance Serialize BiomeIndices where
 
 --------------------------------------------------------------------------------
 
+type LocalPalette = V.Vector BlockStateID
+
 encodeIndices :: ChunkBlockData -> (BitsPerBlock,LocalPalette,[Word64])
 encodeIndices (ChunkBlockData blocks) = (bpb,palette,packIndices bpb 0 0 (V.toList encodedBlocks))
   where
     encodedBlocks = fmap (\x -> fromJust $ V.elemIndex x palette) blocks
-    palette = V.fromList . L.sort . L.nub . V.toList $ blocks
+    palette = V.fromList . HS.toList . HS.fromList . V.toList $ blocks
     bpb :: BitsPerBlock
     bpb
       | uncheckedBPB < 5 = BitsPerBlock 4
@@ -160,7 +164,7 @@ encodeIndices (ChunkBlockData blocks) = (bpb,palette,packIndices bpb 0 0 (V.toLi
     uncheckedBPB = (\x -> 64 - x)
       . countLeadingZeros
       . (toEnum :: Int -> Word64)
-      . length $ palette
+      . V.length $ palette
 
 decodeIndices :: (BitsPerBlock,LocalPalette,[Word64]) -> ChunkBlockData
 decodeIndices (bpb,palette,indices) = ChunkBlockData decodedIndices
@@ -208,8 +212,6 @@ unpackIndices (BitsPerBlock bpb) partialL offsetL (x:xs)
     center _ 0 = L.replicate n 0
     center 0 _ = []
     center i x = (fromIntegral (x `shiftL` (64 - offsetR - (i * bpbI))) `shiftR` (64 - bpbI)) : center (i - 1) x
-
-type LocalPalette = V.Vector BlockStateID
 
 newtype BitsPerBlock = BitsPerBlock Word8
   deriving (Show,Eq,Ord,Bits,Num)
