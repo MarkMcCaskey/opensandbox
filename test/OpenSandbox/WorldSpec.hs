@@ -70,10 +70,10 @@ prop_IdentityCompressIndices indices = indices == decompressIndices (compressInd
 
 spec :: Spec
 spec = do
-  --describe "OverWorldChunkBlock" $ do
-  --  it "Identity" $ property prop_IdentityOverWorldChunkBlock
-  --describe "OtherWorldChunkBlock" $ do
-  --  it "Identity" $ property prop_IdentityOtherWorldChunkBlock
+  describe "OverWorldChunkBlock" $ do
+    it "Identity" $ property prop_IdentityOverWorldChunkBlock
+  describe "OtherWorldChunkBlock" $ do
+    it "Identity" $ property prop_IdentityOtherWorldChunkBlock
   describe "BiomeIndices" $ do
     it "Identity" $ property prop_IdentityBiomeIndices
   describe "BitsPerBlock" $ do

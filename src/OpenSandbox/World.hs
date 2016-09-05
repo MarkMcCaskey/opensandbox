@@ -65,8 +65,7 @@ instance Serialize OverWorldChunkBlock where
   put (OverWorldChunkBlock datArray blockLight skyLight) = do
     put bpb
     putVarInt . V.length $ palette
-    when ((V.length palette > 0) && (bpb < (mkBitsPerBlock BitsPerBlock13))) $
-      V.mapM_ (putVarInt . fromEnum) palette
+    V.mapM_ (putVarInt . fromIntegral) palette
     putVarInt . length $ indices
     mapM_ putWord64be indices
     V.mapM_ putWord8 blockLight
@@ -76,7 +75,7 @@ instance Serialize OverWorldChunkBlock where
   get = do
     bpb <- get
     paletteLn <- getVarInt
-    palette <- V.replicateM paletteLn (toEnum <$> getVarInt) :: Get (V.Vector BlockStateID)
+    palette <- V.replicateM paletteLn (fromIntegral <$> getVarInt)
     datArrayLn <- getVarInt
     datArray <- replicateM datArrayLn getWord64be
     blockLight <- V.replicateM 2048 getWord8
@@ -96,8 +95,7 @@ instance Serialize OtherWorldChunkBlock where
   put (OtherWorldChunkBlock datArray blockLight) = do
     put bpb
     putVarInt . V.length $ palette
-    when ((V.length palette > 0) && (bpb < (mkBitsPerBlock BitsPerBlock13))) $
-      V.mapM_ (putVarInt . fromEnum) palette
+    V.mapM_ (putVarInt . fromIntegral) palette
     putVarInt . length $ indices
     mapM_ putWord64be indices
     V.mapM_ putWord8 blockLight
@@ -106,11 +104,11 @@ instance Serialize OtherWorldChunkBlock where
   get = do
     bpb <- get
     paletteLn <- getVarInt
-    palette <- V.replicateM paletteLn (toEnum <$> getVarInt) :: Get (V.Vector BlockStateID)
+    palette <- V.replicateM paletteLn (fromIntegral <$> getVarInt)
     datArrayLn <- getVarInt
     datArray <- replicateM datArrayLn getWord64be
     blockLight <- V.replicateM 2048 getWord8
-    let datArray' = decompressIndices ((traceShowId bpb),(traceShowId palette),datArray)
+    let datArray' = decompressIndices (bpb,palette,datArray)
     return $ OtherWorldChunkBlock datArray' blockLight
 
 

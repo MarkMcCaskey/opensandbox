@@ -117,12 +117,12 @@ import            Foreign.Storable
 import            GHC.Generics (Generic)
 import            Prelude hiding (id)
 
-newtype BlockStateID = BlockStateID Word64
+newtype BlockStateID = BlockStateID Word16
   deriving (Show,Eq,Ord,Enum,Bounded,Bits,Num,Real,Integral,Storable,Generic,Hashable)
 
 instance Serialize BlockStateID where
-  put (BlockStateID bid) = putWord64be bid
-  get = BlockStateID <$> getWord64be
+  put (BlockStateID bid) = putWord16be bid
+  get = BlockStateID <$> getWord16be
 
 instance NFData BlockStateID
 
