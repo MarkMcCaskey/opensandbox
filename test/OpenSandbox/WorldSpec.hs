@@ -11,7 +11,14 @@ import Test.Hspec
 import Test.QuickCheck
 import OpenSandbox.Data.BlockSpec()
 import Debug.Trace
+import OpenSandbox.Data.Block (BlockStateID,BlockIndice)
 import OpenSandbox.World
+
+instance Arbitrary BlockIndice where
+  arbitrary = (fromIntegral <$> (arbitrary :: Gen Word8) :: Gen BlockIndice)
+
+instance Arbitrary BlockIndices where
+  arbitrary = BlockIndices <$> vectorOf 4096 arbitrary
 
 instance Arbitrary OverWorldChunkBlock where
   arbitrary = OverWorldChunkBlock
@@ -36,69 +43,45 @@ instance Arbitrary BitsPerBlock where
 instance Arbitrary BitsPerBlockOption where
   arbitrary = fmap toEnum (choose (4,13) :: Gen Int)
 
-prop_IdentityOverWorldChunkBlock :: [OverWorldChunkBlock] -> Bool
-prop_IdentityOverWorldChunkBlock [] = True
-prop_IdentityOverWorldChunkBlock lst = do
-  let encoded = encode lst
-  let decoded = decode encoded :: Either String [OverWorldChunkBlock]
-  case decoded of
-    Left _ -> False
-    Right lst' -> lst == lst'
+prop_IdentityOverWorldChunkBlock :: OverWorldChunkBlock -> Bool
+prop_IdentityOverWorldChunkBlock chunk =
+  Right chunk == (decode (encode chunk) :: Either String OverWorldChunkBlock)
 
-prop_IdentityOtherWorldChunkBlock :: [OtherWorldChunkBlock] -> Bool
-prop_IdentityOtherWorldChunkBlock [] = True
-prop_IdentityOtherWorldChunkBlock lst = do
-  let encoded = encode lst
-  let decoded = decode encoded :: Either String [OtherWorldChunkBlock]
-  case decoded of
-    Left _ -> False
-    Right lst' -> lst == lst'
+prop_IdentityOtherWorldChunkBlock :: OtherWorldChunkBlock -> Bool
+prop_IdentityOtherWorldChunkBlock chunk =
+  Right chunk == (decode (encode chunk) :: Either String OtherWorldChunkBlock)
 
-prop_IdentityChunkBlockData :: [ChunkBlockData] -> Bool
-prop_IdentityChunkBlockData [] = True
-prop_IdentityChunkBlockData lst = do
-  let encoded = encode lst
-  let decoded = decode encoded :: Either String [ChunkBlockData]
-  case decoded of
-    Left _ -> False
-    Right lst' -> lst == lst'
+prop_IdentityBiomeIndices :: BiomeIndices -> Bool
+prop_IdentityBiomeIndices biomeIndices =
+  Right biomeIndices == (decode (encode biomeIndices) :: Either String BiomeIndices)
 
-prop_IdentityBiomeIndices :: [BiomeIndices] -> Bool
-prop_IdentityBiomeIndices [] = True
-prop_IdentityBiomeIndices lst = do
-  let encoded = encode lst
-  let decoded = decode encoded :: Either String [BiomeIndices]
-  case decoded of
-    Left _ -> False
-    Right lst' -> lst == lst'
+prop_IdentityBitsPerBlock :: BitsPerBlock -> Bool
+prop_IdentityBitsPerBlock bpb =
+  Right bpb == (decode (encode bpb) :: Either String BitsPerBlock)
 
-prop_IdentityBitsPerBlock :: [BitsPerBlock] -> Bool
-prop_IdentityBitsPerBlock [] = True
-prop_IdentityBitsPerBlock lst = do
-  let encoded = encode lst
-  let decoded = decode encoded :: Either String [BitsPerBlock]
-  case decoded of
-    Left _ -> False
-    Right lst' -> lst == lst'
-
-prop_IdentityIndices :: ChunkBlockData -> Bool
---prop_IdentityIndices [] = True
-prop_IdentityIndices x = (traceShowId x) == (decodeIndices . encodeIndices $ x)
+prop_IdentityPackIndices :: BlockIndices -> Bool
+prop_IdentityPackIndices indices = all (==unBlockIndices indices)
+  [ unpackIndices bpbI 0 0 (packIndices bpbI 0 0 indices)
+  , unpackIndices bpbII 0 0 (packIndices bpbII 0 0 indices)
+  , unpackIndices bpbIII 0 0 (packIndices bpbIII 0 0 indices)
+  ]
+  where
+    bpbI = mkBitsPerBlock BitsPerBlock8
+    bpbII = mkBitsPerBlock BitsPerBlock13
+    bpbIII = mkBitsPerBlock BitsPerBlock16
 
 spec :: Spec
 spec = do
---  describe "OverWorldChunkBlock" $ do
---    it "Identity" $ property prop_IdentityOverWorldChunkBlock
---  describe "OtherWorldChunkBlock" $ do
---    it "Identity" $ property prop_IdentityOtherWorldChunkBlock
-  describe "ChunkBlockData" $ do
-    it "Identity" $ property prop_IdentityChunkBlockData
+  --describe "OverWorldChunkBlock" $ do
+  --  it "Identity" $ property prop_IdentityOverWorldChunkBlock
+  --describe "OtherWorldChunkBlock" $ do
+  --  it "Identity" $ property prop_IdentityOtherWorldChunkBlock
   describe "BiomeIndices" $ do
     it "Identity" $ property prop_IdentityBiomeIndices
   describe "BitsPerBlock" $ do
     it "Identity" $ property prop_IdentityBitsPerBlock
-  describe "Encoding Indices" $ do
-    it "Identity" $ verboseCheck prop_IdentityIndices
+  describe "Packing Indices" $ do
+    it "Identity" $ property prop_IdentityPackIndices
 
 main :: IO ()
 main = hspec spec

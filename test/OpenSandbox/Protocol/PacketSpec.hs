@@ -827,8 +827,8 @@ spec = do
       it "Identity" $ property prop_CBLoginEq
     context "Server bound login packets:" $ do
       it "Identity" $ property prop_SBLoginEq
---    context "Client bound play packets:" $ do
---      it "Identity" $ property prop_CBPlayEq
+    --context "Client bound play packets:" $ do
+    --  it "Identity" $ property prop_CBPlayEq
     context "Server bound play packets:" $ do
       it "Identity" $ property prop_SBPlayEq
 

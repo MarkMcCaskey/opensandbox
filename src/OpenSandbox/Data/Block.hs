@@ -16,7 +16,9 @@
 -------------------------------------------------------------------------------
 module OpenSandbox.Data.Block
   ( BlockStateID
+  , BlockIndice
   , BlockImport (..)
+  {-
   , BlockState (..)
   , Half (..)
   , Axis2D (..)
@@ -92,6 +94,7 @@ module OpenSandbox.Data.Block
   , Log2Variant (..)
   , WoodPlanksVariant (..)
   , RedSandstoneSlabs (..)
+  -}
   ) where
 
 import            Data.Aeson
@@ -122,6 +125,15 @@ instance Serialize BlockStateID where
   get = BlockStateID <$> getWord64be
 
 instance NFData BlockStateID
+
+newtype BlockIndice = BlockIndice Word8
+  deriving (Show,Eq,Ord,Enum,Bits,Bounded,Num,Real,Integral,Generic)
+
+instance Serialize BlockIndice where
+  put (BlockIndice indice) = putWord8 indice
+  get = BlockIndice <$> getWord8
+
+instance NFData BlockIndice
 
 data BlockImport = BlockImport
   { id            :: Word16
@@ -226,6 +238,8 @@ data Variation = Variation
 instance ToJSON Variation
 instance FromJSON Variation
 instance NFData Variation
+
+{-
 
 data BlockState
   = BlockStateAir
@@ -1329,3 +1343,5 @@ data RedSandstoneSlabs
   = SlabRedSandstone
   | SlabUpperRedSandstone
   deriving (Show,Eq)
+-}
+

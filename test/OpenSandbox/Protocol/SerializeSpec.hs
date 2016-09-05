@@ -7,19 +7,13 @@ import Data.Int
 import Test.QuickCheck
 import Test.Hspec
 
-prop_varIntEq :: [Int] -> Bool
-prop_varIntEq [] = True
-prop_varIntEq lst = do
-  let encoded = fmap (\x -> runPut (putVarInt x)) lst
-  let decoded = fmap (runGet getVarInt) encoded :: [Either String Int]
-  lst == rights decoded
+prop_varIntEq :: Int -> Bool
+prop_varIntEq x =
+  Right x == (runGet getVarInt (runPut (putVarInt x)) :: Either String Int)
 
-prop_varLongEq :: [Int64] -> Bool
-prop_varLongEq [] = True
-prop_varLongEq lst = do
-  let encoded = fmap (\x -> runPut (putVarLong x)) lst
-  let decoded = fmap (runGet getVarLong) encoded :: [Either String Int64]
-  lst == rights decoded
+prop_varLongEq :: Int64 -> Bool
+prop_varLongEq x =
+  Right x == (runGet getVarLong (runPut (putVarLong x)) :: Either String Int64)
 
 spec :: Spec
 spec = do
