@@ -126,12 +126,12 @@ instance Serialize BlockStateID where
 
 instance NFData BlockStateID
 
-newtype BlockIndice = BlockIndice Word8
+newtype BlockIndice = BlockIndice Word16
   deriving (Show,Eq,Ord,Enum,Bits,Bounded,Num,Real,Integral,Generic)
 
 instance Serialize BlockIndice where
-  put (BlockIndice indice) = putWord8 indice
-  get = BlockIndice <$> getWord8
+  put (BlockIndice indice) = putWord16be indice
+  get = BlockIndice <$> getWord16be
 
 instance NFData BlockIndice
 

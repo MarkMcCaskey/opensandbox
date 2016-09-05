@@ -60,15 +60,13 @@ prop_IdentityBitsPerBlock bpb =
   Right bpb == (decode (encode bpb) :: Either String BitsPerBlock)
 
 prop_IdentityPackIndices :: BlockIndices -> Bool
-prop_IdentityPackIndices indices = all (==unBlockIndices indices)
-  [ unpackIndices bpbI 0 0 (packIndices bpbI 0 0 indices)
-  , unpackIndices bpbII 0 0 (packIndices bpbII 0 0 indices)
-  , unpackIndices bpbIII 0 0 (packIndices bpbIII 0 0 indices)
-  ]
+prop_IdentityPackIndices indices =
+  unBlockIndices indices == unpackIndices bpb 0 0 (packIndices bpb 0 0 indices)
   where
-    bpbI = mkBitsPerBlock BitsPerBlock8
-    bpbII = mkBitsPerBlock BitsPerBlock13
-    bpbIII = mkBitsPerBlock BitsPerBlock16
+    bpb = mkBitsPerBlock BitsPerBlock16
+
+prop_IdentityCompressIndices :: ChunkBlockData -> Bool
+prop_IdentityCompressIndices indices = indices == decompressIndices (compressIndices indices)
 
 spec :: Spec
 spec = do
@@ -82,6 +80,8 @@ spec = do
     it "Identity" $ property prop_IdentityBitsPerBlock
   describe "Packing Indices" $ do
     it "Identity" $ property prop_IdentityPackIndices
+  describe "Compressing Indices" $ do
+    it "Identity" $ property prop_IdentityCompressIndices
 
 main :: IO ()
 main = hspec spec
