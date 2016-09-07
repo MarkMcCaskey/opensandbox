@@ -32,7 +32,6 @@ library
                             OpenSandbox.Network
                             OpenSandbox.Protocol
                             OpenSandbox.Protocol.Packet
-                            OpenSandbox.Protocol.Serialize
                             OpenSandbox.Protocol.Types
                             OpenSandbox.User
                             OpenSandbox.Version
@@ -52,13 +51,13 @@ library
                             cryptonite,
                             deepseq,
                             directory,
-                            ekg-core,
+                            ekg,
                             exceptions,
                             fast-logger,
                             hashable,
                             memory,
-                            minecraft-nbt,
                             monad-logger,
+                            nbt,
                             optparse-applicative,
                             path,
                             QuickCheck,
@@ -93,7 +92,7 @@ test-suite opensandbox-test
     type:                   exitcode-stdio-1.0
     hs-source-dirs:         test
     main-is:                Spec.hs
-    other-modules:          CommonSpec
+    other-modules:          Common
                             Data.NBTSpec
                             OpenSandbox.CommandLineSpec
                             OpenSandbox.ConfigSpec
@@ -107,18 +106,16 @@ test-suite opensandbox-test
                             OpenSandbox.LoggerSpec
                             OpenSandbox.NetworkSpec
                             OpenSandbox.Protocol.PacketSpec
-                            OpenSandbox.Protocol.SerializeSpec
                             OpenSandbox.Protocol.TypesSpec
                             OpenSandbox.UserSpec
                             OpenSandbox.WorldSpec
 
     build-depends:          array,
-                            attoparsec,
                             base,
                             bytestring,
                             cereal,
                             hspec,
-                            minecraft-nbt,
+                            nbt,
                             opensandbox,
                             QuickCheck,
                             text,

@@ -18,9 +18,12 @@ module OpenSandbox.World
   , mkBitsPerBlock
   , encodeBitsPerBlock
   , decodeBitsPerBlock
-  , OverWorldChunkBlock (..)
-  , OtherWorldChunkBlock (..)
-  , initOtherWorldChunkBlock
+  , ChunkColumn (..)
+  , OChunkColumnData (..)
+  , DChunkColumnData (..)
+  , OChunkBlock (..)
+  , DChunkBlock (..)
+  , initDChunkBlock
   , ChunkBlockData (..)
   , initChunkBlockData
   , unChunkBlockData
@@ -38,10 +41,12 @@ import Control.Monad
 import qualified Data.Attoparsec.ByteString as Decode
 import Data.Bits
 import qualified Data.ByteString.Builder as Encode
+import Data.Either
 import Data.Foldable
 import Data.Int
 import qualified Data.List as L
 import Data.Maybe
+import Data.NBT
 import Data.Serialize
 import qualified Data.HashSet as HS
 import qualified Data.Vector as V
@@ -49,20 +54,39 @@ import qualified Data.Vector.Unboxed as VU
 import Data.Word
 import GHC.Generics (Generic)
 import OpenSandbox.Data.Block (BlockStateID,BlockIndice)
-import OpenSandbox.Protocol.Serialize
-import Debug.Trace
+import OpenSandbox.Protocol.Types (putVarInt,getVarInt)
 
-data OverWorldChunkBlock = OverWorldChunkBlock
+data ChunkColumn = ChunkColumn
+  { chunkX :: Int32
+  , chunkY :: Int32
+  , primaryBitMask :: PrimaryBitMask
+  , chunkColumnData :: Either DChunkColumnData OChunkColumnData
+  , biomesArray :: Maybe (V.Vector Word8)
+  , blockEntities :: V.Vector NBT
+  } deriving (Show,Eq)
+
+data OChunkColumnData = OChunkColumnData [OChunkBlock] deriving (Show,Eq)
+
+data DChunkColumnData = DChunkColumnData [DChunkBlock] deriving (Show,Eq)
+
+unOChunkColumnData :: OChunkColumnData -> [OChunkBlock]
+unOChunkColumnData (OChunkColumnData column) = column
+
+unDChunkColumnData :: DChunkColumnData -> [DChunkBlock]
+unDChunkColumnData (DChunkColumnData column) = column
+
+data OChunkBlock = OChunkBlock
   { chunkDataArray :: ChunkBlockData
   , chunkBlockLight :: V.Vector Word8
   , chunkSkyLight :: V.Vector Word8
   } deriving (Show,Eq)
 
-initOverWorldChunkBlock :: OverWorldChunkBlock
-initOverWorldChunkBlock = OverWorldChunkBlock initChunkBlockData (V.replicate 2048 0) (V.replicate 2048 0)
+initOChunkBlock :: OChunkBlock
+initOChunkBlock = OChunkBlock initChunkBlockData (V.replicate 2048 0) (V.replicate 2048 0)
 
-instance Serialize OverWorldChunkBlock where
-  put (OverWorldChunkBlock datArray blockLight skyLight) = do
+instance Serialize OChunkBlock where
+  put (OChunkBlock datArray blockLight skyLight) = do
+    let (bpb,palette,indices) = compressIndices datArray
     put bpb
     putVarInt . V.length $ palette
     V.mapM_ (putVarInt . fromIntegral) palette
@@ -70,8 +94,7 @@ instance Serialize OverWorldChunkBlock where
     mapM_ putWord64be indices
     V.mapM_ putWord8 blockLight
     V.mapM_ putWord8 skyLight
-    where
-      (bpb,palette,indices) = compressIndices datArray
+
   get = do
     bpb <- get
     paletteLn <- getVarInt
@@ -81,26 +104,26 @@ instance Serialize OverWorldChunkBlock where
     blockLight <- V.replicateM 2048 getWord8
     skyLight <- V.replicateM 2048 getWord8
     let datArray' = decompressIndices (bpb,palette,datArray)
-    return $ OverWorldChunkBlock datArray' blockLight skyLight
+    return $ OChunkBlock datArray' blockLight skyLight
 
-data OtherWorldChunkBlock = OtherWorldChunkBlock
+data DChunkBlock = DChunkBlock
   { otherDataArray :: ChunkBlockData
   , otherBlockLight :: V.Vector Word8
   } deriving (Show,Eq)
 
-initOtherWorldChunkBlock :: OtherWorldChunkBlock
-initOtherWorldChunkBlock = OtherWorldChunkBlock initChunkBlockData (V.replicate 2048 0)
+initDChunkBlock :: DChunkBlock
+initDChunkBlock = DChunkBlock initChunkBlockData (V.replicate 2048 0)
 
-instance Serialize OtherWorldChunkBlock where
-  put (OtherWorldChunkBlock datArray blockLight) = do
+instance Serialize DChunkBlock where
+  put (DChunkBlock datArray blockLight) = do
+    let (bpb,palette,indices) = compressIndices datArray
     put bpb
     putVarInt . V.length $ palette
     V.mapM_ (putVarInt . fromIntegral) palette
     putVarInt . length $ indices
     mapM_ putWord64be indices
     V.mapM_ putWord8 blockLight
-    where
-      (bpb,palette,indices) = compressIndices datArray
+
   get = do
     bpb <- get
     paletteLn <- getVarInt
@@ -109,8 +132,7 @@ instance Serialize OtherWorldChunkBlock where
     datArray <- replicateM datArrayLn getWord64be
     blockLight <- V.replicateM 2048 getWord8
     let datArray' = decompressIndices (bpb,palette,datArray)
-    return $ OtherWorldChunkBlock datArray' blockLight
-
+    return $ DChunkBlock datArray' blockLight
 
 --------------------------------------------------------------------------------
 
@@ -123,11 +145,11 @@ unChunkBlockData :: ChunkBlockData -> V.Vector BlockStateID
 unChunkBlockData (ChunkBlockData blocks) = blocks
 
 --------------------------------------------------------------------------------
-{-
+
 newtype PrimaryBitMask = PrimaryBitMask Word16 deriving (Show,Eq,Bits,Generic,NFData)
 
-mkPrimaryBitMask :: ChunkColumnData -> PrimaryBitMask
-mkPrimaryBitMask = PrimaryBitMask . V.foldl1' (.|.) . fmap (fromIntegral . chunkY) . unChunkColumnData
+mkPrimaryBitMask :: Either DChunkColumnData OChunkColumnData -> PrimaryBitMask
+mkPrimaryBitMask = PrimaryBitMask . (2^) . either (length . unDChunkColumnData) (length . unOChunkColumnData)
 
 unPrimaryBitMask :: PrimaryBitMask -> Word16
 unPrimaryBitMask (PrimaryBitMask pbm) = pbm
@@ -135,7 +157,7 @@ unPrimaryBitMask (PrimaryBitMask pbm) = pbm
 instance Serialize PrimaryBitMask where
   put (PrimaryBitMask pbm) = putVarInt (fromIntegral pbm)
   get = (PrimaryBitMask . fromIntegral) <$> getVarInt
--}
+
 --------------------------------------------------------------------------------
 
 newtype BiomeIndices = BiomeIndices (V.Vector Word8) deriving (Show,Eq)
@@ -160,7 +182,8 @@ compressIndices :: ChunkBlockData -> (BitsPerBlock,LocalPalette,[Word64])
 compressIndices (ChunkBlockData blocks) = (bpb,palette,packIndices bpb 0 0 compressedBlocks)
   where
     compressedBlocks :: BlockIndices
-    compressedBlocks = BlockIndices . V.toList $ fmap (\x -> fromIntegral $ fromJust $ V.elemIndex x palette) blocks
+    compressedBlocks = BlockIndices . V.toList
+      $ fmap (\x -> fromIntegral $ fromJust $ V.elemIndex x palette) blocks
     palette = V.fromList . HS.toList . HS.fromList . V.toList $ blocks
     bpb :: BitsPerBlock
     bpb
@@ -181,14 +204,15 @@ decompressIndices (bpb,palette,indices) = ChunkBlockData decompressedIndices
 
 -- (NOTE) 'a' must also be divisable by BitsPerBlock, otherwise unpacking will pad out the remainder with zeros.
 packIndices :: BitsPerBlock -> BlockIndice -> Int -> BlockIndices -> [Word64]
-packIndices (BitsPerBlock bpb) partialL offsetL (BlockIndices []) = [(fromIntegral partialL) `shift` (64 - offsetL)]
+packIndices (BitsPerBlock bpb) partialL offsetL (BlockIndices []) =
+  [fromIntegral partialL `shift` (64 - offsetL)]
 packIndices (BitsPerBlock bpb) partialL offsetL (BlockIndices indices) =
   case L.uncons encodeNext of
-    Nothing -> [(fromIntegral partialL) `shift` (64 - offsetL) .|. center n encodeFull]
+    Nothing -> [fromIntegral partialL `shift` (64 - offsetL) .|. center n encodeFull]
     Just (partialR,encodeLater) -> do
-      let encodedLeft = (fromIntegral partialL) `shift` (64 - offsetL)
+      let encodedLeft = fromIntegral partialL `shift` (64 - offsetL)
       let encodedCenter = center n encodeFull
-      let encodedRight = (fromIntegral partialR) `shiftR` (bpbI - (64 - (offsetL + n * bpbI)))
+      let encodedRight = fromIntegral partialR `shiftR` (bpbI - (64 - (offsetL + n * bpbI)))
       let encodedLong = if offsetR > 0
                            then encodedLeft .|. encodedCenter .|. encodedRight
                            else encodedLeft .|. encodedCenter
@@ -206,10 +230,10 @@ packIndices (BitsPerBlock bpb) partialL offsetL (BlockIndices indices) =
 unpackIndices :: BitsPerBlock -> Word64 -> Int -> [Word64] -> [BlockIndice]
 unpackIndices _ _ _ [] = []
 unpackIndices (BitsPerBlock bpb) partialL offsetL (x:xs)
-  | (offsetL == 0) && (offsetR == 0) = (center n x) ++ unpackIndices (BitsPerBlock bpb) 0 0 xs
-  | offsetL == 0 = (center n x) ++ unpackIndices (BitsPerBlock bpb) partialR (bpbI - offsetR) xs
-  | offsetR == 0 = (fromIntegral rejoinedL) : center n x ++ unpackIndices (BitsPerBlock bpb) 0 0 xs
-  | otherwise = (fromIntegral rejoinedL) : center n x ++ unpackIndices (BitsPerBlock bpb) partialR (bpbI - offsetR) xs
+  | (offsetL == 0) && (offsetR == 0) = center n x ++ unpackIndices (BitsPerBlock bpb) 0 0 xs
+  | offsetL == 0 = center n x ++ unpackIndices (BitsPerBlock bpb) partialR (bpbI - offsetR) xs
+  | offsetR == 0 = fromIntegral rejoinedL : center n x ++ unpackIndices (BitsPerBlock bpb) 0 0 xs
+  | otherwise = fromIntegral rejoinedL : center n x ++ unpackIndices (BitsPerBlock bpb) partialR (bpbI - offsetR) xs
   where
     bpbI = fromEnum bpb
     (n,offsetR) = (64 - offsetL) `quotRem` bpbI
@@ -218,7 +242,7 @@ unpackIndices (BitsPerBlock bpb) partialL offsetL (x:xs)
     center :: Int -> Word64 -> [BlockIndice]
     center _ 0 = L.replicate n 0
     center 0 _ = []
-    center i x = (fromIntegral ((x `shiftL` (64 - offsetR - (i * bpbI))) `shiftR` (64 - bpbI)) : center (i - 1) x)
+    center i x = fromIntegral ((x `shiftL` (64 - offsetR - (i * bpbI))) `shiftR` (64 - bpbI)) : center (i - 1) x
 
 newtype BitsPerBlock = BitsPerBlock Word8
   deriving (Show,Eq,Ord,Bits)

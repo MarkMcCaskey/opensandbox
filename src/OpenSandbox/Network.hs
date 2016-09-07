@@ -19,17 +19,16 @@ import            Control.Monad
 import            Control.Monad.IO.Class
 import            Control.Monad.Trans.Class
 import            Control.Monad.Trans.State.Lazy
+import qualified  Control.Monad.Trans.State.Lazy as S (put,get)
 import qualified  Data.Attoparsec.ByteString as Decode
 import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Lazy as BL
-import qualified  Data.ByteString.Builder as Encode
 import            Data.Conduit
 import            Data.Conduit.Network
-import            Data.Monoid
+import            Data.Serialize
 import qualified  Data.Text as T
 import            Data.Text.Encoding
 import            Data.UUID.V4
-import qualified  Data.Vector as V
 import            OpenSandbox.Config
 import            OpenSandbox.Logger
 import            OpenSandbox.Protocol
@@ -92,13 +91,12 @@ packetSource app = transPipe liftIO $ appSource app
 packetSink  :: AppData -> Sink B.ByteString (StateT ProtocolState IO) ()
 packetSink app = transPipe liftIO $ appSink app
 
-{-
 compressPlay :: Conduit B.ByteString (StateT ProtocolState IO) B.ByteString
 compressPlay = awaitForever $ \play -> yield (BL.toStrict $ Zlib.compress (BL.fromStrict $ play))
 
 decompressPlay :: Conduit B.ByteString (StateT ProtocolState IO) B.ByteString
 decompressPlay = awaitForever $ \play -> yield (BL.toStrict $ Zlib.decompress (BL.fromStrict $ play))
--}
+
 deserializeHandshaking :: Conduit B.ByteString (StateT ProtocolState IO) (Either String (SBHandshaking,Maybe SBStatus))
 deserializeHandshaking = do
     maybeBS <- await
@@ -107,7 +105,7 @@ deserializeHandshaking = do
       Just bs -> do
         if B.take 2 bs /= "\254\SOH"
           then do
-            case Decode.parseOnly decodeSBHandshaking' bs of
+            case runGet getSBHandshaking' bs of
               Left err -> yield (Left err) >> leftover bs
               Right (handshake,status) -> yield (Right (handshake,status))
           else do
@@ -115,19 +113,19 @@ deserializeHandshaking = do
               Left err -> yield (Left err) >> leftover bs
               Right _ -> yield $ Right (SBLegacyServerListPing,Nothing)
   where
-  decodeSBHandshaking' = do
-    ln <- decodeVarInt
-    bs <- Decode.take ln
-    case Decode.parseOnly decodeSBHandshaking bs of
+  getSBHandshaking' = do
+    ln <- getVarInt
+    bs <- getBytes ln
+    case decode bs of
       Left err -> fail $ err
       Right handshake -> do
-        end <- Decode.atEnd
+        end <- isEmpty
         if end
           then return (handshake,Nothing)
           else do
-            ln' <- decodeVarInt
-            earlyBs <- Decode.take ln'
-            case Decode.parseOnly decodeSBStatus earlyBs of
+            ln' <- getVarInt
+            earlyBs <- getBytes ln'
+            case decode earlyBs of
               Left _ -> return (handshake,Nothing)
               Right earlyStatus -> return (handshake,Just earlyStatus)
 
@@ -137,7 +135,7 @@ deserializeStatus = do
     case maybeBS of
       Nothing -> return ()
       Just bs -> do
-        case Decode.parseOnly (decodeSBStatus <* Decode.endOfInput) (B.tail bs) of
+        case decode (B.tail bs) of
           Left err -> yield (Left err) >> leftover bs
           Right status -> yield (Right status)
 
@@ -147,8 +145,8 @@ serializeStatus = do
   case maybeStatus of
     Nothing -> return ()
     Just status -> do
-      let bs = BL.toStrict . Encode.toLazyByteString . encodeCBStatus $ status
-      let ln = BL.toStrict . Encode.toLazyByteString . encodeVarInt . B.length $ bs
+      let bs = encode status
+      let ln = runPut . putVarInt . B.length $ bs
       yield (ln `B.append` bs)
 
 deserializeLogin :: Conduit B.ByteString (StateT ProtocolState IO) (Either String SBLogin)
@@ -157,7 +155,7 @@ deserializeLogin = do
   case maybeBS of
     Nothing -> return ()
     Just bs -> do
-      case Decode.parseOnly (decodeSBLogin <* Decode.endOfInput) (B.tail bs) of
+      case decode (B.tail bs) of
         Left err -> yield (Left err) >> leftover bs
         Right login -> yield (Right login)
 
@@ -167,61 +165,61 @@ serializeLogin config = do
   case maybeLogin of
     Nothing -> return ()
     Just (CBLoginSuccess a b) -> do
-      let uncompressedBS = Encode.toLazyByteString (encodeCBLogin (CBLoginSuccess a b))
+      let uncompressedBS = (encodeLazy (CBLoginSuccess a b))
       if srvCompression config
         then do
-          let dataLn = encodeVarInt . B.length . BL.toStrict $ uncompressedBS
-          let compressedBS = Encode.lazyByteString . Zlib.compress $ uncompressedBS
-          let packetData = BL.toStrict $ Encode.toLazyByteString (dataLn <> compressedBS)
-          let packetLn = BL.toStrict $ Encode.toLazyByteString (encodeVarInt . B.length $ packetData)
+          let dataLn = runPut . putVarInt . B.length . BL.toStrict $ uncompressedBS
+          let compressedBS = BL.toStrict . Zlib.compress $ uncompressedBS
+          let packetData = dataLn `B.append` compressedBS
+          let packetLn = runPut . putVarInt . B.length $ packetData
           yield (packetLn `B.append` packetData)
         else do
-          let bs = BL.toStrict . Encode.toLazyByteString . encodeCBLogin $ (CBLoginSuccess a b)
-          let ln = BL.toStrict . Encode.toLazyByteString . encodeVarInt . B.length $ bs
+          let bs = encode (CBLoginSuccess a b)
+          let ln = runPut . putVarInt . B.length $ bs
           yield (ln `B.append` bs)
     Just login -> do
-      let bs = BL.toStrict . Encode.toLazyByteString . encodeCBLogin $ login
-      let ln = BL.toStrict . Encode.toLazyByteString . encodeVarInt . B.length $ bs
+      let bs = encode login
+      let ln = runPut . putVarInt . B.length $ bs
       yield (ln `B.append` bs)
 
 deserializePlay :: Config -> Conduit B.ByteString (StateT ProtocolState IO) (Either String [SBPlay])
-deserializePlay config = awaitForever (\bs -> yield $ Decode.parseOnly decodePackets bs)
+deserializePlay config = awaitForever (\bs -> yield $ runGet getPackets bs)
   where
-  decodePackets = Decode.many1 $ do
+  getPackets = Decode.many1 $ do
     case srvCompression config of
       False -> do
-        ln <- decodeVarInt
-        bs' <- Decode.take ln
-        case Decode.parseOnly decodeSBPlay bs' of
+        ln <- getVarInt
+        bs' <- getBytes ln
+        case decode bs' of
           Left err -> fail err
           Right packet -> return packet
       True -> do
-        ln <- decodeVarInt
-        bs' <- Decode.take ln
-        case Decode.parseOnly decodeCompressed bs' of
+        ln <- getVarInt
+        bs' <- getBytes ln
+        case runGet getCompressed bs' of
           Left err -> fail err
           Right packet -> return packet
-  decodeCompressed = do
-    _ <- decodeVarInt
-    compressedBS <- Decode.takeLazyByteString
+  getCompressed = do
+    ln <- getVarInt
+    compressedBS <- getLazyByteString (toEnum ln)
     let uncompressedBS = BL.toStrict $ Zlib.decompress compressedBS
-    case Decode.parseOnly decodeSBPlay uncompressedBS of
+    case decode uncompressedBS of
       Left err -> fail err
       Right packet -> return packet
 
 serializePlay :: Config -> Conduit CBPlay (StateT ProtocolState IO) B.ByteString
 serializePlay config = awaitForever $ \play -> do
-  let uncompressedBS = Encode.toLazyByteString (encodeCBPlay play)
+  let uncompressedBS = encodeLazy play
   if srvCompression config
     then do
-      let dataLn = encodeVarInt . B.length . BL.toStrict $ uncompressedBS
-      let compressedBS = Encode.lazyByteString . Zlib.compress $ uncompressedBS
-      let packetData = BL.toStrict $ Encode.toLazyByteString (dataLn <> compressedBS)
-      let packetLn = BL.toStrict $ Encode.toLazyByteString (encodeVarInt . B.length $ packetData)
+      let dataLn = runPut . putVarInt . B.length . BL.toStrict $ uncompressedBS
+      let compressedBS = BL.toStrict . Zlib.compress $ uncompressedBS
+      let packetData = (dataLn `B.append` compressedBS)
+      let packetLn = runPut . putVarInt . B.length $ packetData
       yield (packetLn `B.append` packetData)
     else do
-      let bs = BL.toStrict . Encode.toLazyByteString . encodeCBPlay $ play
-      let ln = BL.toStrict . Encode.toLazyByteString . encodeVarInt . B.length $ bs
+      let bs = encode play
+      let ln = runPut . putVarInt . B.length $ bs
       yield (ln `B.append` bs)
 
 handleHandshaking :: Logger -> Conduit (Either String (SBHandshaking,Maybe SBStatus)) (StateT ProtocolState IO) (Either String SBStatus)
@@ -237,13 +235,13 @@ handleHandshaking logger = do
           return ()
         Right ((SBHandshake _ _ _ ProtocolStatus),status) -> do
           liftIO $ logMsg logger LvlDebug "Switching protocol state to STATUS"
-          lift $ put ProtocolStatus
+          lift $ S.put ProtocolStatus
           case status of
             Nothing -> return ()
             Just status' -> yield (Right status')
         Right ((SBHandshake _ _ _ ProtocolLogin),_) -> do
           liftIO $ logMsg logger LvlDebug "Switching protocol state to LOGIN"
-          lift $ put ProtocolLogin
+          lift $ S.put ProtocolLogin
           return ()
         Right (SBLegacyServerListPing,_)-> do
           return ()
@@ -283,7 +281,7 @@ handleLogin config logger encryption = do
         Right (SBLoginStart username) -> do
           someUUID <- liftIO nextRandom
           liftIO $ logMsg logger LvlDebug $ "Switching protocol state to PLAY"
-          lift $ put ProtocolPlay
+          lift $ S.put ProtocolPlay
           if srvEncryption config
             then do
               let encryptionRequest = CBEncryptionRequest "" (getCert encryption) (getVerifyToken encryption)
@@ -383,7 +381,7 @@ handlePlay config logger = do
   let updateTimePacket = CBTimeUpdate 1000 25
   liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show updateTimePacket
   yield updateTimePacket
-
+{-
   let windowItemsPacket = CBWindowItems 0 (V.replicate 46 (mkSlot (-1) 1 1 (TagByte "" 0)))
   liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show windowItemsPacket
   yield windowItemsPacket
@@ -391,6 +389,7 @@ handlePlay config logger = do
   let setSlotPacket = CBSetSlot (-1) (-1) (mkSlot (-1) 1 1 (TagByte "" 0))
   liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show setSlotPacket
   yield setSlotPacket
+-}
 {-
   let keepAlivePacket = CBKeepAlive 100
   mapM_ yield $ genFlatWorld (toEnum . fromEnum . srvViewDistance $ config)

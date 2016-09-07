@@ -1,19 +1,20 @@
-module OpenSandbox.Protocol.TypesSpec (main,spec) where
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE FlexibleInstances #-}
+
+module OpenSandbox.Protocol.TypesSpec (main,spec) where
+
 import            Control.Monad
 import qualified  Data.Array.IArray as IA
 import            Data.Array.Unboxed (listArray)
-import qualified  Data.Attoparsec.ByteString as Decode
 import            Data.Bits
 import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Lazy as BL
-import qualified  Data.ByteString.Builder as Encode
 import            Data.Either
 import            Data.Int
 import            Data.Monoid
 import            Data.NBT
+import            Data.Serialize
 import qualified  Data.Text as T
 import            Data.Text.Encoding
 import            Data.UUID
@@ -24,10 +25,9 @@ import            OpenSandbox
 import            Test.Hspec
 import            Test.QuickCheck
 import            GHC.Generics
-import            Debug.Trace
 
 import OpenSandbox.WorldSpec()
-import CommonSpec()
+import Common
 import Data.NBTSpec()
 
 instance Arbitrary UpdatedColumns where
@@ -130,8 +130,12 @@ instance Arbitrary BlockChange where
   arbitrary = BlockChange <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary GameChangeReason where
-  arbitrary = fmap toEnum (choose (0,9) :: Gen Int)
-
+  arbitrary = do
+    i <- (choose (0,10) :: Gen Int)
+    if i /= 9
+      then return (toEnum i)
+      else return (toEnum (i - 1))
+{-
 instance Arbitrary ChunkSection where
   arbitrary = do
     m <- arbitrary :: Gen Bool
@@ -143,7 +147,7 @@ instance Arbitrary ChunkSection where
       <*> case m of
           False -> return Nothing
           True -> fmap Just (fmap B.pack $ vectorOf 2048 (arbitrary :: Gen Word8))
-
+-}
 instance Arbitrary Difficulty where
   arbitrary = fmap toEnum (choose (0,3) :: Gen Int)
 
@@ -289,168 +293,58 @@ instance Arbitrary ScoreboardMode where
       1 -> return RemoveScoreboard
       2 -> UpdateDisplayText <$> arbitrary <*> arbitrary
 
-prop_varIntEq :: [VarInt] -> Bool
-prop_varIntEq [] = True
-prop_varIntEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeVarInt x)) lst
-  let decoded = fmap (Decode.parseOnly decodeVarInt) encoded :: [Either String VarInt]
-  lst == (rights decoded)
-
-prop_varLongEq :: [VarLong] -> Bool
-prop_varLongEq [] = True
-prop_varLongEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeVarLong x)) lst
-  let decoded = fmap (Decode.parseOnly decodeVarLong) encoded :: [Either String VarLong]
-  lst == (rights decoded)
-
-prop_textEq :: [T.Text] -> Bool
-prop_textEq [] = True
-prop_textEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeText x)) lst
-  let decoded = fmap (Decode.parseOnly decodeText) encoded :: [Either String T.Text]
-  lst == (rights decoded)
-
-prop_entityMetadataEq :: [EntityMetadata] -> Bool
-prop_entityMetadataEq [] = True
-prop_entityMetadataEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeEntityMetadata x)) lst
-  let decoded = fmap (Decode.parseOnly decodeEntityMetadata) encoded :: [Either String EntityMetadata]
-  lst == (rights decoded)
-
-prop_slotEq :: [Slot] -> Bool
-prop_slotEq [] = True
-prop_slotEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeSlot x)) lst
-  let decoded = fmap (Decode.parseOnly decodeSlot) encoded :: [Either String Slot]
-  lst == (rights decoded)
-
-prop_chunkSectionEq :: [ChunkSection] -> Bool
-prop_chunkSectionEq [] = True
-prop_chunkSectionEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeChunkSection x)) lst
-  let decoded = fmap (Decode.parseOnly decodeChunkSection) encoded :: [Either String ChunkSection]
-  lst == (rights decoded)
-
-prop_positionEq :: [Position] -> Bool
-prop_positionEq [] = True
-prop_positionEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodePosition x)) lst
-  let decoded = fmap (Decode.parseOnly decodePosition) encoded :: [Either String Position]
-  lst == (rights decoded)
-
-prop_angleEq :: [Angle] -> Bool
-prop_angleEq [] = True
-prop_angleEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeAngle x)) lst
-  let decoded = fmap (Decode.parseOnly decodeAngle) encoded :: [Either String Angle]
-  lst == (rights decoded)
-
-prop_uuidEq :: [UUID] -> Bool
-prop_uuidEq [] = True
-prop_uuidEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeUUID x)) lst
-  let decoded = fmap (Decode.parseOnly decodeUUID) encoded :: [Either String UUID]
-  lst == (rights decoded)
-
-prop_byteStringEq :: [B.ByteString] -> Bool
-prop_byteStringEq [] = True
-prop_byteStringEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeByteString x)) lst
-  let decoded = fmap (Decode.parseOnly decodeByteString) encoded :: [Either String B.ByteString]
-  lst == (rights decoded)
-
-prop_statisticEq :: [Statistic] -> Bool
-prop_statisticEq [] = True
-prop_statisticEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeStatistic x)) lst
-  let decoded = fmap (Decode.parseOnly decodeStatistic) encoded :: [Either String Statistic]
-  lst == (rights decoded)
-
-prop_playerPropertyEq :: [PlayerProperty] -> Bool
-prop_playerPropertyEq [] = True
-prop_playerPropertyEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodePlayerProperty x)) lst
-  let decoded = fmap (Decode.parseOnly decodePlayerProperty) encoded :: [Either String PlayerProperty]
-  lst == (rights decoded)
-
-prop_playerListEntriesEq :: [PlayerListEntries] -> Bool
-prop_playerListEntriesEq [] = True
-prop_playerListEntriesEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodePlayerListEntries x)) lst
-  let decoded = fmap (Decode.parseOnly decodePlayerListEntries) encoded :: [Either String PlayerListEntries]
-  lst == (rights decoded)
-
-prop_iconEq :: [Icon] -> Bool
-prop_iconEq [] = True
-prop_iconEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeIcon x)) lst
-  let decoded = fmap (Decode.parseOnly decodeIcon) encoded :: [Either String Icon]
-  lst == (rights decoded)
-
-prop_entityPropertyEq :: [EntityProperty] -> Bool
-prop_entityPropertyEq [] = True
-prop_entityPropertyEq lst = do
-  let encoded = fmap (\x -> BL.toStrict . Encode.toLazyByteString $ (encodeEntityProperty x)) lst
-  let decoded = fmap (Decode.parseOnly decodeEntityProperty) encoded :: [Either String EntityProperty]
-  lst == (rights decoded)
-
-{-
-prop_ChunkSectionFieldEq :: ChunkSection -> Bool
-prop_ChunkSectionFieldEq dat = do
-  let encoded = BL.toStrict . Encode.toLazyByteString
-                  $ (encodeVarInt ln) <> bs
-  let decoded = Decode.parseOnly parser' encoded :: Either String ChunkSection
-  [dat] == (rights [decoded])
-  where
-  bs = V.foldl' (<>) mempty $ fmap encodeChunkSection [dat]
-  ln = B.length . BL.toStrict . Encode.toLazyByteString $ bs
-  parser' :: Decode.Parser ChunkSection
-  parser' = do
-    ln' <- decodeVarInt
-    bs' <- Decode.take ln'
-    let result = Decode.parseOnly decodeChunkSection bs' :: Either String ChunkSection
-    case result of
-      Left err -> fail err
-      Right result' -> return result'
--}
-
 spec :: Spec
 spec = do
-  describe "Minecraft Protocol Core Types" $ do
+  describe "Minecraft Protocol Core Types (Serialize)" $ do
     context "VarInt:" $ do
-      it "Identity" $ property prop_varIntEq
+      it "Identity" $ property (prop_CustomSerializeIdentity putVarInt getVarInt :: Int -> Bool)
     context "VarLong:" $ do
-      it "Identity" $ property prop_varLongEq
+      it "Identity" $ property (prop_CustomSerializeIdentity putVarLong getVarLong :: Int64 -> Bool)
     context "String:" $ do
-      it "Identity" $ property prop_textEq
+      it "Identity" $ property (prop_CustomSerializeIdentity putText getText :: T.Text -> Bool)
     context "EntityMetadata:" $ do
-      it "Identity" $ property prop_entityMetadataEq
+      it "Identity" $ property (prop_CustomSerializeIdentity putEntityMetadata getEntityMetadata :: EntityMetadata -> Bool)
     context "Slot:" $ do
-      it "Identity" $ property prop_slotEq
-    context "ChunkSection:" $ do
-      it "Identity" $ property prop_chunkSectionEq
+      it "Identity" $ property (prop_SerializeIdentity :: Slot -> Bool)
     context "Position:" $ do
-      it "Identity" $ property prop_positionEq
+      it "Identity" $ property (prop_CustomSerializeIdentity putPosition getPosition :: Position -> Bool)
     context "Angle:" $ do
-      it "Identity" $ property prop_angleEq
+      it "Identity" $ property (prop_CustomSerializeIdentity putAngle getAngle :: Angle -> Bool)
     context "UUID:" $ do
-      it "Identity" $ property prop_uuidEq
+      it "Identity" $ property (prop_CustomSerializeIdentity putUUID getUUID :: UUID -> Bool)
+    context "UUID':" $ do
+      it "Identity" $ property (prop_CustomSerializeIdentity putUUID' getUUID' :: UUID -> Bool)
     context "ByteArray:" $ do
-      it "Identity" $ property prop_byteStringEq
-
+      it "Identity" $ property (prop_CustomSerializeIdentity putNetcodeByteString getNetcodeByteString :: B.ByteString -> Bool)
   describe "Minecraft Protocol Custom Records" $ do
+    context "BlockChange:" $ do
+      it "Identity" $ property (prop_SerializeIdentity :: BlockChange -> Bool)
     context "Statistic:" $ do
-      it "Identity" $ property prop_statisticEq
+      it "Identity" $ property (prop_SerializeIdentity :: Statistic -> Bool)
     context "PlayerProperty:" $ do
-      it "Identity" $ property prop_playerPropertyEq
+      it "Identity" $ property (prop_SerializeIdentity :: PlayerProperty -> Bool)
     context "PlayerListEntries:" $ do
-      it "Identity" $ property prop_playerListEntriesEq
+      it "Identity" $ property (prop_SerializeIdentity :: PlayerListEntries -> Bool)
     context "Icon:" $ do
-      it "Identity" $ property prop_iconEq
+      it "Identity" $ property (prop_SerializeIdentity :: Icon -> Bool)
     context "EntityProperty:" $ do
-      it "Identity" $ property prop_entityPropertyEq
-    --context "ChunkSectionField:" $ do
-    --  it "Identity" $ property prop_ChunkSectionFieldEq
+      it "Identity" $ property (prop_SerializeIdentity :: EntityProperty -> Bool)
+    context "BlockAction:" $ do
+      it "Identity" $ property (prop_SerializeIdentity :: BlockAction -> Bool)
+    context "BossBar:" $ do
+      it "Identity" $ property (prop_SerializeIdentity :: BossBarAction -> Bool)
+    context "WorldBorderAction:" $ do
+      it "Identity" $ property (prop_SerializeIdentity :: WorldBorderAction -> Bool)
+    context "UpdatedColumns:" $ do
+      it "Identity" $ property (prop_SerializeIdentity :: UpdatedColumns -> Bool)
+    context "CombatEvent:" $ do
+      it "Identity" $ property (prop_SerializeIdentity :: CombatEvent -> Bool)
+    context "ScoreboardMode:" $ do
+      it "Identity" $ property (prop_SerializeIdentity :: ScoreboardMode -> Bool)
+    context "TeamMode:" $ do
+      it "Identity" $ property (prop_SerializeIdentity :: TeamMode -> Bool)
+    context "TitleAction:" $ do
+      it "Identity" $ property (prop_SerializeIdentity :: TitleAction -> Bool)
 
 main :: IO ()
 main = hspec spec

@@ -60,8 +60,6 @@ module OpenSandbox.Protocol.Types
   , Slot (..)
   , SlotData (..)
   , EntityProperty (..)
-  , ChunkSection (..)
-  --, ChunkSection' (..)
   , VarInt
   , VarLong
   , UpdateBlockEntityAction (..)
@@ -69,111 +67,51 @@ module OpenSandbox.Protocol.Types
   , GameChangeReason (..)
   , WindowProperty (..)
   , NBT (..)
-  , NamelessNBT (..)
-  , NBTList (..)
-  , TagType (..)
   , UpdatedColumns (..)
   , UpdateScoreAction (..)
   , UseEntityType (..)
   , EntityHand (..)
   , ScoreboardMode (..)
   , mkSlot
-  , decodeWord16BE
-  , decodeWord32BE
-  , decodeWord64BE
-  , decodeInt8
-  , decodeInt16BE
-  , decodeInt32BE
-  , decodeInt64BE
-  , decodeFloatBE
-  , decodeDoubleBE
-  , encodeVarInt
-  , decodeVarInt
-  , encodeVarLong
-  , decodeVarLong
-  , encodeText
-  , decodeText
-  , encodeBool , decodeBool , encodeUUID
-  , decodeUUID
-  , encodeUUID'
-  , decodeUUID'
-  , encodeAngle
-  , decodeAngle
-  , encodeEntityMetadata
-  , decodeEntityMetadata
-  , encodePosition
-  , decodePosition
-  , encodeStatistic
-  , decodeStatistic
-  , encodeNBT
-  , decodeNBT
-  , encodeRecord
-  , decodeRecord
-  , encodeSlot
-  , decodeSlot
-  --, mkChunkSection'
-  , encodeChunkSection
-  , decodeChunkSection
-  --, encodeChunkSection'
-  --, decodeChunkSection'
-  , encodeIcon
-  , decodeIcon
-  , encodePlayerListEntries
-  , decodePlayerListEntries
-  , encodePlayerProperty
-  , decodePlayerProperty
-  , encodeEntityProperty
-  , decodeEntityProperty
-  , encodeByteString
-  , decodeByteString
   , encodeStatusPayload
-  , encodeScoreboardMode
+  , putText
+  , getText
+  , putVarInt
+  , getVarInt
+  , putVarLong
+  , getVarLong
+  , putEntityMetadata
+  , getEntityMetadata
+  , putNetcodeByteString
+  , getNetcodeByteString
+  , putPosition
+  , getPosition
+  , putAngle
+  , getAngle
+  , putUUID
+  , getUUID
+  , putUUID'
+  , getUUID'
   ) where
 
 import            Control.DeepSeq
 import            Control.Monad
-import            Control.Monad.ST (runST,ST)
 import            Crypto.PubKey.RSA
-import            Data.Aeson as Aeson
-import qualified  Data.Attoparsec.ByteString as Decode
-import            Data.Array.MArray (MArray,readArray,newArray)
-import            Data.Array.ST
-import            Data.Array.Unsafe (castSTUArray)
+import qualified  Data.Aeson as A
 import            Data.Bits
 import qualified  Data.ByteString as B
 import qualified  Data.ByteString.Lazy as BL
-import qualified  Data.ByteString.Unsafe as BU
-import qualified  Data.ByteString.Builder as Encode
 import            Data.Int
 import            Data.List
 import            Data.Maybe
-import            Data.Monoid
-import            Data.NBT.Encode (encodeNBT)
-import            Data.NBT.Decode (decodeNBT)
-import            Data.NBT.Types (NBT (..), NamelessNBT (..),NBTList (..),TagType(..))
-import qualified  Data.Set as S
+import            Data.NBT
+import            Data.Serialize
 import qualified  Data.Text as T
 import            Data.Text.Encoding
 import            Data.UUID
 import qualified  Data.Vector as V
 import            Data.Word
 import            GHC.Generics
-import            OpenSandbox.Data.Block ( BlockStateID
-                                         {-
-                                         , ChunkSectionIndices
-                                         , mkChunkSectionIndices
-                                         , BitsPerBlock
-                                         , BitsPerBlockOption (..)
-                                         , mkBitsPerBlock
-                                         , encodeBitsPerBlock
-                                         , decodeBitsPerBlock
-                                         , mkLocalPalette
-                                         , genIndices
-                                         , encodeIndices
-                                         , decodeIndices)
-                                         -}
-                                         )
-import OpenSandbox.World (BitsPerBlock,mkBitsPerBlock,encodeBitsPerBlock,decodeBitsPerBlock)
 import            Prelude hiding (max)
 
 data WorldType = Default | Flat | LargeBiomes | Amplified
@@ -185,8 +123,8 @@ instance Show WorldType where
   show LargeBiomes = "largeBiomes"
   show Amplified = "amplified"
 
-instance ToJSON WorldType
-instance FromJSON WorldType
+instance A.ToJSON WorldType
+instance A.FromJSON WorldType
 
 data Compression = Everything | Int
   deriving (Show,Eq)
@@ -202,91 +140,32 @@ data Encryption = Encryption
 -- | Core Protocol Types
 -------------------------------------------------------------------------------
 
-encodeBool :: Bool -> Encode.Builder
-encodeBool b = Encode.word8 (toEnum . fromEnum $ b)
-
-decodeBool :: Decode.Parser Bool
-decodeBool = fmap (toEnum . fromEnum) Decode.anyWord8
-
-decodeInt8 :: Decode.Parser Int8
-decodeInt8 = do
-  bs <- Decode.take 1
-  return $! fromIntegral (BU.unsafeHead bs)
-
 type Short = Int16
 
-decodeInt16BE :: Decode.Parser Short
-decodeInt16BE = do
-    bs <- Decode.take 2
-    return $! fromIntegral (bs `BU.unsafeIndex` 0) `shiftL` 8 .|.
-              fromIntegral (bs `BU.unsafeIndex` 1)
+putText :: T.Text -> Put
+putText t = do
+  putVarInt . B.length . encodeUtf8 $ t
+  putByteString . encodeUtf8 $ t
 
-decodeWord16BE :: Decode.Parser Word16
-decodeWord16BE = do
-    bs <- Decode.take 2
-    return $!
-      fromIntegral (bs `BU.unsafeIndex` 0) `shiftL` 8 .|.
-      fromIntegral (bs `BU.unsafeIndex` 1)
-
-decodeInt32BE :: Decode.Parser Int32
-decodeInt32BE = do
-    bs <- Decode.take 4
-    return $!
-      fromIntegral (bs `BU.unsafeIndex` 0) `shiftL` 24 .|.
-      fromIntegral (bs `BU.unsafeIndex` 1) `shiftL` 16 .|.
-      fromIntegral (bs `BU.unsafeIndex` 2) `shiftL`  8 .|.
-      fromIntegral (bs `BU.unsafeIndex` 3)
-
-decodeInt64BE :: Decode.Parser Int64
-decodeInt64BE = do
-    bs <- Decode.take 8
-    return $!
-      fromIntegral (bs `BU.unsafeIndex` 0) `shiftL` 56 .|.
-      fromIntegral (bs `BU.unsafeIndex` 1) `shiftL` 48 .|.
-      fromIntegral (bs `BU.unsafeIndex` 2) `shiftL` 40 .|.
-      fromIntegral (bs `BU.unsafeIndex` 3) `shiftL` 32 .|.
-      fromIntegral (bs `BU.unsafeIndex` 4) `shiftL` 24 .|.
-      fromIntegral (bs `BU.unsafeIndex` 5) `shiftL` 16 .|.
-      fromIntegral (bs `BU.unsafeIndex` 6) `shiftL`  8 .|.
-      fromIntegral (bs `BU.unsafeIndex` 7)
-
-decodeFloatBE :: Decode.Parser Float
-decodeFloatBE = wordToFloat <$> decodeWord32BE
-
-wordToFloat :: Word32 -> Float
-wordToFloat x = runST (cast x)
-
-decodeDoubleBE :: Decode.Parser Double
-decodeDoubleBE = wordToDouble <$> decodeWord64BE
-
-wordToDouble :: Word64 -> Double
-wordToDouble x = runST (cast x)
-
-encodeText :: T.Text -> Encode.Builder
-encodeText t =
-  (encodeVarInt . B.length . encodeUtf8 $ t)
-  <> (Encode.byteString . encodeUtf8 $ t)
-
-decodeText :: Decode.Parser T.Text
-decodeText = do
-  ln <- decodeVarInt
-  if ln /= 0
-    then fmap decodeUtf8 (Decode.take ln)
-    else return ""
+getText :: Get T.Text
+getText = do
+  ln <- getVarInt
+  bs <- getBytes ln
+  return $ decodeUtf8 bs
 
 type Chat = T.Text
 
 type VarInt = Int
 
-encodeVarInt :: VarInt -> Encode.Builder
-encodeVarInt i
-    | i < 0     = encodeVarInt (abs i + (2^31 :: Int))
-    | i < 0x80  = Encode.word8 (fromIntegral i)
-    | otherwise = Encode.word8 (fromIntegral (i .&. 0x7F) .|. 0x80) <> encodeVarInt (i `shiftR` 7)
+putVarInt :: Int -> Put
+putVarInt i
+  | i < 0     = putVarInt (abs i + (2^31 :: Int))
+  | i < 0x80  = putWord8 (fromIntegral i)
+  | otherwise = putWord8 (fromIntegral (i .&. 0x7F) .|. 0x80) >> putVarInt (i `shiftR` 7)
 
-decodeVarInt :: Decode.Parser VarInt
-decodeVarInt = do
-    w <- Decode.anyWord8
+getVarInt :: Get Int
+getVarInt = do
+    w <- getWord8
     if testBit w 7
       then do
         result <- go 7 (fromIntegral (w .&. 0x7F))
@@ -296,22 +175,22 @@ decodeVarInt = do
       else return (fromIntegral w)
   where
     go n val = do
-      w' <- Decode.anyWord8
+      w' <- getWord8
       if testBit w' 7
-        then go (n+7) (val .|. (fromIntegral (w' .&. 0x7F) `shiftL` n))
-        else return (val .|. (fromIntegral w' `shiftL` n))
+        then go (n+7) (val .|. ((fromIntegral (w' .&. 0x7F)) `shiftL` n))
+        else return (val .|. ((fromIntegral w') `shiftL` n))
 
 type VarLong = Int64
 
-encodeVarLong :: VarLong -> Encode.Builder
-encodeVarLong i
-  | i < 0     = encodeVarLong (abs i + (2^62 :: Int64))
-  | i < 0x80  = Encode.word8 (fromIntegral i)
-  | otherwise = Encode.word8 (fromIntegral (i .&. 0x7F) .|. 0x80) <> encodeVarLong (i `shiftR` 7)
+putVarLong :: Int64 -> Put
+putVarLong i
+  | i < 0     = putVarLong (abs i + (2^62 :: Int64))
+  | i < 0x80  = putWord8 (fromIntegral i)
+  | otherwise = putWord8 (fromIntegral (i .&. 0x7F) .|. 0x80) >>  putVarLong (i `shiftR` 7)
 
-decodeVarLong :: Decode.Parser VarLong
-decodeVarLong = do
-    w <- Decode.anyWord8
+getVarLong :: Get Int64
+getVarLong = do
+    w <- getWord8
     if testBit w 7
       then do
         result <- go 7 (fromIntegral (w .&. 0x7F))
@@ -321,101 +200,44 @@ decodeVarLong = do
       else return (fromIntegral w)
   where
     go n val = do
-      w' <- Decode.anyWord8
+      w' <- getWord8
       if testBit w' 7
         then go (n+7) (val .|. (fromIntegral (w' .&. 0x7F) `shiftL` n))
         else return (val .|. (fromIntegral w' `shiftL` n))
 
-data ChunkSection = ChunkSection !BitsPerBlock !(V.Vector Int) !(V.Vector Int64) !B.ByteString !(Maybe B.ByteString)
-  deriving (Show,Eq)
-
-{-
-data ChunkSection' = ChunkSection'
-  { _bpb :: !BitsPerBlock
-  , _palette :: !(V.Vector BlockStateID)
-  , _dataArray :: !(V.Vector Word64)
-  , _blockLight :: !(V.Vector Word8)
-  , _skyLight :: !(Maybe (V.Vector Word8))
-  } deriving (Show,Eq)
-
-mkChunkSection' :: V.Vector Word8 -> V.Vector Word8 -> [BlockStateID] -> Either String ChunkSection'
-mkChunkSection' bLight sLight blocks =
-  case eitherDatVect of
-    Left err -> Left err
-    Right datVert -> Right $ ChunkSection' bpb palette datVert bLight (Just sLight)
-  where
-    eitherChunkSectionIndices = mkChunkSectionIndices blocks
-    eitherDatVect = eitherChunkSectionIndices
-                    >>= genIndices palette
-                    >>= Right . V.fromList . encodeIndices bpb 0 0
-    (palette,bpb) = mkLocalPalette blocks
-
-encodeChunkSection' :: ChunkSection' -> Encode.Builder
-encodeChunkSection' (ChunkSection' bpb pal datArr bLight sLight) =
-  encodeBitsPerBlock bpb
-  <> encodeVarInt (V.length pal)
-  <> V.foldl' (<>) mempty (fmap (encodeVarInt . fromEnum) pal)
-  <> encodeVarInt (V.length datArr)
-  <> V.foldl' (<>) mempty (fmap Encode.word64BE datArr)
-  <> V.foldl' (<>) mempty (fmap Encode.word8 bLight)
-  <> case sLight of
-      Just sLight' -> V.foldl' (<>) mempty (fmap Encode.word8 sLight')
-      Nothing -> mempty
-
-decodeChunkSection' :: Bool -> Decode.Parser ChunkSection'
-decodeChunkSection' isOverWorld = do
-  bpb <- decodeBitsPerBlock
-  paletteLn <- decodeVarInt
-  palette <- V.replicateM paletteLn (fmap toEnum decodeVarInt)
-  dataArrLn <- decodeVarInt
-  dataArr <- V.replicateM dataArrLn decodeWord64BE
-  blockLight <- V.replicateM 2048 Decode.anyWord8
-  skyLight <- if isOverWorld
-                then Just <$> V.replicateM 2048 Decode.anyWord8
-                else return Nothing
-  return $ ChunkSection' bpb palette dataArr blockLight skyLight
--}
-encodeChunkSection :: ChunkSection -> Encode.Builder
-encodeChunkSection (ChunkSection bpb pal datArr bLight sLight) =
-  encodeBitsPerBlock bpb
-  <> encodeVarInt (V.length pal)
-  <> V.foldl' (<>) mempty (fmap encodeVarInt pal)
-  <> encodeVarInt (V.length datArr)
-  <> V.foldl' (<>) mempty (fmap Encode.int64BE datArr)
-  <> Encode.byteString bLight
-  <> case sLight of
-      Nothing -> mempty
-      Just sLight' -> Encode.byteString sLight'
-
-decodeChunkSection :: Decode.Parser ChunkSection
-decodeChunkSection = do
-  bitsPerBlock <- (mkBitsPerBlock . toEnum . fromEnum) <$> Decode.anyWord8
-  paletteCount <- decodeVarInt
-  palette <- V.replicateM paletteCount decodeVarInt
-  dataCount <- decodeVarInt
-  dataArray <- V.replicateM dataCount decodeInt64BE
-  blockLight <- Decode.take 2048
-  skyLight <- Decode.takeByteString
-  if B.length skyLight > 0
-    then return $ ChunkSection bitsPerBlock palette dataArray blockLight (Just skyLight)
-    else return $ ChunkSection bitsPerBlock palette dataArray blockLight Nothing
-
 type EntityMetadata = V.Vector EntityMetadataEntry
 
-encodeEntityMetadata :: EntityMetadata -> Encode.Builder
-encodeEntityMetadata e =
-  (encodeVarInt . V.length $ e)
-  <> V.foldl' (<>) mempty (fmap encodeEntityMetadataEntry e)
+putEntityMetadata :: EntityMetadata -> Put
+putEntityMetadata e = do
+  putVarInt . V.length $ e
+  V.mapM_ put e
 
-decodeEntityMetadata :: Decode.Parser EntityMetadata
-decodeEntityMetadata = do
-  count <- decodeVarInt
-  V.replicateM count decodeEntityMetadataEntry
+getEntityMetadata :: Get EntityMetadata
+getEntityMetadata = do
+  ln <- getVarInt
+  V.replicateM ln get
 
 data EntityMetadataEntry
   = MetadataEnd
   | Entry !Word8 !Int8 !MetadataType
   deriving (Show,Eq)
+
+instance Serialize EntityMetadataEntry where
+  put MetadataEnd = do
+    putWord8 0xff
+  put (Entry i t v) = do
+    putWord8 i
+    put t
+    put v
+
+  get = do
+    i <- getWord8
+    case i of
+      0xff -> return MetadataEnd
+      _ -> do
+        t <- getInt8
+        v <- get
+        return $ Entry i t v
 
 data MetadataType
   = MetadataByte
@@ -433,28 +255,31 @@ data MetadataType
   | MetadataBlockID
   deriving (Show,Eq,Enum)
 
-encodeEntityMetadataEntry :: EntityMetadataEntry -> Encode.Builder
-encodeEntityMetadataEntry MetadataEnd =
-  Encode.word8 0xff
-encodeEntityMetadataEntry (Entry i t v) =
-  Encode.word8 i
-  <> Encode.int8 t
-  <> (Encode.word8 . toEnum . fromEnum $ v)
-
-decodeEntityMetadataEntry :: Decode.Parser EntityMetadataEntry
-decodeEntityMetadataEntry = do
-  i <- Decode.anyWord8
-  case i of
-    0xff -> return MetadataEnd
-    _ -> do
-      t <- decodeInt8
-      v <- fmap (toEnum . fromEnum) Decode.anyWord8
-      return $ Entry i t v
+instance Serialize MetadataType where
+  put m = putWord8 (toEnum . fromEnum $ m)
+  get = (toEnum . fromEnum) <$> getWord8
 
 data Slot = Slot
   { blockID     :: !Int16
   , slotData    :: !(Maybe SlotData)
   } deriving (Show,Eq)
+
+instance Serialize Slot where
+  put (Slot bid sd) = do
+    put bid
+    case bid of
+      (-1) -> return ()
+      _ -> do
+        let sd' = fromJust sd
+        put sd'
+
+  get = do
+    blockID <- getInt16be
+    case blockID of
+      (-1) -> return $ Slot blockID Nothing
+      _ -> do
+        slotData <- get
+        return $ Slot blockID (Just slotData)
 
 data SlotData = SlotData
   { itemCount   :: !Int8
@@ -462,78 +287,65 @@ data SlotData = SlotData
   , nbt         :: !NBT
   } deriving (Show,Eq)
 
+instance Serialize SlotData where
+  put (SlotData itemCount' itemDamage' nbt') = do
+    put itemCount'
+    put itemDamage'
+    put nbt'
+  get = SlotData <$> get <*> get <*> get
+
 mkSlot :: Int16 -> Int8 -> Int16 -> NBT -> Slot
 mkSlot blockID itemCount itemDamage nbt =
   case blockID of
     -1 -> Slot blockID Nothing
     _ -> Slot blockID (Just (SlotData itemCount itemDamage nbt))
 
-encodeSlot :: Slot -> Encode.Builder
-encodeSlot (Slot blockID slotDat) =
-    Encode.int16BE blockID
-    <> case blockID of
-          (-1) -> mempty
-          _ -> Encode.int8 (itemCount slotDat')
-                <> Encode.int16BE (itemDamage slotDat')
-                <> encodeNBT (nbt slotDat')
-  where slotDat' = fromJust slotDat
-
-decodeSlot :: Decode.Parser Slot
-decodeSlot = do
-  blockID <- decodeInt16BE
-  case blockID of
-    -1 -> return $ Slot blockID Nothing
-    _ -> do
-      itemCount <- decodeInt8
-      itemDamage <- decodeInt16BE
-      nbt <- decodeNBT
-      return $ Slot blockID (Just (SlotData itemCount itemDamage nbt))
-
 type Position = Word64
 
-encodePosition :: Position -> Encode.Builder
-encodePosition = Encode.word64BE
+putPosition :: Position -> Put
+putPosition = putWord64be
 
-decodePosition :: Decode.Parser Position
-decodePosition = decodeWord64BE
+getPosition :: Get Position
+getPosition = getWord64be
 
 type Angle = Word8
 
-encodeAngle :: Angle -> Encode.Builder
-encodeAngle = Encode.word8
+putAngle :: Angle -> Put
+putAngle = putWord8
 
-decodeAngle :: Decode.Parser Angle
-decodeAngle = Decode.anyWord8
+getAngle :: Get Angle
+getAngle = getWord8
 
-encodeUUID :: UUID -> Encode.Builder
-encodeUUID u = encodeText (toText u)
+putUUID :: UUID -> Put
+putUUID uuid = putText (toText uuid)
 
-decodeUUID :: Decode.Parser UUID
-decodeUUID = do
-  txt <- decodeText
+getUUID :: Get UUID
+getUUID = do
+  txt <- getText
   case fromText txt of
     Just uuid -> return uuid
-    Nothing   -> fail "Error: Could not decode UUID!"
+    Nothing -> fail "Error: Could not deserialize UUID!"
 
-encodeUUID' :: UUID -> Encode.Builder
-encodeUUID' u = Encode.lazyByteString (toByteString u)
+putUUID' :: UUID -> Put
+putUUID' uuid = putByteString (BL.toStrict . toByteString $ uuid)
 
-decodeUUID' :: Decode.Parser UUID
-decodeUUID' = do
-  raw <- Decode.take 16
-  case fromByteString . BL.fromStrict $ raw of
+getUUID' :: Get UUID
+getUUID' = do
+  bs <- getBytes 16
+  case (fromByteString . BL.fromStrict $ bs) of
     Just uuid -> return uuid
-    Nothing   -> fail "Error: Could not decode UUID!"
+    Nothing -> fail "Error: Could not decode UUID!"
 
-encodeByteString :: B.ByteString -> Encode.Builder
-encodeByteString b =
-  (encodeVarInt . toEnum . B.length $ b)
-  <> Encode.byteString b
+putNetcodeByteString :: B.ByteString -> Put
+putNetcodeByteString b = do
+  putVarInt . B.length $ b
+  putByteString b
 
-decodeByteString :: Decode.Parser B.ByteString
-decodeByteString = do
-  len <- fmap fromEnum decodeVarInt
-  Decode.take len
+getNetcodeByteString :: Get B.ByteString
+getNetcodeByteString = do
+  ln <- getVarInt
+  bs <- getBytes ln
+  return bs
 
 -------------------------------------------------------------------------------
 -- | Protocol Enums
@@ -548,11 +360,39 @@ data Animation
   | MagicCriticalEffect
   deriving (Show,Eq,Enum)
 
+instance Serialize Animation where
+  put = putWord8 . toEnum . fromEnum
+  get = (toEnum . fromEnum) <$> getWord8
+
 data BlockAction
   = NoteBlockAction !InstrumentType !NotePitch
   | PistonBlockAction !PistonState !PistonDirection
   | ChestBlockAction !Word8
   deriving (Show,Eq)
+
+instance Serialize BlockAction where
+  put (NoteBlockAction i n) = do
+    putWord8 . toEnum . fromEnum $ i
+    putWord8 . toEnum . fromEnum $ n
+    putVarInt 25
+  put (PistonBlockAction ps pd) = do
+    putWord8 . toEnum . fromEnum $ ps
+    putWord8 . toEnum . fromEnum $ pd
+    putVarInt 33
+  put (ChestBlockAction b) = do
+    putWord8 1
+    putWord8 b
+    putVarInt 54
+
+  get = do
+    byte1 <- getWord8
+    byte2 <- getWord8
+    blockType <- getVarInt
+    case blockType of
+      25 -> return $ NoteBlockAction (toEnum . fromEnum $ byte1) (toEnum . fromEnum $ byte2)
+      33 -> return $ PistonBlockAction (toEnum . fromEnum $ byte1) (toEnum . fromEnum $ byte2)
+      54 -> return $ ChestBlockAction byte2
+      err -> fail $ "Error: invalid BlockAction type: " ++ show err
 
 data InstrumentType
   = Harp
@@ -610,18 +450,17 @@ data BlockChange = BlockChange
   , blockId       :: !Int
   } deriving (Show,Eq)
 
-encodeRecord :: BlockChange -> Encode.Builder
-encodeRecord m =
-  (Encode.word8 . hPosition $ m)
-  <> (Encode.word8 . yCoord $ m)
-  <> (encodeVarInt . toEnum . blockId $ m)
+instance Serialize BlockChange where
+  put (BlockChange h y b) = do
+    putWord8 h
+    putWord8 y
+    putVarInt b
 
-decodeRecord :: Decode.Parser BlockChange
-decodeRecord = do
-  hp <- Decode.anyWord8
-  yc <- Decode.anyWord8
-  bid <- decodeVarInt
-  return $ BlockChange hp yc bid
+  get = do
+    h <- getWord8
+    y <- getWord8
+    b <- getVarInt
+    return $ BlockChange h y b
 
 data BossBarAction
   = BossBarAdd !Chat !Float !Int !Int !Word8
@@ -632,12 +471,66 @@ data BossBarAction
   | BossBarUpdateFlags !Word8
   deriving (Show,Eq)
 
+instance Serialize BossBarAction where
+  put (BossBarAdd title health color division flags) = do
+    putVarInt 0
+    putText title
+    putFloat32be health
+    putVarInt color
+    putVarInt division
+    putWord8 flags
+  put BossBarRemove = do
+    putVarInt 1
+  put (BossBarUpdateHealth health) = do
+    putVarInt 2
+    putFloat32be health
+  put (BossBarUpdateTitle title) = do
+    putVarInt 3
+    putText title
+  put (BossBarUpdateStyle color dividers) = do
+    putVarInt 4
+    putVarInt . toEnum $ color
+    putVarInt . toEnum $ dividers
+  put (BossBarUpdateFlags flags) = do
+    putVarInt 5
+    putWord8 flags
+
+  get = do
+    action <- getVarInt
+    case action of
+      0 -> do
+        title <- getText
+        health <- getFloat32be
+        color <- getVarInt
+        division <- getVarInt
+        flags <- getWord8
+        return $ BossBarAdd title health color division flags
+      1 -> return $ BossBarRemove
+      2 -> do
+        health <- getFloat32be
+        return $ BossBarUpdateHealth health
+      3 -> do
+        title <- getText
+        return $ BossBarUpdateTitle title
+      4 -> do
+        color <- getVarInt
+        dividers <- getVarInt
+        return $ BossBarUpdateStyle color dividers
+      5 -> do
+        flags <- getWord8
+        return $ BossBarUpdateFlags flags
+      err -> fail $ "Error: Invalid BossBar action byte: " ++ show err
+
 data Difficulty = Peaceful | Easy | Normal | Hard
   deriving (Show,Enum,Eq,Generic)
 
-instance FromJSON Difficulty
-instance ToJSON Difficulty
+instance A.FromJSON Difficulty
+instance A.ToJSON Difficulty
 instance NFData Difficulty
+
+instance Serialize Difficulty where
+  put = putWord8 . toEnum . fromEnum
+  get = (toEnum . fromEnum) <$> getWord8
 
 data Dimension = Overworld | Nether | End
   deriving (Show,Eq,Generic)
@@ -651,19 +544,31 @@ instance Enum Dimension where
     toEnum 1 = End
     toEnum _ = undefined
 
-instance ToJSON Dimension
-instance FromJSON Dimension
+instance A.ToJSON Dimension
+instance A.FromJSON Dimension
 instance NFData Dimension
+
+instance Serialize Dimension where
+  put d = put (toEnum . fromEnum $ d :: Int32)
+  get = (toEnum . fromEnum) <$> getInt32be
 
 data GameMode = Survival | Creative | Adventure | Spectator
   deriving (Show,Enum,Eq,Generic)
 
-instance FromJSON GameMode
-instance ToJSON GameMode
+instance A.FromJSON GameMode
+instance A.ToJSON GameMode
 instance NFData GameMode
+
+instance Serialize GameMode where
+  put = putWord8 . toEnum . fromEnum
+  get = (toEnum . fromEnum) <$> getWord8
 
 data ProtocolState = ProtocolHandshake | ProtocolStatus | ProtocolLogin | ProtocolPlay
   deriving (Show,Eq,Enum)
+
+instance Serialize ProtocolState where
+  put = putWord8 . toEnum . fromEnum
+  get = (toEnum . fromEnum) <$> getWord8
 
 data UpdateBlockEntityAction
   = SetSpawnPotentials
@@ -698,6 +603,10 @@ instance Enum UpdateBlockEntityAction where
   toEnum 8 = SetGateway
   toEnum 9 = SetSign
   toEnum _ = undefined
+
+instance Serialize UpdateBlockEntityAction where
+  put ubea = putWord8 (toEnum . fromEnum $ ubea)
+  get = (toEnum . fromEnum) <$> getWord8
 
 data WindowProperty
   = WindowFurnace FurnaceProperty
@@ -776,6 +685,10 @@ data EntityStatus
   | EntityHurtFromThorns
   deriving (Show,Eq,Enum)
 
+instance Serialize EntityStatus where
+  put es = put (toEnum . fromEnum $ es :: Int8)
+  get = (toEnum . fromEnum) <$> getInt8
+
 data GameChangeReason
   = InvalidBed
   | EndRaining
@@ -787,7 +700,35 @@ data GameChangeReason
   | FadeValue
   | FateTime
   | PlayElderGuardianAppearance
-  deriving (Show,Eq,Enum)
+  deriving (Show,Eq)
+
+instance Enum GameChangeReason where
+  fromEnum InvalidBed = 0
+  fromEnum EndRaining = 1
+  fromEnum BeginRaining = 2
+  fromEnum ChangeGameMode = 3
+  fromEnum ExitEnd = 4
+  fromEnum DemoMessage = 5
+  fromEnum ArrowHittingPlayer = 6
+  fromEnum FadeValue = 7
+  fromEnum FateTime = 8
+  fromEnum PlayElderGuardianAppearance = 10
+
+  toEnum 0 = InvalidBed
+  toEnum 1 = EndRaining
+  toEnum 2 = BeginRaining
+  toEnum 3 = ChangeGameMode
+  toEnum 4 = ExitEnd
+  toEnum 5 = DemoMessage
+  toEnum 6 = ArrowHittingPlayer
+  toEnum 7 = FadeValue
+  toEnum 8 = FateTime
+  toEnum 10 = PlayElderGuardianAppearance
+  toEnum _ = undefined
+
+instance Serialize GameChangeReason where
+  put gcr = putWord8 (toEnum . fromEnum $ gcr)
+  get = (toEnum . fromEnum) <$> getWord8
 
 data EffectID
   = DispenserDispenses
@@ -894,44 +835,42 @@ data StatusPayload = StatusPayload
   , description   :: !Description
   } deriving (Generic,Show,Eq,Read)
 
-instance ToJSON StatusPayload
-instance FromJSON StatusPayload
+instance A.ToJSON StatusPayload
+instance A.FromJSON StatusPayload
 
 data Version = Version
   { name      :: !T.Text
   , protocol  :: !Word8
   } deriving (Generic,Eq,Show,Read)
 
-instance ToJSON Version
-instance FromJSON Version
+instance A.ToJSON Version
+instance A.FromJSON Version
 
 data Players = Players
   { max     :: !Word8
   , online  :: !Word8
   } deriving (Generic,Eq,Show,Read)
 
-instance ToJSON Players
-instance FromJSON Players
+instance A.ToJSON Players
+instance A.FromJSON Players
 
 data Description = Description
   { text    :: !T.Text
   } deriving (Generic,Eq,Show,Read)
 
-instance ToJSON Description
-instance FromJSON Description
+instance A.ToJSON Description
+instance A.FromJSON Description
 
 data Statistic = Statistic !T.Text !VarInt deriving (Show,Eq)
 
-encodeStatistic :: Statistic -> Encode.Builder
-encodeStatistic (Statistic t val) =
-  encodeText t
-  <> encodeVarInt val
-
-decodeStatistic :: Decode.Parser Statistic
-decodeStatistic = do
-  t <- decodeText
-  v <- decodeVarInt
-  return $ Statistic t v
+instance Serialize Statistic where
+  put (Statistic t val) = do
+    putText t
+    putVarInt val
+  get = do
+    t <- getText
+    v <- getVarInt
+    return $ Statistic t v
 
 data PlayerListEntries
   = PlayerListAdds (V.Vector PlayerListAdd)
@@ -941,131 +880,126 @@ data PlayerListEntries
   | PlayerListRemovePlayers (V.Vector PlayerListRemovePlayer)
   deriving (Show,Eq)
 
+instance Serialize PlayerListEntries where
+  put (PlayerListAdds lst) = do
+    putVarInt 0
+    putVarInt . V.length $ lst
+    V.mapM_ put lst
+  put (PlayerListUpdateGameModes lst) = do
+    putVarInt 1
+    putVarInt . V.length $ lst
+    V.mapM_ put lst
+  put (PlayerListUpdateLatencies lst) = do
+    putVarInt 2
+    putVarInt . V.length $ lst
+    V.mapM_ put lst
+  put (PlayerListUpdateDisplayNames lst) = do
+    putVarInt 3
+    putVarInt . V.length $ lst
+    V.mapM_ put lst
+  put (PlayerListRemovePlayers lst) = do
+    putVarInt 4
+    putVarInt . V.length $ lst
+    V.mapM_ put lst
+
+  get = do
+    action <- getVarInt
+    ln <- getVarInt
+    case action of
+      0 -> PlayerListAdds <$> V.replicateM ln get
+      1 -> PlayerListUpdateGameModes <$> V.replicateM ln get
+      2 -> PlayerListUpdateLatencies <$> V.replicateM ln get
+      3 -> PlayerListUpdateDisplayNames <$> V.replicateM ln get
+      4 -> PlayerListRemovePlayers <$> V.replicateM ln get
+      err -> fail $ "Error: Invaid PlayerList action " ++ show err
+
 data PlayerListAdd = PlayerListAdd !UUID !T.Text !(V.Vector PlayerProperty) !GameMode !Int !(Maybe T.Text)
   deriving (Show,Eq)
+
+instance Serialize PlayerListAdd where
+  put (PlayerListAdd uuid name properties gamemode ping maybeDisplayName) = do
+    putUUID' uuid
+    putText name
+    putVarInt . V.length $ properties
+    V.mapM_ put properties
+    putVarInt (fromEnum gamemode)
+    putVarInt ping
+    case maybeDisplayName of
+      Just displayName -> do
+        put True
+        putText displayName
+      Nothing -> do
+        put False
+
+  get = do
+    uuid <- getUUID'
+    name <- getText
+    count <- getVarInt
+    properties <- V.replicateM count get
+    gameMode <- toEnum <$> getVarInt
+    ping <- getVarInt
+    hasDisplayName <- get
+    if hasDisplayName
+      then do
+        displayName <- getText
+        return $ PlayerListAdd uuid name properties gameMode ping (Just displayName)
+      else
+        return $ PlayerListAdd uuid name properties gameMode ping Nothing
 
 data PlayerListUpdateGameMode = PlayerListUpdateGameMode !UUID !GameMode
   deriving (Show,Eq)
 
+instance Serialize PlayerListUpdateGameMode where
+  put (PlayerListUpdateGameMode uuid gameMode) = do
+    putUUID' uuid
+    putVarInt . fromEnum $ gameMode
+
+  get = do
+    uuid <- getUUID'
+    gameMode <- toEnum <$> getVarInt
+    return $ PlayerListUpdateGameMode uuid gameMode
+
 data PlayerListUpdateLatency = PlayerListUpdateLatency !UUID !Int
   deriving (Show,Eq)
+
+instance Serialize PlayerListUpdateLatency where
+  put (PlayerListUpdateLatency uuid ping) = do
+    putUUID' uuid
+    putVarInt ping
+
+  get = do
+    uuid <- getUUID'
+    ping <- getVarInt
+    return $ PlayerListUpdateLatency uuid ping
 
 data PlayerListUpdateDisplayName = PlayerListUpdateDisplayName !UUID !(Maybe T.Text)
   deriving (Show,Eq)
 
+instance Serialize PlayerListUpdateDisplayName where
+  put (PlayerListUpdateDisplayName uuid maybeDisplayName) = do
+    putUUID' uuid
+    case maybeDisplayName of
+      Nothing -> put False
+      Just displayName -> do
+        put True
+        putText displayName
+
+  get = do
+    uuid <- getUUID'
+    hasDisplayName <- get
+    if hasDisplayName
+      then do
+        displayName <- getText
+        return $ PlayerListUpdateDisplayName uuid (Just displayName)
+      else
+        return $ PlayerListUpdateDisplayName uuid Nothing
+
 data PlayerListRemovePlayer = PlayerListRemovePlayer !UUID
   deriving (Show,Eq)
 
-encodePlayerListEntries :: PlayerListEntries -> Encode.Builder
-encodePlayerListEntries (PlayerListAdds lst) =
-  encodeVarInt 0
-  <> (encodeVarInt . V.length $ lst)
-  <> V.foldl' (<>) mempty (fmap encodePlayerListAdd lst)
-encodePlayerListEntries (PlayerListUpdateGameModes lst) =
-  encodeVarInt 1
-  <> (encodeVarInt . V.length $ lst)
-  <> V.foldl' (<>) mempty (fmap encodePlayerListUpdateGameMode lst)
-encodePlayerListEntries (PlayerListUpdateLatencies lst) =
-  encodeVarInt 2
-  <> (encodeVarInt . V.length $ lst)
-  <> V.foldl' (<>) mempty (fmap encodePlayerListUpdateLatency lst)
-encodePlayerListEntries (PlayerListUpdateDisplayNames lst) =
-  encodeVarInt 3
-  <> (encodeVarInt . V.length $ lst)
-  <> V.foldl' (<>) mempty (fmap encodePlayerListUpdateDisplayName lst)
-encodePlayerListEntries (PlayerListRemovePlayers lst) =
-  encodeVarInt 4
-  <> (encodeVarInt . V.length $ lst)
-  <> V.foldl' (<>) mempty (fmap encodePlayerListRemovePlayer lst)
-
-encodePlayerListAdd :: PlayerListAdd -> Encode.Builder
-encodePlayerListAdd (PlayerListAdd uuid name properties gamemode ping maybeDisplayName) =
-  encodeUUID' uuid
-  <> encodeText name
-  <> (encodeVarInt . V.length $ properties)
-  <> V.foldl' (<>) mempty (fmap encodePlayerProperty properties)
-  <> encodeVarInt (fromEnum gamemode)
-  <> encodeVarInt ping
-  <> case maybeDisplayName of
-      Just displayName -> encodeBool True <> encodeText displayName
-      Nothing -> encodeBool False
-
-encodePlayerListUpdateGameMode :: PlayerListUpdateGameMode -> Encode.Builder
-encodePlayerListUpdateGameMode (PlayerListUpdateGameMode uuid gameMode) =
-  encodeUUID' uuid
-  <> encodeVarInt (fromEnum gameMode)
-
-encodePlayerListUpdateLatency :: PlayerListUpdateLatency -> Encode.Builder
-encodePlayerListUpdateLatency (PlayerListUpdateLatency uuid ping) =
-  encodeUUID' uuid
-  <> encodeVarInt ping
-
-encodePlayerListUpdateDisplayName :: PlayerListUpdateDisplayName -> Encode.Builder
-encodePlayerListUpdateDisplayName (PlayerListUpdateDisplayName uuid maybeDisplayName) =
-  encodeUUID' uuid
-  <> case maybeDisplayName of
-      Nothing -> encodeBool False
-      Just displayName -> encodeBool True <> encodeText displayName
-
-encodePlayerListRemovePlayer :: PlayerListRemovePlayer -> Encode.Builder
-encodePlayerListRemovePlayer (PlayerListRemovePlayer uuid) =
-  encodeUUID' uuid
-
-decodePlayerListEntries :: Decode.Parser PlayerListEntries
-decodePlayerListEntries = do
-    action <- decodeVarInt
-    ln <- decodeVarInt
-    case action of
-      0 -> PlayerListAdds <$> V.replicateM ln decodePlayerListAdd
-      1 -> PlayerListUpdateGameModes <$> V.replicateM ln decodePlayerListUpdateGameMode
-      2 -> PlayerListUpdateLatencies <$> V.replicateM ln decodePlayerListUpdateLatency
-      3 -> PlayerListUpdateDisplayNames <$> V.replicateM ln decodePlayerListUpdateDisplayName
-      4 -> PlayerListRemovePlayers <$> V.replicateM ln decodePlayerListRemovePlayer
-      err -> fail $ "Error: Invaid PlayerList action " ++ show err
-
-decodePlayerListAdd :: Decode.Parser PlayerListAdd
-decodePlayerListAdd = do
-  uuid <- decodeUUID'
-  name <- decodeText
-  count <- decodeVarInt
-  properties <- V.replicateM count decodePlayerProperty
-  gameMode <- fmap toEnum decodeVarInt
-  ping <- decodeVarInt
-  hasDisplayName <- decodeBool
-  if hasDisplayName
-    then do
-      displayName <- decodeText
-      return $ PlayerListAdd uuid name properties gameMode ping (Just displayName)
-    else
-      return $ PlayerListAdd uuid name properties gameMode ping Nothing
-
-decodePlayerListUpdateGameMode :: Decode.Parser PlayerListUpdateGameMode
-decodePlayerListUpdateGameMode = do
-  uuid <- decodeUUID'
-  gamemode <- fmap toEnum decodeVarInt
-  return $ PlayerListUpdateGameMode uuid gamemode
-
-decodePlayerListUpdateLatency :: Decode.Parser PlayerListUpdateLatency
-decodePlayerListUpdateLatency = do
-  uuid <- decodeUUID'
-  ping <- decodeVarInt
-  return $ PlayerListUpdateLatency uuid ping
-
-decodePlayerListUpdateDisplayName :: Decode.Parser PlayerListUpdateDisplayName
-decodePlayerListUpdateDisplayName = do
-  uuid <- decodeUUID'
-  hasDisplayName <- decodeBool
-  if hasDisplayName
-    then do
-      displayName <- decodeText
-      return $ PlayerListUpdateDisplayName uuid (Just displayName)
-    else
-      return $ PlayerListUpdateDisplayName uuid Nothing
-
-decodePlayerListRemovePlayer :: Decode.Parser PlayerListRemovePlayer
-decodePlayerListRemovePlayer = do
-  uuid <- decodeUUID'
-  return $ PlayerListRemovePlayer uuid
+instance Serialize PlayerListRemovePlayer where
+  put (PlayerListRemovePlayer uuid) = putUUID' uuid
+  get = PlayerListRemovePlayer <$> getUUID'
 
 data PlayerProperty = PlayerProperty
   { playerName    :: !T.Text
@@ -1073,25 +1007,26 @@ data PlayerProperty = PlayerProperty
   , playerSig     :: !(Maybe T.Text)
   } deriving (Show,Eq)
 
-encodePlayerProperty :: PlayerProperty -> Encode.Builder
-encodePlayerProperty (PlayerProperty name val maybeSig) =
-  encodeText name
-  <> encodeText val
-  <> case maybeSig of
-      Nothing -> encodeBool False
-      Just sig -> encodeBool True <> encodeText sig
+instance Serialize PlayerProperty where
+  put (PlayerProperty name val maybeSig) = do
+    putText name
+    putText val
+    case maybeSig of
+      Nothing -> put False
+      Just sig -> do
+        put True
+        putText sig
 
-decodePlayerProperty :: Decode.Parser PlayerProperty
-decodePlayerProperty = do
-  name <- decodeText
-  value <- decodeText
-  isSigned <- decodeBool
-  if isSigned
-    then do
-      sig <- decodeText
-      return $ PlayerProperty name value (Just sig)
-    else
-      return $ PlayerProperty name value Nothing
+  get = do
+    name <- getText
+    value <- getText
+    isSigned <- get
+    if isSigned
+      then do
+        sig <- getText
+        return $ PlayerProperty name value (Just sig)
+      else
+        return $ PlayerProperty name value Nothing
 
 data Icon = Icon
   { directionAndType  :: !Word8
@@ -1099,20 +1034,47 @@ data Icon = Icon
   , z                 :: !Word8
   } deriving (Show,Eq)
 
-encodeIcon :: Icon -> Encode.Builder
-encodeIcon i =
-  Encode.word8 (directionAndType i)
-  <> Encode.word8 (x i)
-  <> Encode.word8 (z i)
+instance Serialize Icon where
+  put (Icon directionAndType' x' z') = do
+    putWord8 directionAndType'
+    putWord8 x'
+    putWord8 z'
 
-decodeIcon :: Decode.Parser Icon
-decodeIcon = Icon <$> Decode.anyWord8 <*> Decode.anyWord8 <*> Decode.anyWord8
+  get = Icon <$> getWord8 <*> getWord8 <*> getWord8
 
 data CombatEvent
   = EnterCombat
   | EndCombat !Int !Int32
   | EntityDead !Int !Int32 !Chat
   deriving (Show,Eq)
+
+instance Serialize CombatEvent where
+  put EnterCombat = do
+    putVarInt 0
+  put (EndCombat duration entityID) = do
+    putVarInt 1
+    putVarInt duration
+    put entityID
+  put (EntityDead playerID entityID message) = do
+    putVarInt 2
+    putVarInt playerID
+    put entityID
+    putText message
+
+  get = do
+    event <- getVarInt
+    case event of
+      0 -> return EnterCombat
+      1 -> do
+        duration <- getVarInt
+        entityID <- getInt32be
+        return $ EndCombat duration entityID
+      2 -> do
+        playerID <- getVarInt
+        entityID <- getInt32be
+        message <- getText
+        return $ EntityDead playerID entityID message
+      err -> fail $ "Error: Unrecognized combat event: " ++ show err
 
 data WorldBorderAction
   = SetSize !Double
@@ -1123,6 +1085,69 @@ data WorldBorderAction
   | SetWarningBlocks !Int
   deriving (Show,Eq)
 
+instance Serialize WorldBorderAction where
+  put (SetSize diameter) = do
+    putVarInt 0
+    putFloat64be diameter
+  put (LerpSize oldDiameter newDiameter speed) = do
+    putVarInt 1
+    putFloat64be oldDiameter
+    putFloat64be newDiameter
+    putVarLong speed
+  put (SetCenter x z) = do
+    putVarInt 2
+    putFloat64be x
+    putFloat64be z
+  put (Initialize x z oldDiameter newDiameter speed portalBoundary warningTime warningBlocks) = do
+    putVarInt 3
+    putFloat64be x
+    putFloat64be z
+    putFloat64be oldDiameter
+    putFloat64be newDiameter
+    putVarLong speed
+    putVarInt portalBoundary
+    putVarInt warningTime
+    putVarInt warningBlocks
+  put (SetWarningTime warningTime) = do
+    putVarInt 4
+    putVarInt . toEnum $ warningTime
+  put (SetWarningBlocks warningBlocks) = do
+    putVarInt 5
+    putVarInt . toEnum $ warningBlocks
+
+  get = do
+    action <- getVarInt
+    case action of
+      0 -> do
+        diameter <- getFloat64be
+        return $ SetSize diameter
+      1 -> do
+        oldDiameter <- getFloat64be
+        newDiameter <- getFloat64be
+        speed <- getVarLong
+        return $ LerpSize oldDiameter newDiameter speed
+      2 -> do
+        x <- getFloat64be
+        z <- getFloat64be
+        return $ SetCenter x z
+      3 -> do
+        x <- getFloat64be
+        z <- getFloat64be
+        oldDiameter <- getFloat64be
+        newDiameter <- getFloat64be
+        speed <- getVarLong
+        portalBoundary <- getVarInt
+        warningTime <- getVarInt
+        warningBlocks <- getVarInt
+        return $ Initialize x z oldDiameter newDiameter speed portalBoundary warningTime warningBlocks
+      4 -> do
+        warningTime <- getVarInt
+        return $ SetWarningTime warningTime
+      5 -> do
+        warningBlocks <- getVarInt
+        return $ SetWarningBlocks warningBlocks
+      err -> fail $ "Error: Unrecognized world border action: " ++ show err
+
 data TeamMode
   = CreateTeam !T.Text !T.Text !T.Text !Int8 !T.Text !T.Text !Int8 !(V.Vector T.Text)
   | RemoveTeam
@@ -1130,6 +1155,71 @@ data TeamMode
   | AddPlayers !(V.Vector T.Text)
   | RemovePlayers !(V.Vector T.Text)
   deriving (Show,Eq)
+
+instance Serialize TeamMode where
+  put (CreateTeam displayName prefix suffix flags tagVisibility collision color players) = do
+    put (0 :: Int8)
+    putText displayName
+    putText prefix
+    putText suffix
+    put flags
+    putText tagVisibility
+    putText collision
+    put color
+    putVarInt . V.length $ players
+    mapM_ putText players
+  put RemoveTeam = put (1 :: Int8)
+  put (UpdateTeamInfo displayName prefix suffix flags tagVisibility collision color) = do
+    put (2 :: Int8)
+    putText displayName
+    putText prefix
+    putText suffix
+    put flags
+    putText tagVisibility
+    putText collision
+    put color
+  put (AddPlayers players) = do
+    put (3 :: Int8)
+    putVarInt . V.length $ players
+    mapM_ putText players
+  put (RemovePlayers players) = do
+    put (4 :: Int8)
+    putVarInt . V.length $ players
+    mapM_ putText players
+
+  get = do
+    mode <- getInt8
+    case mode of
+      0 -> do
+        displayName <- getText
+        prefix <- getText
+        suffix <- getText
+        flags <- getInt8
+        tagVisibility <- getText
+        collision <- getText
+        color <- getInt8
+        count <- getVarInt
+        players <- V.replicateM count getText
+        return $ CreateTeam displayName prefix suffix flags tagVisibility collision color players
+      1 -> return RemoveTeam
+      2 -> do
+        displayName <- getText
+        prefix <- getText
+        suffix <- getText
+        flags <- getInt8
+        tagVisibility <- getText
+        collision <- getText
+        color <- getInt8
+        return $ UpdateTeamInfo displayName prefix suffix flags tagVisibility collision color
+      3 -> do
+        count <- getVarInt
+        players <- V.replicateM count getText
+        return $ AddPlayers players
+      4 -> do
+        count <- getVarInt
+        players <- V.replicateM count getText
+        return $ RemovePlayers players
+      err -> fail $ "Unrecognized team mode: " ++ show err
 
 data TitleAction
   = SetTitle !Chat
@@ -1139,6 +1229,39 @@ data TitleAction
   | Reset
   deriving (Show,Eq)
 
+instance Serialize TitleAction where
+  put (SetTitle titleText) = do
+    putVarInt 0
+    putText titleText
+  put (SetSubtitle subtitleText) = do
+    putVarInt 1
+    putText subtitleText
+  put (SetTimesAndDisplay fadeIn stay fadeOut) = do
+    putVarInt 2
+    put fadeIn
+    put stay
+    put fadeOut
+  put Hide = putVarInt 3
+  put Reset = putVarInt 4
+
+  get = do
+    action <- getVarInt
+    case action of
+      0 -> do
+        titleText <- getText
+        return $ SetTitle titleText
+      1 -> do
+        subtitleText <- getText
+        return $ SetSubtitle subtitleText
+      2 -> do
+        fadeIn <- getInt32be
+        stay <- getInt32be
+        fadeOut <- getInt32be
+        return $ SetTimesAndDisplay fadeIn stay fadeOut
+      3 -> return Hide
+      4 -> return Reset
+      err -> fail $ "Unrecognized title action: " ++ show err
+
 data EntityProperty = EntityProperty
   { key             :: !T.Text
   , value           :: !Double
@@ -1146,50 +1269,23 @@ data EntityProperty = EntityProperty
   , modifiers       :: !Int
   } deriving (Show,Eq)
 
-encodeEntityProperty :: EntityProperty -> Encode.Builder
-encodeEntityProperty (EntityProperty k v n m) =
-  encodeText k
-  <> Encode.doubleBE v
-  <> encodeVarInt n
-  <> encodeVarInt m
+instance Serialize EntityProperty where
+  put (EntityProperty k v n m) = do
+    putText k
+    putFloat64be v
+    putVarInt n
+    putVarInt m
 
-decodeEntityProperty :: Decode.Parser EntityProperty
-decodeEntityProperty = do
-  k <- decodeText
-  v <- decodeDoubleBE
-  n <- decodeVarInt
-  m <- decodeVarInt
-  return $ EntityProperty k v n m
+  get = do
+    k <- getText
+    v <- getFloat64be
+    n <- getVarInt
+    m <- getVarInt
+    return $ EntityProperty k v n m
 
-cast :: (MArray (STUArray s) a (ST s),
-         MArray (STUArray s) b (ST s)) => a -> ST s b
-cast x = newArray (0 :: Int, 0) x >>= castSTUArray >>= flip readArray 0
-
-decodeWord32BE :: Decode.Parser Word32
-decodeWord32BE = do
-    bs <- Decode.take 4
-    return $!
-      fromIntegral (bs `BU.unsafeIndex` 0) `shiftL` 24 .|.
-      fromIntegral (bs `BU.unsafeIndex` 1) `shiftL` 16 .|.
-      fromIntegral (bs `BU.unsafeIndex` 2) `shiftL` 8 .|.
-      fromIntegral (bs `BU.unsafeIndex` 3)
-
-decodeWord64BE :: Decode.Parser Word64
-decodeWord64BE = do
-    bs <- Decode.take 8
-    return $!
-      fromIntegral (bs `BU.unsafeIndex` 0) `shiftL` 56 .|.
-      fromIntegral (bs `BU.unsafeIndex` 1) `shiftL` 48 .|.
-      fromIntegral (bs `BU.unsafeIndex` 2) `shiftL` 40 .|.
-      fromIntegral (bs `BU.unsafeIndex` 3) `shiftL` 32 .|.
-      fromIntegral (bs `BU.unsafeIndex` 4) `shiftL` 24 .|.
-      fromIntegral (bs `BU.unsafeIndex` 5) `shiftL` 16 .|.
-      fromIntegral (bs `BU.unsafeIndex` 6) `shiftL`  8 .|.
-      fromIntegral (bs `BU.unsafeIndex` 7)
-
-encodeStatusPayload :: T.Text -> Word8 -> Word8 -> Word8 -> T.Text -> Encode.Builder
+encodeStatusPayload :: T.Text -> Word8 -> Word8 -> Word8 -> T.Text -> Put
 encodeStatusPayload mcVersion versionID currentPlayers maxPlayers motd =
-  encodeByteString . BL.toStrict . Aeson.encode $
+  putNetcodeByteString . BL.toStrict . A.encode $
     StatusPayload (Version mcVersion versionID)
                   (Players maxPlayers currentPlayers)
                   (Description motd)
@@ -1199,10 +1295,53 @@ data UpdatedColumns
   | UpdatedColumns !Int8 !Int8 !Int8 !Int8 !B.ByteString
   deriving (Show,Eq)
 
+instance Serialize UpdatedColumns where
+  put NoUpdatedColumns = do
+    put (0 :: Int8)
+  put (UpdatedColumns col rows x z dat) = do
+    put col
+    put rows
+    put x
+    put z
+    putNetcodeByteString dat
+
+  get = do
+    columns <- getInt8
+    if columns > 0
+      then do
+        rows <- getInt8
+        x <- getInt8
+        z <- getInt8
+        dat <- getNetcodeByteString
+        return $ UpdatedColumns columns rows x z dat
+      else return NoUpdatedColumns
+
 data UpdateScoreAction
   = CreateOrUpdateScoreItem !T.Text !T.Text !VarInt
   | RemoveScoreItem !T.Text !T.Text
   deriving (Show,Eq)
+
+instance Serialize UpdateScoreAction where
+  put (CreateOrUpdateScoreItem scoreName objectiveName val) = do
+    putText scoreName
+    put (0 :: Int8)
+    putText objectiveName
+    putVarInt val
+  put (RemoveScoreItem scoreName objectiveName) = do
+    putText scoreName
+    put (1 :: Int8)
+    putText objectiveName
+
+  get = do
+    scoreName <- getText
+    action <- getInt8
+    objectiveName <- getText
+    case action of
+      0 -> do
+        value <- getVarInt
+        return $ CreateOrUpdateScoreItem scoreName objectiveName value
+      1 -> return $ RemoveScoreItem scoreName objectiveName
+      err -> fail $ "Error: Invalid UpdateScoreAction byte: " ++ show err
 
 data UseEntityType
   = InteractWithEntity !VarInt
@@ -1210,7 +1349,31 @@ data UseEntityType
   | InteractAtEntity !Float !Float !Float !EntityHand
   deriving (Show,Eq)
 
+instance Serialize UseEntityType where
+  put (InteractWithEntity h) = do
+    putVarInt 0
+    putVarInt h
+  put AttackEntity = putVarInt 1
+  put (InteractAtEntity tX tY tZ h) = do
+    putVarInt 2
+    putFloat32be tX
+    putFloat32be tY
+    putFloat32be tZ
+    putVarInt (fromEnum h)
+
+  get = do
+    t <- getVarInt
+    case t of
+      0 -> InteractWithEntity <$> getVarInt
+      1 -> return AttackEntity
+      2 -> InteractAtEntity <$> getFloat32be <*> getFloat32be <*> getFloat32be <*> get
+      err -> fail $ "Error: Could not get UseEntityType type: " ++ show err
+
 data EntityHand = MainHand | OffHand deriving (Show,Eq,Enum)
+
+instance Serialize EntityHand where
+  put = putWord8 . toEnum . fromEnum
+  get = (toEnum . fromEnum) <$> getWord8
 
 data ScoreboardMode
   = CreateScoreboard !T.Text !T.Text
@@ -1218,7 +1381,27 @@ data ScoreboardMode
   | UpdateDisplayText !T.Text !T.Text
   deriving (Show,Eq)
 
-encodeScoreboardMode :: ScoreboardMode -> Int8
-encodeScoreboardMode (CreateScoreboard _ _)   = 0
-encodeScoreboardMode RemoveScoreboard         = 1
-encodeScoreboardMode (UpdateDisplayText _ _)  = 2
+instance Serialize ScoreboardMode where
+  put (CreateScoreboard ov t) = do
+    put (0 :: Int8)
+    putText ov
+    putText t
+  put RemoveScoreboard = put (1 :: Int8)
+  put (UpdateDisplayText ov t) = do
+    put (2 :: Int8)
+    putText ov
+    putText t
+
+  get = do
+    mode <- getInt8
+    case mode of
+      0 -> do
+        objectiveValue <- getText
+        t <- getText
+        return $ CreateScoreboard objectiveValue t
+      1 -> return RemoveScoreboard
+      2 -> do
+        objectiveValue <- getText
+        t <- getText
+        return $ UpdateDisplayText objectiveValue t
+      err -> fail $ "Error: Invalid ScoreboardMode byte: " ++ show err
