@@ -3,7 +3,7 @@
 module OpenSandbox.WorldSpec (main,spec) where
 
 import Control.Monad
-import Data.Either
+import Data.NBT
 import Data.Serialize
 import qualified Data.Vector as V
 import Data.Word
@@ -12,28 +12,33 @@ import Test.QuickCheck
 import OpenSandbox.Data.BlockSpec()
 import OpenSandbox.Data.Block (BlockStateID,BlockIndice)
 import OpenSandbox.World
+import Common
+import Data.NBTSpec()
 
 instance Arbitrary BlockIndice where
-  arbitrary = (fromIntegral <$> (arbitrary :: Gen Word8) :: Gen BlockIndice)
+  arbitrary = fromIntegral <$> (arbitrary :: Gen Word8) :: Gen BlockIndice
 
 instance Arbitrary BlockIndices where
   arbitrary = BlockIndices <$> vectorOf 4096 arbitrary
 
-instance Arbitrary OChunkColumnData where
-  arbitrary = OChunkColumnData <$> vectorOf 16 arbitrary
+instance Arbitrary ChunkColumn where
+  arbitrary =
+    ChunkColumn
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
 
-instance Arbitrary DChunkColumnData where
-  arbitrary = DChunkColumnData <$> vectorOf 8 arbitrary
+instance Arbitrary ChunkColumnData where
+  arbitrary = do
+    k <- choose (1,16) :: Gen Int
+    ChunkColumnData <$> vectorOf k arbitrary
 
-instance Arbitrary OChunkBlock where
-  arbitrary = OChunkBlock
+instance Arbitrary ChunkBlock where
+  arbitrary = ChunkBlock
               <$> arbitrary
               <*> (V.fromList <$> vectorOf 2048 arbitrary)
-              <*> (V.fromList <$> vectorOf 2048 arbitrary)
-
-instance Arbitrary DChunkBlock where
-  arbitrary = DChunkBlock
-              <$> arbitrary
               <*> (V.fromList <$> vectorOf 2048 arbitrary)
 
 instance Arbitrary ChunkBlockData where
@@ -48,21 +53,8 @@ instance Arbitrary BitsPerBlock where
 instance Arbitrary BitsPerBlockOption where
   arbitrary = fmap toEnum (choose (4,13) :: Gen Int)
 
-prop_IdentityOChunkBlock :: OChunkBlock -> Bool
-prop_IdentityOChunkBlock chunk =
-  Right chunk == (decode (encode chunk) :: Either String OChunkBlock)
-
-prop_IdentityDChunkBlock :: DChunkBlock -> Bool
-prop_IdentityDChunkBlock chunk =
-  Right chunk == (decode (encode chunk) :: Either String DChunkBlock)
-
-prop_IdentityBiomeIndices :: BiomeIndices -> Bool
-prop_IdentityBiomeIndices biomeIndices =
-  Right biomeIndices == (decode (encode biomeIndices) :: Either String BiomeIndices)
-
-prop_IdentityBitsPerBlock :: BitsPerBlock -> Bool
-prop_IdentityBitsPerBlock bpb =
-  Right bpb == (decode (encode bpb) :: Either String BitsPerBlock)
+instance Arbitrary PrimaryBitMask where
+  arbitrary = mkPrimaryBitMask <$> arbitrary
 
 prop_IdentityPackIndices :: BlockIndices -> Bool
 prop_IdentityPackIndices indices =
@@ -74,25 +66,39 @@ prop_IdentityCompressIndices :: ChunkBlockData -> Bool
 prop_IdentityCompressIndices indices = indices == decompressIndices (compressIndices indices)
 
 spec :: Spec
-spec = return ()
-{-
 spec = do
-  describe "OChunkColumnData" $ do
-    it "Identity" $ property prop_IdentityOChunkBlock
-  describe "DChunkColumnData" $ do
-    it "Identity" $ property prop_IdentityDChunkBlock
-  describe "OChunkBlock" $ do
-    it "Identity" $ property prop_IdentityOChunkBlock
-  describe "DChunkBlock" $ do
-    it "Identity" $ property prop_IdentityDChunkBlock
+  describe "ChunkColumn" $ do
+    it "Identity" $ quickCheckWith
+      stdArgs { maxSize = 20, maxSuccess = 20 }
+      (prop_SerializeIdentity :: ChunkColumn -> Bool)
+  describe "ChunkColumnData" $ do
+    it "Identity" $ quickCheckWith
+      stdArgs { maxSize = 20, maxSuccess = 20 }
+      (prop_SerializeIdentity :: ChunkColumnData -> Bool)
+  describe "ChunkBlock" $ do
+    it "Identity" $ quickCheckWith
+      stdArgs { maxSize = 20, maxSuccess = 50 }
+      (prop_SerializeIdentity :: ChunkBlock -> Bool)
   describe "BiomeIndices" $ do
-    it "Identity" $ property prop_IdentityBiomeIndices
+    it "Identity" $ quickCheckWith
+      stdArgs
+      (prop_SerializeIdentity :: BiomeIndices -> Bool)
   describe "BitsPerBlock" $ do
-    it "Identity" $ property prop_IdentityBitsPerBlock
+    it "Identity" $ quickCheckWith
+      stdArgs
+      (prop_SerializeIdentity :: BitsPerBlock -> Bool)
+  describe "PrimaryBitMask" $ do
+    it "Identity" $ quickCheckWith
+      stdArgs
+      (prop_SerializeIdentity :: PrimaryBitMask -> Bool)
   describe "Packing Indices" $ do
-    it "Identity" $ property prop_IdentityPackIndices
+    it "Identity" $ quickCheckWith
+      stdArgs
+      prop_IdentityPackIndices
   describe "Compressing Indices" $ do
-    it "Identity" $ property prop_IdentityCompressIndices
--}
+    it "Identity" $ quickCheckWith
+      stdArgs
+      prop_IdentityCompressIndices
+
 main :: IO ()
 main = hspec spec

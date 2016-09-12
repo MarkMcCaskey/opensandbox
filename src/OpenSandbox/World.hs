@@ -16,19 +16,22 @@ module OpenSandbox.World
   ( BitsPerBlock
   , BitsPerBlockOption (..)
   , mkBitsPerBlock
-  , encodeBitsPerBlock
-  , decodeBitsPerBlock
+  --, encodeBitsPerBlock
+  --, decodeBitsPerBlock
   , ChunkColumn (..)
-  , OChunkColumnData (..)
-  , DChunkColumnData (..)
-  , OChunkBlock (..)
-  , DChunkBlock (..)
-  , initDChunkBlock
+  , ChunkColumnData (..)
+  , ChunkBlock (..)
+  , initChunkBlock
   , ChunkBlockData (..)
   , initChunkBlockData
   , unChunkBlockData
   , BiomeIndices (..)
   , BlockIndices (..)
+
+  , PrimaryBitMask
+  , mkPrimaryBitMask
+  , unPrimaryBitMask
+
   , unBlockIndices
   , compressIndices
   , decompressIndices
@@ -36,13 +39,11 @@ module OpenSandbox.World
   , unpackIndices
   ) where
 
+import Control.Applicative
 import Control.DeepSeq
 import Control.Monad
-import qualified Data.Attoparsec.ByteString as Decode
 import Data.Bits
-import qualified Data.ByteString.Builder as Encode
-import Data.Either
-import Data.Foldable
+import qualified Data.ByteString as B
 import Data.Int
 import qualified Data.List as L
 import Data.Maybe
@@ -50,7 +51,6 @@ import Data.NBT
 import Data.Serialize
 import qualified Data.HashSet as HS
 import qualified Data.Vector as V
-import qualified Data.Vector.Unboxed as VU
 import Data.Word
 import GHC.Generics (Generic)
 import OpenSandbox.Data.Block (BlockStateID,BlockIndice)
@@ -58,34 +58,62 @@ import OpenSandbox.Protocol.Types (putVarInt,getVarInt)
 
 data ChunkColumn = ChunkColumn
   { chunkX :: Int32
-  , chunkY :: Int32
+  , chunkZ :: Int32
   , primaryBitMask :: PrimaryBitMask
-  , chunkColumnData :: Either DChunkColumnData OChunkColumnData
-  , biomesArray :: Maybe (V.Vector Word8)
-  , blockEntities :: V.Vector NBT
+  , chunkColumnData :: ChunkColumnData
+  , biomesArray :: BiomeIndices
   } deriving (Show,Eq)
 
-data OChunkColumnData = OChunkColumnData [OChunkBlock] deriving (Show,Eq)
+instance Serialize ChunkColumn where
+  put (ChunkColumn cX cZ bitMask chunks biomes) = do
+    put cX
+    put cZ
+    put bitMask
+    put True
+    put chunks
+    put biomes
 
-data DChunkColumnData = DChunkColumnData [DChunkBlock] deriving (Show,Eq)
+  get = do
+    cX <- getInt32be
+    cZ <- getInt32be
+    bitMask <- get
+    _ <- get :: Get Bool
+    chunks <- get
+    biomes <- get
+    return $ ChunkColumn cX cZ bitMask chunks biomes
 
-unOChunkColumnData :: OChunkColumnData -> [OChunkBlock]
-unOChunkColumnData (OChunkColumnData column) = column
+data ChunkColumnData = ChunkColumnData [ChunkBlock] deriving (Show,Eq)
 
-unDChunkColumnData :: DChunkColumnData -> [DChunkBlock]
-unDChunkColumnData (DChunkColumnData column) = column
+instance Serialize ChunkColumnData where
+  put (ChunkColumnData chunks)= do
+    let bs = runPut (mapM_ put chunks)
+    putVarInt . B.length $ bs
+    putByteString bs
+    mapM_ put chunks
 
-data OChunkBlock = OChunkBlock
+  get = do
+    ln <- getVarInt
+    bs <- getBytes ln
+    chunks <- many1 (get :: Get ChunkBlock)
+    return $ ChunkColumnData chunks
+    where
+      many1 :: Alternative f => f a -> f [a]
+      many1 g = liftA2 (:) g (many g)
+
+unChunkColumnData :: ChunkColumnData -> [ChunkBlock]
+unChunkColumnData (ChunkColumnData column) = column
+
+data ChunkBlock = ChunkBlock
   { chunkDataArray :: ChunkBlockData
   , chunkBlockLight :: V.Vector Word8
   , chunkSkyLight :: V.Vector Word8
   } deriving (Show,Eq)
 
-initOChunkBlock :: OChunkBlock
-initOChunkBlock = OChunkBlock initChunkBlockData (V.replicate 2048 0) (V.replicate 2048 0)
+initChunkBlock :: ChunkBlock
+initChunkBlock = ChunkBlock initChunkBlockData (V.replicate 2048 0) (V.replicate 2048 0)
 
-instance Serialize OChunkBlock where
-  put (OChunkBlock datArray blockLight skyLight) = do
+instance Serialize ChunkBlock where
+  put (ChunkBlock datArray blockLight skyLight) = do
     let (bpb,palette,indices) = compressIndices datArray
     put bpb
     putVarInt . V.length $ palette
@@ -104,35 +132,7 @@ instance Serialize OChunkBlock where
     blockLight <- V.replicateM 2048 getWord8
     skyLight <- V.replicateM 2048 getWord8
     let datArray' = decompressIndices (bpb,palette,datArray)
-    return $ OChunkBlock datArray' blockLight skyLight
-
-data DChunkBlock = DChunkBlock
-  { otherDataArray :: ChunkBlockData
-  , otherBlockLight :: V.Vector Word8
-  } deriving (Show,Eq)
-
-initDChunkBlock :: DChunkBlock
-initDChunkBlock = DChunkBlock initChunkBlockData (V.replicate 2048 0)
-
-instance Serialize DChunkBlock where
-  put (DChunkBlock datArray blockLight) = do
-    let (bpb,palette,indices) = compressIndices datArray
-    put bpb
-    putVarInt . V.length $ palette
-    V.mapM_ (putVarInt . fromIntegral) palette
-    putVarInt . length $ indices
-    mapM_ putWord64be indices
-    V.mapM_ putWord8 blockLight
-
-  get = do
-    bpb <- get
-    paletteLn <- getVarInt
-    palette <- V.replicateM paletteLn (fromIntegral <$> getVarInt)
-    datArrayLn <- getVarInt
-    datArray <- replicateM datArrayLn getWord64be
-    blockLight <- V.replicateM 2048 getWord8
-    let datArray' = decompressIndices (bpb,palette,datArray)
-    return $ DChunkBlock datArray' blockLight
+    return $ ChunkBlock datArray' blockLight skyLight
 
 --------------------------------------------------------------------------------
 
@@ -148,8 +148,8 @@ unChunkBlockData (ChunkBlockData blocks) = blocks
 
 newtype PrimaryBitMask = PrimaryBitMask Word16 deriving (Show,Eq,Bits,Generic,NFData)
 
-mkPrimaryBitMask :: Either DChunkColumnData OChunkColumnData -> PrimaryBitMask
-mkPrimaryBitMask = PrimaryBitMask . (2^) . either (length . unDChunkColumnData) (length . unOChunkColumnData)
+mkPrimaryBitMask :: ChunkColumnData -> PrimaryBitMask
+mkPrimaryBitMask = PrimaryBitMask . (2^) . (length . unChunkColumnData)
 
 unPrimaryBitMask :: PrimaryBitMask -> Word16
 unPrimaryBitMask (PrimaryBitMask pbm) = pbm
@@ -312,6 +312,7 @@ instance Enum BitsPerBlockOption where
   toEnum 16 = BitsPerBlock16
   toEnum _ = undefined
 
+{-
 encodeBitsPerBlock :: BitsPerBlock -> Encode.Builder
 encodeBitsPerBlock (BitsPerBlock bpb) = Encode.word8 bpb
 
@@ -321,7 +322,7 @@ decodeBitsPerBlock = do
   if (rawBPB >= 4) && (rawBPB <= 13)
     then return $ BitsPerBlock rawBPB
     else fail "Error: Invalid BitsPerBlock value"
-
+-}
 --------------------------------------------------------------------------------
 
 --type GlobalPalette = V.Vector BlockStateID

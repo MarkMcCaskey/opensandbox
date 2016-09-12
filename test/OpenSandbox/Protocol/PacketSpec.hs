@@ -260,7 +260,8 @@ instance Arbitrary CBPlay where
         a <- arbitrary
         return $ CBKeepAlive a
       0x20 -> do
-        return $ CBChunkData
+        a <- arbitrary
+        return $ CBChunkData a
       0x21 -> do
         a <- arbitrary
         b <- arbitrary

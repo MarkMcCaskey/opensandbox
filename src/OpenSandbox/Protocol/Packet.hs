@@ -30,6 +30,7 @@ import Data.UUID
 import qualified Data.Vector as V
 import Data.Word
 import OpenSandbox.Protocol.Types
+import OpenSandbox.World
 import Prelude hiding (max)
 
 data SBHandshaking
@@ -198,7 +199,7 @@ data CBPlay
   | CBUnloadChunk Int32 Int32
   | CBChangeGameState GameChangeReason Float
   | CBKeepAlive VarInt
-  | CBChunkData
+  | CBChunkData ChunkColumn
   | CBEffect Int32 Position Int32 Bool
   | CBParticle Int32 Bool Float Float Float Float Float Float Float (V.Vector VarInt)
   | CBJoinGame Int32 Word8 Int32 Word8 Word8 T.Text Bool
@@ -434,7 +435,9 @@ instance Serialize CBPlay where
   put (CBKeepAlive keepAliveID) = do
     putWord8 0x1F
     putVarInt keepAliveID
-  put CBChunkData = putWord8 0x20
+  put (CBChunkData chunkColumnData) = do
+    putWord8 0x20
+    put chunkColumnData
   -- (NOTE) Should be better typed to Effect IDs that actually exist
   put (CBEffect effectID location dat disableRelativeVolume) = do
     putWord8 0x21
@@ -773,7 +776,7 @@ instance Serialize CBPlay where
       0x1D -> CBUnloadChunk <$> getInt32be <*> getInt32be
       0x1E -> CBChangeGameState <$> get <*> getFloat32be
       0x1F -> CBKeepAlive <$> getVarInt
-      0x20 -> return $ CBChunkData
+      0x20 -> CBChunkData <$> get
       0x21 -> CBEffect <$> getInt32be <*> getPosition <*> getInt32be <*> get
       0x22 -> do
         particleID <- getInt32be
