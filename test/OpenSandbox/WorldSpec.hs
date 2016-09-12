@@ -1,11 +1,13 @@
 {-# LANGUAGE FlexibleInstances #-}
-
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module OpenSandbox.WorldSpec (main,spec) where
 
+import Control.Monad
 import qualified Data.Vector as V
 import Data.Word
 import Test.Hspec
 import Test.QuickCheck
+import Test.QuickCheck.Test
 import OpenSandbox.Data.BlockSpec()
 import OpenSandbox.Data.Block (BlockIndice)
 import OpenSandbox.World
@@ -74,38 +76,62 @@ prop_IdentityCompressIndices indices = indices == decompressIndices bpb palette 
 
 spec :: Spec
 spec = do
-  describe "ChunkColumn" $ do
-    it "Identity" $ quickCheckWith
-      stdArgs { maxSize = 20, maxSuccess = 20 }
-      (prop_SerializeIdentity :: ChunkColumn -> Bool)
-  describe "ChunkColumnData" $ do
-    it "Identity" $ quickCheckWith
-      stdArgs { maxSize = 20, maxSuccess = 20 }
-      (prop_SerializeIdentity :: ChunkColumnData -> Bool)
-  describe "ChunkBlock" $ do
-    it "Identity" $ quickCheckWith
-      stdArgs { maxSize = 20, maxSuccess = 50 }
-      (prop_SerializeIdentity :: ChunkBlock -> Bool)
-  describe "BiomeIndices" $ do
-    it "Identity" $ quickCheckWith
-      stdArgs
-      (prop_SerializeIdentity :: BiomeIndices -> Bool)
-  describe "BitsPerBlock" $ do
-    it "Identity" $ quickCheckWith
-      stdArgs
-      (prop_SerializeIdentity :: BitsPerBlock -> Bool)
-  describe "PrimaryBitMask" $ do
-    it "Identity" $ quickCheckWith
-      stdArgs
-      (prop_SerializeIdentity :: PrimaryBitMask -> Bool)
-  describe "Packing Indices" $ do
-    it "Identity" $ quickCheckWith
-      stdArgs
-      prop_IdentityPackIndices
-  describe "Compressing Indices" $ do
-    it "Identity" $ quickCheckWith
-      stdArgs
-      prop_IdentityCompressIndices
+  describe "ChunkColumn" $
+    it "Identity" $ do
+      r <- quickCheckWithResult
+        stdArgs { maxSize = 20, maxSuccess = 20 }
+        (prop_SerializeIdentity :: ChunkColumn -> Bool)
+      unless (isSuccess r) $ print r
+      isSuccess r `shouldBe` True
+  describe "ChunkColumnData" $
+    it "Identity" $ do
+      r <- quickCheckWithResult
+        stdArgs { maxSize = 20, maxSuccess = 20 }
+        (prop_SerializeIdentity :: ChunkColumnData -> Bool)
+      unless (isSuccess r) $ print r
+      isSuccess r `shouldBe` True
+  describe "ChunkBlock" $
+    it "Identity" $ do
+      r <- quickCheckWithResult
+        stdArgs { maxSize = 20, maxSuccess = 50 }
+        (prop_SerializeIdentity :: ChunkBlock -> Bool)
+      unless (isSuccess r) $ print r
+      isSuccess r `shouldBe` True
+  describe "BiomeIndices" $
+    it "Identity" $ do
+      r <- quickCheckWithResult
+        stdArgs
+        (prop_SerializeIdentity :: BiomeIndices -> Bool)
+      unless (isSuccess r) $ print r
+      isSuccess r `shouldBe` True
+  describe "BitsPerBlock" $
+    it "Identity" $ do
+      r <- quickCheckWithResult
+        stdArgs
+        (prop_SerializeIdentity :: BitsPerBlock -> Bool)
+      unless (isSuccess r) $ print r
+      isSuccess r `shouldBe` True
+  describe "PrimaryBitMask" $
+    it "Identity" $ do
+      r <- quickCheckWithResult
+        stdArgs
+        (prop_SerializeIdentity :: PrimaryBitMask -> Bool)
+      unless (isSuccess r) $ print r
+      isSuccess r `shouldBe` True
+  describe "Packing Indices" $
+    it "Identity" $ do
+      r <- quickCheckWithResult
+        stdArgs
+        prop_IdentityPackIndices
+      unless (isSuccess r) $ print r
+      isSuccess r `shouldBe` True
+  describe "Compressing Indices" $
+    it "Identity" $ do
+      r <- quickCheckWithResult
+        stdArgs
+        prop_IdentityCompressIndices
+      unless (isSuccess r) $ print r
+      isSuccess r `shouldBe` True
 
 main :: IO ()
 main = hspec spec

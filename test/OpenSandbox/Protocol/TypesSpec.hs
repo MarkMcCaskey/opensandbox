@@ -1,18 +1,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE FlexibleInstances #-}
-
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module OpenSandbox.Protocol.TypesSpec (main,spec) where
 
-import qualified  Data.ByteString as B
-import            Data.Int
-import qualified  Data.Text as T
-import            Data.UUID
-import qualified  Data.Vector as V
-import            Data.Word
-import            OpenSandbox
-import            Test.Hspec
-import            Test.QuickCheck
+import Control.Monad
+import qualified Data.ByteString as B
+import Data.Int
+import qualified Data.Text as T
+import Data.UUID
+import qualified Data.Vector as V
+import Data.Word
+import OpenSandbox
+import Test.Hspec
+import Test.QuickCheck
+import Test.QuickCheck.Test
 import OpenSandbox.WorldSpec()
 import Common
 import Data.NBTSpec()
@@ -51,6 +53,7 @@ instance Arbitrary TitleAction where
       3 -> SetTimesAndDisplay <$> arbitrary <*> arbitrary <*> arbitrary
       4 -> return Hide
       5 -> return Reset
+      _ -> fail "Error: This should not be possible!"
 
 instance Arbitrary TeamMode where
   arbitrary = do
@@ -76,6 +79,7 @@ instance Arbitrary TeamMode where
               <*> arbitrary
       4 -> AddPlayers <$> arbitrary
       5 -> RemovePlayers <$> arbitrary
+      _ -> fail "Error: This should not be possible!"
 
 instance Arbitrary EntityProperty where
   arbitrary = EntityProperty <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
@@ -98,6 +102,7 @@ instance Arbitrary WorldBorderAction where
             <*> arbitrary
       5 -> SetWarningTime <$> arbitrary
       6 -> SetWarningBlocks <$> arbitrary
+      _ -> fail "Error: This should not be possible!"
 
 instance Arbitrary Icon where
   arbitrary = Icon <$> arbitrary <*> arbitrary <*> arbitrary
@@ -109,6 +114,7 @@ instance Arbitrary CombatEvent where
       1 -> return $ EnterCombat
       2 -> EndCombat <$> arbitrary <*> arbitrary
       3 -> EntityDead <$> arbitrary <*> arbitrary <*> arbitrary
+      _ -> fail "Error: This should not be possible!"
 
 instance Arbitrary EntityStatus where
   arbitrary = fmap toEnum (choose (0,34) :: Gen Int)
@@ -147,6 +153,7 @@ instance Arbitrary ProtocolState where
     case switch of
       1 -> return ProtocolStatus
       2 -> return ProtocolLogin
+      _ -> fail "Error: This should not be possible!"
 
 instance Arbitrary PlayerListEntries where
   arbitrary = do
@@ -157,6 +164,7 @@ instance Arbitrary PlayerListEntries where
       2 -> PlayerListUpdateLatencies <$> arbitrary
       3 -> PlayerListUpdateDisplayNames <$> arbitrary
       4 -> PlayerListRemovePlayers <$> arbitrary
+      _ -> fail "Error: This should not be possible!"
 
 instance Arbitrary PlayerListAdd where
   arbitrary = do
@@ -222,6 +230,7 @@ instance Arbitrary BlockAction where
       0 -> NoteBlockAction <$> arbitrary <*> arbitrary
       1 -> PistonBlockAction <$> arbitrary <*> arbitrary
       2 -> ChestBlockAction <$> arbitrary
+      _ -> fail "Error: This should not be possible!"
 
 instance Arbitrary InstrumentType where
   arbitrary = fmap toEnum (choose (0,4) :: Gen Int)
@@ -245,6 +254,7 @@ instance Arbitrary BossBarAction where
       3 -> BossBarUpdateTitle <$> arbitrary
       4 -> BossBarUpdateStyle <$> arbitrary <*> arbitrary
       5 -> BossBarUpdateFlags <$> arbitrary
+      _ -> fail "Error: This should not be possible!"
 
 instance Arbitrary Slot where
   arbitrary = mkSlot <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
@@ -256,6 +266,7 @@ instance Arbitrary UseEntityType where
       0 -> InteractWithEntity <$> arbitrary
       1 -> return AttackEntity
       2 -> InteractAtEntity <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+      _ -> fail "Error: This should not be possible!"
 
 instance Arbitrary EntityHand where
   arbitrary = fmap toEnum (choose (0,1) :: Gen Int)
@@ -267,59 +278,180 @@ instance Arbitrary ScoreboardMode where
       0 -> CreateScoreboard <$> arbitrary <*> arbitrary
       1 -> return RemoveScoreboard
       2 -> UpdateDisplayText <$> arbitrary <*> arbitrary
+      _ -> fail "Error: This should not be possible!"
 
 spec :: Spec
 spec = do
   describe "Minecraft Protocol Core Types (Serialize)" $ do
-    context "VarInt:" $ do
-      it "Identity" $ property (prop_CustomSerializeIdentity putVarInt getVarInt :: Int -> Bool)
-    context "VarLong:" $ do
-      it "Identity" $ property (prop_CustomSerializeIdentity putVarLong getVarLong :: Int64 -> Bool)
-    context "String:" $ do
-      it "Identity" $ property (prop_CustomSerializeIdentity putText getText :: T.Text -> Bool)
-    context "EntityMetadata:" $ do
-      it "Identity" $ property (prop_CustomSerializeIdentity putEntityMetadata getEntityMetadata :: EntityMetadata -> Bool)
-    context "Slot:" $ do
-      it "Identity" $ property (prop_SerializeIdentity :: Slot -> Bool)
-    context "Position:" $ do
-      it "Identity" $ property (prop_CustomSerializeIdentity putPosition getPosition :: Position -> Bool)
-    context "Angle:" $ do
-      it "Identity" $ property (prop_CustomSerializeIdentity putAngle getAngle :: Angle -> Bool)
-    context "UUID:" $ do
-      it "Identity" $ property (prop_CustomSerializeIdentity putUUID getUUID :: UUID -> Bool)
-    context "UUID':" $ do
-      it "Identity" $ property (prop_CustomSerializeIdentity putUUID' getUUID' :: UUID -> Bool)
-    context "ByteArray:" $ do
-      it "Identity" $ property (prop_CustomSerializeIdentity putNetcodeByteString getNetcodeByteString :: B.ByteString -> Bool)
+    context "VarInt:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_CustomSerializeIdentity putVarInt getVarInt :: Int -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "VarLong:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_CustomSerializeIdentity putVarLong getVarLong :: Int64 -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "String:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_CustomSerializeIdentity putText getText :: T.Text -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "EntityMetadata:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_CustomSerializeIdentity putEntityMetadata getEntityMetadata :: EntityMetadata -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "Slot:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: Slot -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "Position:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_CustomSerializeIdentity putPosition getPosition :: Position -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "Angle:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_CustomSerializeIdentity putAngle getAngle :: Angle -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "UUID:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_CustomSerializeIdentity putUUID getUUID :: UUID -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "UUID':" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_CustomSerializeIdentity putUUID' getUUID' :: UUID -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "ByteArray:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_CustomSerializeIdentity putNetcodeByteString getNetcodeByteString :: B.ByteString -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
   describe "Minecraft Protocol Custom Records" $ do
-    context "BlockChange:" $ do
-      it "Identity" $ property (prop_SerializeIdentity :: BlockChange -> Bool)
-    context "Statistic:" $ do
-      it "Identity" $ property (prop_SerializeIdentity :: Statistic -> Bool)
-    context "PlayerProperty:" $ do
-      it "Identity" $ property (prop_SerializeIdentity :: PlayerProperty -> Bool)
-    context "PlayerListEntries:" $ do
-      it "Identity" $ property (prop_SerializeIdentity :: PlayerListEntries -> Bool)
-    context "Icon:" $ do
-      it "Identity" $ property (prop_SerializeIdentity :: Icon -> Bool)
-    context "EntityProperty:" $ do
-      it "Identity" $ property (prop_SerializeIdentity :: EntityProperty -> Bool)
-    context "BlockAction:" $ do
-      it "Identity" $ property (prop_SerializeIdentity :: BlockAction -> Bool)
-    context "BossBar:" $ do
-      it "Identity" $ property (prop_SerializeIdentity :: BossBarAction -> Bool)
-    context "WorldBorderAction:" $ do
-      it "Identity" $ property (prop_SerializeIdentity :: WorldBorderAction -> Bool)
-    context "UpdatedColumns:" $ do
-      it "Identity" $ property (prop_SerializeIdentity :: UpdatedColumns -> Bool)
-    context "CombatEvent:" $ do
-      it "Identity" $ property (prop_SerializeIdentity :: CombatEvent -> Bool)
-    context "ScoreboardMode:" $ do
-      it "Identity" $ property (prop_SerializeIdentity :: ScoreboardMode -> Bool)
-    context "TeamMode:" $ do
-      it "Identity" $ property (prop_SerializeIdentity :: TeamMode -> Bool)
-    context "TitleAction:" $ do
-      it "Identity" $ property (prop_SerializeIdentity :: TitleAction -> Bool)
+    context "BlockChange:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: BlockChange -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "Statistic:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: Statistic -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "PlayerProperty:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: PlayerProperty -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "PlayerListEntries:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: PlayerListEntries -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "Icon:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: Icon -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "EntityProperty:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: EntityProperty -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "BlockAction:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: BlockAction -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "BossBar:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: BossBarAction -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "WorldBorderAction:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: WorldBorderAction -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "UpdatedColumns:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: UpdatedColumns -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "CombatEvent:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: CombatEvent -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "ScoreboardMode:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: ScoreboardMode -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "TeamMode:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: TeamMode -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
+    context "TitleAction:" $
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: TitleAction -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
 
 main :: IO ()
 main = hspec spec

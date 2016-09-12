@@ -1,16 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Data.NBTSpec (main,spec) where
 
-import            Control.Monad
-import qualified  Data.Array.IArray as IA
-import            Data.Array.Unboxed (listArray)
-import            Data.NBT
-import            Data.Serialize
-import qualified  Data.Text as T
-import qualified  Data.Vector as V
-import            Test.Hspec
-import            Test.QuickCheck
+import Control.Monad
+import qualified Data.Array.IArray as IA
+import Data.Array.Unboxed (listArray)
+import Data.NBT
+import Data.Serialize
+import qualified Data.Text as T
+import qualified Data.Vector as V
+import Test.Hspec
+import Test.QuickCheck
+import Test.QuickCheck.Test
 import Common
 import OpenSandbox.Protocol.Types (putVarInt,getVarInt)
 
@@ -70,10 +72,20 @@ prop_NBTsSerializeIdentity nbts = Right nbts == (decode (encode nbts) :: Either 
 
 spec :: Spec
 spec = do
-  describe "NBT" $ do
-    it "Identity" $ property (prop_SerializeIdentity :: NBT -> Bool)
-  describe "Vector NBT" $ do
-    it "Identity" $ property prop_NBTsSerializeIdentity
+  describe "NBT" $
+    it "Identity" $ do
+      r <- quickCheckWithResult
+        stdArgs
+        (prop_SerializeIdentity :: NBT -> Bool)
+      unless (isSuccess r) $ print r
+      isSuccess r `shouldBe` True
+  describe "Vector NBT" $
+    it "Identity" $ do
+      r <- quickCheckWithResult
+        stdArgs
+        prop_NBTsSerializeIdentity
+      unless (isSuccess r) $ print r
+      isSuccess r `shouldBe` True
 
 main :: IO ()
 main = hspec spec

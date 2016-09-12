@@ -1,14 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE FlexibleInstances #-}
-
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module OpenSandbox.Protocol.PacketSpec (main,spec) where
 
-import qualified  Data.ByteString as B
-import            Data.Word
-import            OpenSandbox
-import            Test.Hspec
-import            Test.QuickCheck
+import Control.Monad
+import qualified Data.ByteString as B
+import Data.Word
+import OpenSandbox
+import Test.Hspec
+import Test.QuickCheck
+import Test.QuickCheck.Test
 import Common
 import OpenSandbox.WorldSpec()
 import OpenSandbox.Protocol.TypesSpec()
@@ -30,6 +32,7 @@ instance Arbitrary SBStatus where
       0x01 -> do
         a <- arbitrary
         return $ SBPing a
+      _ -> fail "Error: This should not be possible!"
 
 instance Arbitrary CBStatus where
   arbitrary = do
@@ -45,6 +48,7 @@ instance Arbitrary CBStatus where
       0x01  -> do
         a <- arbitrary
         return $ CBPong a
+      _ -> fail "Error: This should not be possible!"
 
 instance Arbitrary CBLogin where
   arbitrary = do
@@ -65,6 +69,7 @@ instance Arbitrary CBLogin where
       3 -> do
         a <- arbitrary
         return $ CBSetCompression a
+      _ -> fail "Error: This should not be possible!"
 
 instance Arbitrary SBLogin where
   arbitrary = do
@@ -77,6 +82,7 @@ instance Arbitrary SBLogin where
         a <- fmap B.pack arbitrary
         b <- fmap B.pack arbitrary
         return $ SBEncryptionResponse a b
+      _ -> fail "Error: This should not be possible!"
 
 instance Arbitrary CBPlay where
   arbitrary = do
@@ -480,6 +486,7 @@ instance Arbitrary CBPlay where
         d <- arbitrary
         e <- arbitrary
         return $ CBEntityEffect a b c d e
+      _ -> fail "Error: This should not be possible!"
 
 instance Arbitrary SBPlay where
   arbitrary = do
@@ -625,24 +632,60 @@ instance Arbitrary SBPlay where
       0x1D -> do
         a <- arbitrary
         return $ SBUseItem a
+      _ -> fail "Error: This should not be possible!"
 
 spec :: Spec
 spec =
   describe "Minecraft Protocol Packets" $ do
     context "Server bound handshaking packets:" $
-      it "Identity" $ property (prop_SerializeIdentity :: SBHandshaking -> Bool)
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: SBHandshaking -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
     context "Client bound status packets:" $
-      it "Identity" $ property (prop_SerializeIdentity :: CBStatus -> Bool)
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: CBStatus -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
     context "Server bound status packets:" $
-      it "Identity" $ property (prop_SerializeIdentity :: SBStatus -> Bool)
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: SBStatus -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
     context "Client bound login packets:" $
-      it "Identity" $ property (prop_SerializeIdentity :: CBLogin -> Bool)
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: CBLogin -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
     context "Server bound login packets:" $
-      it "Identity" $ property (prop_SerializeIdentity :: SBLogin -> Bool)
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: SBLogin -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
     context "Client bound play packets:" $
-      it "Identity" $ property (prop_SerializeIdentity :: CBPlay -> Bool)
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: CBPlay -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
     context "Server bound play packets:" $
-      it "Identity" $ property (prop_SerializeIdentity :: SBPlay -> Bool)
+      it "Identity" $ do
+        r <- quickCheckWithResult
+          stdArgs
+          (prop_SerializeIdentity :: SBPlay -> Bool)
+        unless (isSuccess r) $ print r
+        isSuccess r `shouldBe` True
 
 main :: IO ()
 main = hspec spec

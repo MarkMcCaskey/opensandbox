@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module OpenSandbox.Data.BlockSpec (main,spec) where
 
 import Test.Hspec

@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Common
   ( prop_SerializeIdentity
   , prop_CustomSerializeIdentity
