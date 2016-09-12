@@ -7,7 +7,6 @@ import qualified Data.ByteString as B
 import Data.Serialize
 import qualified Data.Text as T
 import Test.QuickCheck
-import Test.Hspec
 
 instance Arbitrary T.Text where
   arbitrary = fmap T.pack arbitrary

@@ -60,7 +60,6 @@ library
                             nbt,
                             optparse-applicative,
                             path,
-                            QuickCheck,
                             scientific,
                             stm,
                             text,

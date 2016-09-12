@@ -99,18 +99,14 @@ module OpenSandbox.Data.Block
 
 import            Data.Aeson
 import            Data.Aeson.Types
-import qualified  Data.Attoparsec.ByteString as Decode
 import qualified  Data.Attoparsec.Text as A
 import            Data.Bits
-import qualified  Data.ByteString.Builder as Encode
 import            Data.Data
 import            Data.Hashable
 import qualified  Data.HashMap.Strict as H
-import qualified  Data.List as L
 import            Data.Scientific
 import            Data.Serialize
 import qualified  Data.Text as T
-import qualified  Data.Vector as V
 import            Data.Word
 import            Control.DeepSeq
 import            Foreign.Storable

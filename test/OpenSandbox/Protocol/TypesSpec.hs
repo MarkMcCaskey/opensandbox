@@ -4,28 +4,15 @@
 
 module OpenSandbox.Protocol.TypesSpec (main,spec) where
 
-import            Control.Monad
-import qualified  Data.Array.IArray as IA
-import            Data.Array.Unboxed (listArray)
-import            Data.Bits
 import qualified  Data.ByteString as B
-import qualified  Data.ByteString.Lazy as BL
-import            Data.Either
 import            Data.Int
-import            Data.Monoid
-import            Data.NBT
-import            Data.Serialize
 import qualified  Data.Text as T
-import            Data.Text.Encoding
 import            Data.UUID
 import qualified  Data.Vector as V
-import qualified  Data.Vector.Unboxed as U
 import            Data.Word
 import            OpenSandbox
 import            Test.Hspec
 import            Test.QuickCheck
-import            GHC.Generics
-
 import OpenSandbox.WorldSpec()
 import Common
 import Data.NBTSpec()
@@ -135,19 +122,7 @@ instance Arbitrary GameChangeReason where
     if i /= 9
       then return (toEnum i)
       else return (toEnum (i - 1))
-{-
-instance Arbitrary ChunkSection where
-  arbitrary = do
-    m <- arbitrary :: Gen Bool
-    ChunkSection
-      <$> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> (fmap B.pack $ vectorOf 2048 (arbitrary :: Gen Word8))
-      <*> case m of
-          False -> return Nothing
-          True -> fmap Just (fmap B.pack $ vectorOf 2048 (arbitrary :: Gen Word8))
--}
+
 instance Arbitrary Difficulty where
   arbitrary = fmap toEnum (choose (0,3) :: Gen Int)
 

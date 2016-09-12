@@ -14,7 +14,6 @@
 import            Control.Monad
 import qualified  Data.Aeson as A
 import qualified  Data.ByteString as B
-import            Data.Maybe
 import qualified  Data.Text as T
 import            OpenSandbox
 import            Path

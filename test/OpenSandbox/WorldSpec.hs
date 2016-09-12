@@ -2,15 +2,12 @@
 
 module OpenSandbox.WorldSpec (main,spec) where
 
-import Control.Monad
-import Data.NBT
-import Data.Serialize
 import qualified Data.Vector as V
 import Data.Word
 import Test.Hspec
 import Test.QuickCheck
 import OpenSandbox.Data.BlockSpec()
-import OpenSandbox.Data.Block (BlockStateID,BlockIndice)
+import OpenSandbox.Data.Block (BlockIndice)
 import OpenSandbox.World
 import Common
 import Data.NBTSpec()
