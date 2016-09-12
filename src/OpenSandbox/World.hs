@@ -16,27 +16,29 @@ module OpenSandbox.World
   ( BitsPerBlock
   , BitsPerBlockOption (..)
   , mkBitsPerBlock
-  --, encodeBitsPerBlock
-  --, decodeBitsPerBlock
-  , ChunkColumn (..)
-  , ChunkColumnData (..)
-  , ChunkBlock (..)
-  , initChunkBlock
-  , ChunkBlockData (..)
-  , initChunkBlockData
+  , ChunkColumn
+  , mkChunkColumn
+  , ChunkColumnData
+  , mkChunkColumnData
+  , unChunkColumnData
+  , ChunkBlock
+  , mkChunkBlock
+  , ChunkBlockData
+  , mkChunkBlockData
   , unChunkBlockData
-  , BiomeIndices (..)
+  , BiomeIndices
+  , mkBiomeIndices
+  , unBiomeIndices
   , BlockIndices (..)
-
   , PrimaryBitMask
   , mkPrimaryBitMask
   , unPrimaryBitMask
-
   , unBlockIndices
   , compressIndices
   , decompressIndices
   , packIndices
   , unpackIndices
+  , calcPalette
   ) where
 
 import Control.Applicative
@@ -47,7 +49,6 @@ import qualified Data.ByteString as B
 import Data.Int
 import qualified Data.List as L
 import Data.Maybe
-import Data.NBT
 import Data.Serialize
 import qualified Data.HashSet as HS
 import qualified Data.Vector as V
@@ -56,13 +57,19 @@ import GHC.Generics (Generic)
 import OpenSandbox.Data.Block (BlockStateID,BlockIndice)
 import OpenSandbox.Protocol.Types (putVarInt,getVarInt)
 
+--------------------------------------------------------------------------------
+
 data ChunkColumn = ChunkColumn
-  { chunkX :: Int32
-  , chunkZ :: Int32
-  , primaryBitMask :: PrimaryBitMask
-  , chunkColumnData :: ChunkColumnData
-  , biomesArray :: BiomeIndices
+  { _chunkX :: Int32
+  , _chunkZ :: Int32
+  , _primaryBitMask :: PrimaryBitMask
+  , _chunkColumnData :: ChunkColumnData
+  , _biomesArray :: BiomeIndices
   } deriving (Show,Eq)
+
+mkChunkColumn :: Int32 -> Int32 -> ChunkColumnData -> BiomeIndices -> ChunkColumn
+mkChunkColumn cX cZ chunks biomes =
+  ChunkColumn cX cZ (mkPrimaryBitMask chunks) chunks biomes
 
 instance Serialize ChunkColumn where
   put (ChunkColumn cX cZ bitMask chunks biomes) = do
@@ -82,7 +89,18 @@ instance Serialize ChunkColumn where
     biomes <- get
     return $ ChunkColumn cX cZ bitMask chunks biomes
 
+--------------------------------------------------------------------------------
+
 data ChunkColumnData = ChunkColumnData [ChunkBlock] deriving (Show,Eq)
+
+mkChunkColumnData :: [ChunkBlock] -> Either String ChunkColumnData
+mkChunkColumnData [] = Left "Error: Needs at least one chunk in column defined!"
+mkChunkColumnData chunks
+  | length chunks <= 16 = Right (ChunkColumnData chunks)
+  | otherwise = Left "Error: Can only have up to 16 chunks per column!"
+
+unChunkColumnData :: ChunkColumnData -> [ChunkBlock]
+unChunkColumnData (ChunkColumnData column) = column
 
 instance Serialize ChunkColumnData where
   put (ChunkColumnData chunks)= do
@@ -100,21 +118,29 @@ instance Serialize ChunkColumnData where
       many1 :: Alternative f => f a -> f [a]
       many1 g = liftA2 (:) g (many g)
 
-unChunkColumnData :: ChunkColumnData -> [ChunkBlock]
-unChunkColumnData (ChunkColumnData column) = column
+--------------------------------------------------------------------------------
 
 data ChunkBlock = ChunkBlock
-  { chunkDataArray :: ChunkBlockData
-  , chunkBlockLight :: V.Vector Word8
-  , chunkSkyLight :: V.Vector Word8
+  { _chunkBPB :: BitsPerBlock
+  , _chunkPalette :: LocalPalette
+  , _chunkDataArray :: ChunkBlockData
+  , _chunkBlockLight :: V.Vector Word8
+  , _chunkSkyLight :: V.Vector Word8
   } deriving (Show,Eq)
 
-initChunkBlock :: ChunkBlock
-initChunkBlock = ChunkBlock initChunkBlockData (V.replicate 2048 0) (V.replicate 2048 0)
+mkChunkBlock :: ChunkBlockData -> V.Vector Word8 -> V.Vector Word8 -> Either String ChunkBlock
+mkChunkBlock dat blockLight skyLight
+  | ((V.length . unChunkBlockData $ dat) == 4096)
+    && (V.length blockLight == 2048)
+    && (V.length skyLight == 2048) =
+      Right $ ChunkBlock bpb palette dat blockLight skyLight
+  | otherwise = Left "Error: Invalid length of ChunkBlockData!"
+  where
+    (bpb,palette) = calcPalette dat
 
 instance Serialize ChunkBlock where
-  put (ChunkBlock datArray blockLight skyLight) = do
-    let (bpb,palette,indices) = compressIndices datArray
+  put (ChunkBlock bpb palette datArray blockLight skyLight) = do
+    let indices = compressIndices bpb palette datArray
     put bpb
     putVarInt . V.length $ palette
     V.mapM_ (putVarInt . fromIntegral) palette
@@ -131,15 +157,17 @@ instance Serialize ChunkBlock where
     datArray <- replicateM datArrayLn getWord64be
     blockLight <- V.replicateM 2048 getWord8
     skyLight <- V.replicateM 2048 getWord8
-    let datArray' = decompressIndices (bpb,palette,datArray)
-    return $ ChunkBlock datArray' blockLight skyLight
+    let datArray' = decompressIndices bpb palette datArray
+    return $ ChunkBlock bpb palette datArray' blockLight skyLight
 
 --------------------------------------------------------------------------------
 
 newtype ChunkBlockData = ChunkBlockData (V.Vector BlockStateID) deriving (Show,Eq)
 
-initChunkBlockData :: ChunkBlockData
-initChunkBlockData = ChunkBlockData $ V.replicate 4096 0
+mkChunkBlockData :: V.Vector BlockStateID -> Either String ChunkBlockData
+mkChunkBlockData blocks = if V.length blocks == 4096
+                             then Right $ ChunkBlockData blocks
+                             else Left "Error: Invalid number of BlockStateIDs, must be 4096!"
 
 unChunkBlockData :: ChunkBlockData -> V.Vector BlockStateID
 unChunkBlockData (ChunkBlockData blocks) = blocks
@@ -162,8 +190,13 @@ instance Serialize PrimaryBitMask where
 
 newtype BiomeIndices = BiomeIndices (V.Vector Word8) deriving (Show,Eq)
 
-initBiomeIndices :: BiomeIndices
-initBiomeIndices = BiomeIndices $ V.replicate 256 0
+mkBiomeIndices :: V.Vector Word8 -> Either String BiomeIndices
+mkBiomeIndices indices
+  | V.length indices == 256 = Right $ BiomeIndices indices
+  | otherwise = Left "Error: Provide exactly 256 biome indices!"
+
+unBiomeIndices :: BiomeIndices -> V.Vector Word8
+unBiomeIndices (BiomeIndices indices) = indices
 
 instance Serialize BiomeIndices where
   put (BiomeIndices bi) = V.mapM_ putWord8 bi
@@ -178,12 +211,9 @@ unBlockIndices (BlockIndices indices) = indices
 
 type LocalPalette = V.Vector BlockStateID
 
-compressIndices :: ChunkBlockData -> (BitsPerBlock,LocalPalette,[Word64])
-compressIndices (ChunkBlockData blocks) = (bpb,palette,packIndices bpb 0 0 compressedBlocks)
+calcPalette :: ChunkBlockData -> (BitsPerBlock,LocalPalette)
+calcPalette (ChunkBlockData blocks) = (bpb,palette)
   where
-    compressedBlocks :: BlockIndices
-    compressedBlocks = BlockIndices . V.toList
-      $ fmap (\x -> fromIntegral $ fromJust $ V.elemIndex x palette) blocks
     palette = V.fromList . HS.toList . HS.fromList . V.toList $ blocks
     bpb :: BitsPerBlock
     bpb
@@ -196,13 +226,19 @@ compressIndices (ChunkBlockData blocks) = (bpb,palette,packIndices bpb 0 0 compr
       . (toEnum :: Int -> Word16)
       . V.length $ palette
 
-decompressIndices :: (BitsPerBlock,LocalPalette,[Word64]) -> ChunkBlockData
-decompressIndices (bpb,palette,indices) = ChunkBlockData decompressedIndices
+compressIndices :: BitsPerBlock -> LocalPalette -> ChunkBlockData -> [Word64]
+compressIndices bpb palette (ChunkBlockData blocks) = packIndices bpb 0 0 compressedBlocks
+  where
+    compressedBlocks :: BlockIndices
+    compressedBlocks = BlockIndices . V.toList
+      $ fmap (\x -> fromIntegral $ fromJust $ V.elemIndex x palette) blocks
+
+decompressIndices :: BitsPerBlock -> LocalPalette -> [Word64] -> ChunkBlockData
+decompressIndices bpb palette indices = ChunkBlockData decompressedIndices
   where
     unpackedIndices = V.fromList $ unpackIndices bpb 0 0 indices :: V.Vector BlockIndice
     decompressedIndices = V.backpermute palette (fmap fromEnum unpackedIndices)
 
--- (NOTE) 'a' must also be divisable by BitsPerBlock, otherwise unpacking will pad out the remainder with zeros.
 packIndices :: BitsPerBlock -> BlockIndice -> Int -> BlockIndices -> [Word64]
 packIndices (BitsPerBlock bpb) partialL offsetL (BlockIndices []) =
   [fromIntegral partialL `shift` (64 - offsetL)]
@@ -311,78 +347,3 @@ instance Enum BitsPerBlockOption where
   toEnum 15 = BitsPerBlock15
   toEnum 16 = BitsPerBlock16
   toEnum _ = undefined
-
-{-
-encodeBitsPerBlock :: BitsPerBlock -> Encode.Builder
-encodeBitsPerBlock (BitsPerBlock bpb) = Encode.word8 bpb
-
-decodeBitsPerBlock :: Decode.Parser BitsPerBlock
-decodeBitsPerBlock = do
-  rawBPB <- Decode.anyWord8
-  if (rawBPB >= 4) && (rawBPB <= 13)
-    then return $ BitsPerBlock rawBPB
-    else fail "Error: Invalid BitsPerBlock value"
--}
---------------------------------------------------------------------------------
-
---type GlobalPalette = V.Vector BlockStateID
-
-{-
-mkGlobalPalette :: [BlockImport] -> GlobalPalette
-mkGlobalPalette = V.fromList . L.sort . L.concatMap encodeBlockImport
-  where
-    getBlockImportId :: BlockImport -> Word16
-    getBlockImportId = id
-    getMetadata :: Variation -> Word16
-    getMetadata = metadata
-    encodedBlockID :: BlockImport -> Word16
-    encodedBlockID bi = (fromIntegral $ getBlockImportId bi) `shiftL` 4
-    encodeBlockImport :: BlockImport -> [BlockStateID]
-    encodeBlockImport bi =
-      case variations bi of
-        Nothing -> [BlockStateID $ toEnum . fromEnum $ encodedBlockID bi]
-        Just vlst -> fmap (BlockStateID . toEnum . fromEnum . (\x -> encodedBlockID bi .|. x) . toEnum . fromEnum . getMetadata) vlst
--}
-
---------------------------------------------------------------------------------
-
-{-
-genFlatWorld :: Int32 -> [CBPlay]
-genFlatWorld radius = [chunkDataPacket1 x z | x <- [(-radius)..radius], z <- [(-radius)..radius]]
-  where
-  chunkDataPacket1 x z =
-    CBChunkData
-    --x
-    --z
-    --1
-    [chunkSection1]
-    --(Just $ B.replicate 256 1)
-    --V.empty
-  chunkSection1 =
-    ChunkSection
-      (mkBitsPerBlock BitsPerBlock4)
-      [0,112,48,32]
-      flatWorldBase
-      (B.replicate 2048 0)
-      (Just (B.replicate 2048 255))
-  flatWorldBase = V.concat
-    [ bedrockLayer
-    , dirtLayer
-    , dirtLayer
-    , grassLayer
-    , (V.concat $ replicate 12 airLayer)
-    ]
-  airLayer = V.replicate 16 (0 :: Int64)
-  grassLayer = V.replicate 16 $ V.foldl' (xor) 0 $
-    V.zipWith setBit
-      (V.replicate 32 (0 :: Int64))
-      [0,1,4,5,8,9,12,13,16,17,20,21,24,25,28,29,32,33,36,37,40,41,44,45,48,49,52,53,56,57,60,61]
-  dirtLayer = V.replicate 16 $ V.foldl' (xor) 0 $
-    V.zipWith setBit
-      (V.replicate 16 (0 :: Int64))
-      [1,5,9,13,17,21,25,29,33,37,41,45,49,53,57,61]
-  bedrockLayer = V.replicate 16 $ V.foldl' (xor) 0 $
-    V.zipWith setBit
-      (V.replicate 16 (0 :: Int64))
-      [0,4,8,12,16,20,24,28,32,36,40,44,48,52,56,60]
--}

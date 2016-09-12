@@ -22,30 +22,38 @@ instance Arbitrary BlockIndices where
   arbitrary = BlockIndices <$> vectorOf 4096 arbitrary
 
 instance Arbitrary ChunkColumn where
-  arbitrary =
-    ChunkColumn
-      <$> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
+  arbitrary = mkChunkColumn <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary ChunkColumnData where
   arbitrary = do
     k <- choose (1,16) :: Gen Int
-    ChunkColumnData <$> vectorOf k arbitrary
+    chunks <- vectorOf k arbitrary
+    case mkChunkColumnData chunks of
+      Left err -> fail err
+      Right chunkColumnData -> return chunkColumnData
 
 instance Arbitrary ChunkBlock where
-  arbitrary = ChunkBlock
-              <$> arbitrary
-              <*> (V.fromList <$> vectorOf 2048 arbitrary)
-              <*> (V.fromList <$> vectorOf 2048 arbitrary)
+  arbitrary = do
+    dat <- arbitrary :: Gen ChunkBlockData
+    blockLight <- (V.fromList <$> vectorOf 2048 arbitrary)
+    skyLight <- (V.fromList <$> vectorOf 2048 arbitrary)
+    case mkChunkBlock dat blockLight skyLight of
+      Left err -> fail err
+      Right chunkBlock -> return chunkBlock
 
 instance Arbitrary ChunkBlockData where
-  arbitrary = (ChunkBlockData . V.fromList) <$> vectorOf 4096 arbitrary
+  arbitrary = do
+    blocks <- vectorOf 4096 arbitrary
+    case (mkChunkBlockData . V.fromList $ blocks) of
+      Left err -> fail err
+      Right chunkBlockData -> return chunkBlockData
 
 instance Arbitrary BiomeIndices where
-  arbitrary = (BiomeIndices . V.fromList) <$> vectorOf 256 arbitrary
+  arbitrary = do
+    indices <- vectorOf 256 arbitrary
+    case (mkBiomeIndices . V.fromList $ indices) of
+      Left err -> fail err
+      Right biomeIndices -> return biomeIndices
 
 instance Arbitrary BitsPerBlock where
   arbitrary = fmap mkBitsPerBlock (arbitrary :: Gen BitsPerBlockOption)
@@ -63,7 +71,9 @@ prop_IdentityPackIndices indices =
     bpb = mkBitsPerBlock BitsPerBlock16
 
 prop_IdentityCompressIndices :: ChunkBlockData -> Bool
-prop_IdentityCompressIndices indices = indices == decompressIndices (compressIndices indices)
+prop_IdentityCompressIndices indices = indices == decompressIndices bpb palette (compressIndices bpb palette indices)
+  where
+    (bpb,palette) = calcPalette indices
 
 spec :: Spec
 spec = do
