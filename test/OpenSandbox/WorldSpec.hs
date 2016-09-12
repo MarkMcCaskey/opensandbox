@@ -19,7 +19,7 @@ instance Arbitrary BlockIndices where
   arbitrary = BlockIndices <$> vectorOf 4096 arbitrary
 
 instance Arbitrary ChunkColumn where
-  arbitrary = mkChunkColumn <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = mkChunkColumn <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary ChunkColumnData where
   arbitrary = do

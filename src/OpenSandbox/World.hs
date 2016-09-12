@@ -49,6 +49,7 @@ import qualified Data.ByteString as B
 import Data.Int
 import qualified Data.List as L
 import Data.Maybe
+import Data.NBT
 import Data.Serialize
 import qualified Data.HashSet as HS
 import qualified Data.Vector as V
@@ -65,20 +66,23 @@ data ChunkColumn = ChunkColumn
   , _primaryBitMask :: PrimaryBitMask
   , _chunkColumnData :: ChunkColumnData
   , _biomesArray :: BiomeIndices
+  , _blockEntities :: V.Vector NBT
   } deriving (Show,Eq)
 
-mkChunkColumn :: Int32 -> Int32 -> ChunkColumnData -> BiomeIndices -> ChunkColumn
-mkChunkColumn cX cZ chunks biomes =
-  ChunkColumn cX cZ (mkPrimaryBitMask chunks) chunks biomes
+mkChunkColumn :: Int32 -> Int32 -> ChunkColumnData -> BiomeIndices -> V.Vector NBT -> ChunkColumn
+mkChunkColumn cX cZ chunks biomes entities =
+  ChunkColumn cX cZ (mkPrimaryBitMask chunks) chunks biomes entities
 
 instance Serialize ChunkColumn where
-  put (ChunkColumn cX cZ bitMask chunks biomes) = do
+  put (ChunkColumn cX cZ bitMask chunks biomes entities) = do
     put cX
     put cZ
     put bitMask
     put True
     put chunks
     put biomes
+    putVarInt . V.length $ entities
+    V.mapM_ put entities
 
   get = do
     cX <- getInt32be
@@ -87,7 +91,9 @@ instance Serialize ChunkColumn where
     _ <- get :: Get Bool
     chunks <- get
     biomes <- get
-    return $ ChunkColumn cX cZ bitMask chunks biomes
+    ln <- getVarInt
+    entities <- V.replicateM ln get
+    return $ ChunkColumn cX cZ bitMask chunks biomes entities
 
 --------------------------------------------------------------------------------
 
@@ -107,13 +113,13 @@ instance Serialize ChunkColumnData where
     let bs = runPut (mapM_ put chunks)
     putVarInt . B.length $ bs
     putByteString bs
-    mapM_ put chunks
 
   get = do
     ln <- getVarInt
     bs <- getBytes ln
-    chunks <- many1 (get :: Get ChunkBlock)
-    return $ ChunkColumnData chunks
+    case runGet (many1 get) bs of
+      Left err -> fail err
+      Right chunks -> return $ ChunkColumnData chunks
     where
       many1 :: Alternative f => f a -> f [a]
       many1 g = liftA2 (:) g (many g)
