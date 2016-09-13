@@ -17,20 +17,20 @@ module OpenSandbox.Config
   , loadConfig
   ) where
 
-import            Control.Monad
-import            Crypto.PubKey.RSA
-import            Data.Aeson
-import            Data.ASN1.BinaryEncoding
-import            Data.ASN1.Encoding
-import            Data.ASN1.Types hiding (End)
-import qualified  Data.ByteString as B
-import            Data.Int
-import qualified  Data.Text as T
-import            Data.Word
-import            Data.X509
-import            Data.Yaml
-import            OpenSandbox.Protocol.Types
-import            Path
+import Control.Monad
+import Crypto.PubKey.RSA
+import Data.Aeson
+import Data.ASN1.BinaryEncoding
+import Data.ASN1.Encoding
+import Data.ASN1.Types hiding (End)
+import qualified Data.ByteString as B
+import Data.Int
+import qualified Data.Text as T
+import Data.Word
+import Data.X509
+import Data.Yaml
+import OpenSandbox.Protocol.Types
+import Path
 
 
 data Config = Config

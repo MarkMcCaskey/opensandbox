@@ -15,7 +15,7 @@ import OpenSandbox
 import Test.Hspec
 import Test.QuickCheck
 import Test.QuickCheck.Test
-import OpenSandbox.WorldSpec()
+import OpenSandbox.World.ChunkSpec()
 import Common
 import Data.NBTSpec()
 

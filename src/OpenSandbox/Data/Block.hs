@@ -97,21 +97,21 @@ module OpenSandbox.Data.Block
   -}
   ) where
 
-import            Data.Aeson
-import            Data.Aeson.Types
-import qualified  Data.Attoparsec.Text as A
-import            Data.Bits
-import            Data.Data
-import            Data.Hashable
-import qualified  Data.HashMap.Strict as H
-import            Data.Scientific
-import            Data.Serialize
-import qualified  Data.Text as T
-import            Data.Word
-import            Control.DeepSeq
-import            Foreign.Storable
-import            GHC.Generics (Generic)
-import            Prelude hiding (id)
+import Data.Aeson
+import Data.Aeson.Types
+import qualified Data.Attoparsec.Text as A
+import Data.Bits
+import Data.Data
+import Data.Hashable
+import qualified Data.HashMap.Strict as H
+import Data.Scientific
+import Data.Serialize
+import qualified Data.Text as T
+import Data.Word
+import Control.DeepSeq
+import Foreign.Storable
+import GHC.Generics (Generic)
+import Prelude hiding (id)
 
 newtype BlockStateID = BlockStateID Word16
   deriving (Show,Eq,Ord,Enum,Bounded,Bits,Num,Real,Integral,Storable,Generic,Hashable)

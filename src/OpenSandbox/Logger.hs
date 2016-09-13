@@ -22,13 +22,13 @@ module OpenSandbox.Logger
   , runLogger
   ) where
 
-import            Control.Concurrent (ThreadId,forkIO)
-import            Control.Concurrent.Chan
-import            Control.Monad
-import            Control.Monad.Logger
-import            Data.Monoid
-import qualified  Data.Text as T
-import            System.Log.FastLogger
+import Control.Concurrent (ThreadId,forkIO)
+import Control.Concurrent.Chan
+import Control.Monad
+import Control.Monad.Logger
+import Data.Monoid
+import qualified Data.Text as T
+import System.Log.FastLogger
 
 data Logger = Logger
   { _lChan       :: Chan (Loc, LogSource, LogLevel, LogStr)

@@ -1,18 +1,18 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module OpenSandbox.WorldSpec (main,spec) where
+module OpenSandbox.World.ChunkSpec (main,spec) where
 
+import Common
 import Control.Monad
+import Data.NBTSpec()
 import qualified Data.Vector as V
 import Data.Word
 import Test.Hspec
 import Test.QuickCheck
 import Test.QuickCheck.Test
-import OpenSandbox.Data.BlockSpec()
 import OpenSandbox.Data.Block (BlockIndice)
+import OpenSandbox.Data.BlockSpec()
 import OpenSandbox.World
-import Common
-import Data.NBTSpec()
 
 instance Arbitrary BlockIndice where
   arbitrary = fromIntegral <$> (arbitrary :: Gen Word8) :: Gen BlockIndice
@@ -26,7 +26,7 @@ instance Arbitrary ChunkColumn where
 instance Arbitrary ChunkColumnData where
   arbitrary = do
     k <- choose (1,16) :: Gen Int
-    chunks <- vectorOf k arbitrary
+    chunks <- V.fromList <$> vectorOf k arbitrary
     case mkChunkColumnData chunks of
       Left err -> fail err
       Right chunkColumnData -> return chunkColumnData

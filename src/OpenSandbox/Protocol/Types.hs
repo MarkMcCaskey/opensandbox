@@ -94,25 +94,25 @@ module OpenSandbox.Protocol.Types
   , getUUID'
   ) where
 
-import            Control.DeepSeq
-import            Control.Monad
-import            Crypto.PubKey.RSA
-import qualified  Data.Aeson as A
-import            Data.Bits
-import qualified  Data.ByteString as B
-import qualified  Data.ByteString.Lazy as BL
-import            Data.Int
-import            Data.List
-import            Data.Maybe
-import            Data.NBT
-import            Data.Serialize
-import qualified  Data.Text as T
-import            Data.Text.Encoding
-import            Data.UUID
-import qualified  Data.Vector as V
-import            Data.Word
-import            GHC.Generics
-import            Prelude hiding (max)
+import Control.DeepSeq
+import Control.Monad
+import Crypto.PubKey.RSA
+import qualified Data.Aeson as A
+import Data.Bits
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as BL
+import Data.Int
+import Data.List
+import Data.Maybe
+import Data.NBT
+import Data.Serialize
+import qualified Data.Text as T
+import Data.Text.Encoding
+import Data.UUID
+import qualified Data.Vector as V
+import Data.Word
+import GHC.Generics
+import Prelude hiding (max)
 
 data WorldType = Default | Flat | LargeBiomes | Amplified
   deriving (Eq,Enum,Generic)

@@ -12,7 +12,7 @@ import Test.Hspec
 import Test.QuickCheck
 import Test.QuickCheck.Test
 import Common
-import OpenSandbox.WorldSpec()
+import OpenSandbox.World.ChunkSpec()
 import OpenSandbox.Protocol.TypesSpec()
 
 instance Arbitrary SBHandshaking where

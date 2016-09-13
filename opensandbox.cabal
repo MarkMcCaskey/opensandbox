@@ -36,6 +36,8 @@ library
                             OpenSandbox.User
                             OpenSandbox.Version
                             OpenSandbox.World
+                            OpenSandbox.World.Chunk
+                            OpenSandbox.World.Flat
     build-depends:          aeson,
                             ansi-terminal,
                             asn1-encoding,
@@ -107,7 +109,7 @@ test-suite opensandbox-test
                             OpenSandbox.Protocol.PacketSpec
                             OpenSandbox.Protocol.TypesSpec
                             OpenSandbox.UserSpec
-                            OpenSandbox.WorldSpec
+                            OpenSandbox.World.ChunkSpec
 
     build-depends:          array,
                             base,

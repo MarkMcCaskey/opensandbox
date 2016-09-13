@@ -33,18 +33,18 @@ module OpenSandbox.Data.Yggdrasil
   , YggdrasilError
   ) where
 
-import            Crypto.Hash
-import            Data.Aeson
-import            Data.Aeson.Types
-import            Data.Bits
-import            Data.ByteArray
-import qualified  Data.ByteString as B
-import qualified  Data.ByteString.Lazy as BL
-import qualified  Data.ByteString.Builder as Encode
-import            Data.Monoid
-import qualified  Data.Text as T
-import            Data.Word
-import            GHC.Generics (Generic)
+import Crypto.Hash
+import Data.Aeson
+import Data.Aeson.Types
+import Data.Bits
+import Data.ByteArray
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Builder as Encode
+import Data.Monoid
+import qualified Data.Text as T
+import Data.Word
+import GHC.Generics (Generic)
 
 data ClientAuth = ClientAuth
   { accessToken       :: T.Text
