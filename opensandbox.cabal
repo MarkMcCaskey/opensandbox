@@ -86,7 +86,7 @@ executable server
                             base,
                             bytestring,
                             directory,
-                            ekg-core,
+                            ekg,
                             opensandbox,
                             path,
                             text,

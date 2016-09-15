@@ -19,6 +19,7 @@ import OpenSandbox
 import Path
 import System.Directory
 import System.Exit
+import qualified System.Remote.Monitoring as Ekg
 
 logMsg :: Logger -> Lvl -> String -> IO ()
 logMsg logger lvl msg = logIO logger "Main" lvl (T.pack msg)
@@ -92,6 +93,8 @@ main = do
           logMsg logger LvlInfo $ "Loading config from: " ++ show (srvConfigDir config)
           logMsg logger LvlInfo $ "Starting OpenSandbox server at: " ++ show (srvRootDir config)
           logMsg logger LvlInfo $ "Writing logs to: " ++ show (srvLogDir config)
+
+          Ekg.forkServer "localhost" 8000
 
           -- Encryption Step
           encryption <- configEncryption
