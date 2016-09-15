@@ -22,20 +22,19 @@ module OpenSandbox.Logger
   , runLogger
   ) where
 
-import            Control.Concurrent
-import            Control.Concurrent.Chan
-import            Control.Monad
-import            Control.Monad.IO.Class
-import            Control.Monad.Logger
-import            Data.Monoid
-import qualified  Data.Text as T
-import            System.Log.FastLogger
+import Control.Concurrent (ThreadId,forkIO)
+import Control.Concurrent.Chan
+import Control.Monad
+import Control.Monad.Logger
+import Data.Monoid
+import qualified Data.Text as T
+import System.Log.FastLogger
 
 data Logger = Logger
-  { lChan       :: Chan (Loc, LogSource, LogLevel, LogStr)
-  , lTimeCache  :: IO FormattedTime
-  , lSpec       :: FileLogSpec
-  , lLvl        :: Lvl
+  { _lChan       :: Chan (Loc, LogSource, LogLevel, LogStr)
+  , _lTimeCache  :: IO FormattedTime
+  , _lSpec       :: FileLogSpec
+  , _lLvl        :: Lvl
   }
 
 newLogger :: FileLogSpec -> Lvl -> IO Logger
@@ -58,8 +57,8 @@ data Lvl
 instance ToLogStr Lvl where
   toLogStr = toLogStr . show
 
-logIO :: MonadIO m => Logger -> T.Text -> Lvl -> T.Text -> m ()
-logIO logger src lvl msg = when (lvl >= (lLvl logger)) $ runChanLoggingT (lChan logger) $ logFrom src lvl msg
+logIO :: Logger -> T.Text -> Lvl -> T.Text -> IO ()
+logIO logger src lvl msg = when (lvl >= (_lLvl logger)) $ runChanLoggingT (_lChan logger) $ logFrom src lvl msg
 
 logFrom :: MonadLogger m => T.Text -> Lvl -> T.Text -> m ()
 logFrom src lvl msg = logOtherNS src convertedLvl msg
@@ -84,7 +83,7 @@ level LevelError = "ERR"
 level (LevelOther lvl) = toLogStr lvl
 
 customLogStr :: FormattedTime -> Loc -> LogSource -> LogLevel -> LogStr -> LogStr
-customLogStr t a b c d = "[" <> toLogStr t <> " " <> toLogStr b <> "/" <> level c <> "]" <> " " <> d <> "\n"
+customLogStr t _ b c d = "[" <> toLogStr t <> " " <> toLogStr b <> "/" <> level c <> "]" <> " " <> d <> "\n"
 
 customOutput:: LogType -> IO FormattedTime -> Loc -> LogSource -> LogLevel -> LogStr -> IO ()
 customOutput logType timeCache loc src lvl msg = do
@@ -95,7 +94,7 @@ customOutput logType timeCache loc src lvl msg = do
         customLogger :: LogStr -> (LogStr -> IO ()) -> IO ()
         customLogger str f = f str
 
-runCustomLoggingT :: MonadIO m => FileLogSpec -> BufSize -> IO FormattedTime -> LoggingT m a -> m a
+runCustomLoggingT :: FileLogSpec -> BufSize -> IO FormattedTime -> LoggingT IO () -> IO ()
 runCustomLoggingT spec buf t l = (l `runLoggingT` (customOutput (LogFile spec buf) t))
 
 runLogger :: Logger -> IO ThreadId

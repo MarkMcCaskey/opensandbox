@@ -1,5 +1,5 @@
 name:                       opensandbox
-version:                    0.0.1.4
+version:                    0.0.1.5
 synopsis:                   A custom Minecraft server
 description:                Please see README.md
 homepage:                   https://github.com/oldmanmike/opensandbox
@@ -27,15 +27,17 @@ library
                             OpenSandbox.Data.Entity
                             OpenSandbox.Data.Instrument
                             OpenSandbox.Data.Item
-                            OpenSandbox.Data.Protocol
-                            OpenSandbox.Data.Protocol.Packet
-                            OpenSandbox.Data.Protocol.Types
+                            OpenSandbox.Data.Yggdrasil
                             OpenSandbox.Logger
-                            OpenSandbox.Monitor
                             OpenSandbox.Network
+                            OpenSandbox.Protocol
+                            OpenSandbox.Protocol.Packet
+                            OpenSandbox.Protocol.Types
                             OpenSandbox.User
                             OpenSandbox.Version
                             OpenSandbox.World
+                            OpenSandbox.World.Chunk
+                            OpenSandbox.World.Flat
     build-depends:          aeson,
                             ansi-terminal,
                             asn1-encoding,
@@ -44,21 +46,20 @@ library
                             attoparsec,
                             base,
                             bytestring,
+                            cereal,
                             conduit,
                             conduit-extra,
                             containers,
                             cryptonite,
                             deepseq,
                             directory,
-                            ekg-core,
-                            ekg-json,
+                            ekg,
                             exceptions,
                             fast-logger,
-                            http-conduit,
-                            http-types,
-                            lifted-base,
-                            minecraft-nbt,
+                            hashable,
+                            memory,
                             monad-logger,
+                            nbt,
                             optparse-applicative,
                             path,
                             scientific,
@@ -73,7 +74,8 @@ library
                             wai-conduit,
                             warp,
                             x509,
-                            yaml
+                            yaml,
+                            zlib
     default-language:       Haskell2010
 
 executable server
@@ -97,18 +99,36 @@ test-suite opensandbox-test
     type:                   exitcode-stdio-1.0
     hs-source-dirs:         test
     main-is:                Spec.hs
+    other-modules:          Common
+                            Data.NBTSpec
+                            OpenSandbox.CommandLineSpec
+                            OpenSandbox.ConfigSpec
+                            OpenSandbox.Data.BiomeSpec
+                            OpenSandbox.Data.BlockSpec
+                            OpenSandbox.Data.EffectSpec
+                            OpenSandbox.Data.EntitySpec
+                            OpenSandbox.Data.InstrumentSpec
+                            OpenSandbox.Data.ItemSpec
+                            OpenSandbox.Data.YggdrasilSpec
+                            OpenSandbox.LoggerSpec
+                            OpenSandbox.NetworkSpec
+                            OpenSandbox.Protocol.PacketSpec
+                            OpenSandbox.Protocol.TypesSpec
+                            OpenSandbox.UserSpec
+                            OpenSandbox.World.ChunkSpec
+
     build-depends:          array,
-                            attoparsec,
                             base,
                             bytestring,
+                            cereal,
                             hspec,
-                            minecraft-nbt,
+                            nbt,
                             opensandbox,
                             QuickCheck,
                             text,
                             uuid,
                             vector
-    ghc-options:            -threaded -rtsopts -with-rtsopts=-N
+    ghc-options:            -Wall -threaded -rtsopts -with-rtsopts=-N
     default-language:       Haskell2010
 
 benchmark opensandbox-bench

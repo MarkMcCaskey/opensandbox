@@ -17,7 +17,6 @@ module OpenSandbox.CommandLine
 
 import Options.Applicative
 
-
 data OpenSandboxOption = OpenSandboxOption
   { getCustomRootDir    :: Maybe FilePath
   , getCustomConfigDir  :: Maybe FilePath
@@ -26,12 +25,11 @@ data OpenSandboxOption = OpenSandboxOption
   , getVersionFlag      :: Bool
   , getVerboseFlag      :: Bool
   , getDaemonFlag       :: Bool
+  , getCompressionFlag  :: Bool
   } deriving (Show,Eq)
-
 
 getOpts :: IO OpenSandboxOption
 getOpts = execParser openSandboxOpts
-
 
 openSandboxOpts :: ParserInfo OpenSandboxOption
 openSandboxOpts =
@@ -39,7 +37,6 @@ openSandboxOpts =
     ( fullDesc
    <> progDesc "The OpenSandbox server"
    <> header "opensandbox - an opensandbox server" )
-
 
 openSandboxOptions :: Parser OpenSandboxOption
 openSandboxOptions = OpenSandboxOption
@@ -69,3 +66,6 @@ openSandboxOptions = OpenSandboxOption
     ( long "daemon"
     <> short 'd'
     <> help "Run as daemon in the background.")
+  <*> switch
+    ( long "no-compression"
+    <> help "Turn off compression.")

@@ -25,4 +25,3 @@ install:
 
 script:
   - stack test
-  - stack bench

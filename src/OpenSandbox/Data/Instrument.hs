@@ -16,14 +16,13 @@ module OpenSandbox.Data.Instrument
   ( Instrument (..)
   ) where
 
-import          Control.DeepSeq
-import          Data.Aeson
-import          Data.Data
-import          Data.Typeable
-import          Data.Text as T
-import          Data.Word
-import          GHC.Generics (Generic)
-import          Prelude hiding (id)
+import Control.DeepSeq
+import Data.Aeson
+import Data.Data
+import Data.Text as T
+import Data.Word
+import GHC.Generics (Generic)
+import Prelude hiding (id)
 
 data Instrument = Instrument
   { id    :: Word32

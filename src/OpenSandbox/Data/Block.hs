@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.Data.Block
@@ -14,10 +15,14 @@
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.Data.Block
-  ( Block (..)
-  , BlockID (..)
+  ( BlockStateID
+  , BlockIndice
+  , BlockImport (..)
+  {-
+  , BlockState (..)
   , Half (..)
-  , Axis (..)
+  , Axis2D (..)
+  , Axis3D (..)
   , Facing4 (..)
   , Facing5 (..)
   , Facing6 (..)
@@ -54,7 +59,6 @@ module OpenSandbox.Data.Block
   , MushroomVariant (..)
   , NetherWartAge (..)
   , PistonHeadType (..)
-  , NetherPortalAxis (..)
   , PotatoAge (..)
   , PrismarineVariant (..)
   , PumpkinStemAge (..)
@@ -90,38 +94,61 @@ module OpenSandbox.Data.Block
   , Log2Variant (..)
   , WoodPlanksVariant (..)
   , RedSandstoneSlabs (..)
+  -}
   ) where
 
-import            Data.Aeson
-import            Data.Aeson.Types
-import qualified  Data.Attoparsec.Text as A
-import            Data.Data
-import qualified  Data.HashMap.Strict as H
-import            Data.Scientific
-import            Data.Text as T
-import            Data.Typeable
-import            Data.Word
-import            Control.DeepSeq
-import            GHC.Generics (Generic)
-import            Prelude hiding (id)
+import Data.Aeson
+import Data.Aeson.Types
+import qualified Data.Attoparsec.Text as A
+import Data.Bits
+import Data.Data
+import Data.Hashable
+import qualified Data.HashMap.Strict as H
+import Data.Scientific
+import Data.Serialize
+import qualified Data.Text as T
+import Data.Word
+import Control.DeepSeq
+import Foreign.Storable
+import GHC.Generics (Generic)
+import Prelude hiding (id)
 
-data Block = Block
-  { id            :: Word32
-  , displayName   :: Text
-  , name          :: Text
+newtype BlockStateID = BlockStateID Word16
+  deriving (Show,Eq,Ord,Enum,Bounded,Bits,Num,Real,Integral,Storable,Generic,Hashable)
+
+instance Serialize BlockStateID where
+  put (BlockStateID bid) = putWord16be bid
+  get = BlockStateID <$> getWord16be
+
+instance NFData BlockStateID
+
+newtype BlockIndice = BlockIndice Word16
+  deriving (Show,Eq,Ord,Enum,Bits,Bounded,Num,Real,Integral,Generic)
+
+instance Serialize BlockIndice where
+  put (BlockIndice indice) = putWord16be indice
+  get = BlockIndice <$> getWord16be
+
+instance NFData BlockIndice
+
+data BlockImport = BlockImport
+  { id            :: Word16
+  , displayName   :: T.Text
+  , name          :: T.Text
   , hardness      :: Double
   , stackSize     :: Word8
   , diggable      :: Bool
   , material      :: Maybe Material
   , harvestTools  :: Maybe [Word32]
+  , variations    :: Maybe [Variation]
   , drops         :: [Drop]
   , transparent   :: Bool
   , emitLight     :: Word8
   , filterLight   :: Word8
   } deriving (Show,Eq,Generic,Data,Typeable)
 
-instance FromJSON Block where
-  parseJSON (Object v) = Block
+instance FromJSON BlockImport where
+  parseJSON (Object v) = BlockImport
       <$> v .: "id"
       <*> v .: "displayName"
       <*> v .: "name"
@@ -130,6 +157,7 @@ instance FromJSON Block where
       <*> v .: "diggable"
       <*> v .:? "material"
       <*> (fmap . fmap) extractIds (v .:? "harvestTools" :: Parser (Maybe Object))
+      <*> v .:? "variations"
       <*> v .: "drops"
       <*> v .: "transparent"
       <*> v .: "emitLight"
@@ -138,31 +166,31 @@ instance FromJSON Block where
     extractIds obj = case sequence (fmap extractId (H.keys obj)) of
                       Left err -> fail err
                       Right lst -> lst
-    extractId x = (A.parseOnly A.decimal x :: Either String Word32)
-  parseJSON x = typeMismatch "Block" x
+    extractId x = A.parseOnly A.decimal x :: Either String Word32
+  parseJSON x = typeMismatch "Error: Invalid BlockImport!" x
 
-instance NFData Block
+instance NFData BlockImport
 
 data Material
-  = Material_Rock
-  | Material_Dirt
-  | Material_Wood
-  | Material_Plant
-  | Material_Leaves
-  | Material_Web
-  | Material_Wool
+  = MaterialRock
+  | MaterialDirt
+  | MaterialWood
+  | MaterialPlant
+  | MaterialLeaves
+  | MaterialWeb
+  | MaterialWool
   deriving (Show,Eq,Generic,Data,Typeable)
 
 instance FromJSON Material where
   parseJSON (String s) =
     case s of
-      "rock" -> return Material_Rock
-      "dirt" -> return Material_Dirt
-      "wood" -> return Material_Wood
-      "plant" -> return Material_Plant
-      "leaves" -> return Material_Leaves
-      "web" -> return Material_Web
-      "wool" -> return Material_Wool
+      "rock" -> return MaterialRock
+      "dirt" -> return MaterialDirt
+      "wood" -> return MaterialWood
+      "plant" -> return MaterialPlant
+      "leaves" -> return MaterialLeaves
+      "web" -> return MaterialWeb
+      "wool" -> return MaterialWool
       x       -> fail $ "ERROR => Aeson => failed to pattern match text to Material: " ++ show x
 
   parseJSON x = typeMismatch ("ERROR => Aeson => Material => not a String, got " ++ show x) x
@@ -186,6 +214,7 @@ instance FromJSON DropEntry where
   parseJSON (Object o) = fmap (DropEntry . Right) $ DropBody
     <$> o .: "id"
     <*> o .: "metadata"
+  parseJSON x = typeMismatch "Error: Invalid DropEntry!" x
 
 instance NFData DropEntry
 
@@ -197,244 +226,289 @@ data DropBody = DropBody
 instance FromJSON DropBody
 instance NFData DropBody
 
-data BlockID
-  = Air
-  | Stone
-  | Grass
-  | Dirt
-  | Cobblestone
-  | WoodPlanks
-  | Sapling
-  | Bedrock
-  | FlowingWater
-  | Water
-  | FlowingLava
-  | Lava
-  | Sand
-  | Gravel
-  | GoldOre
-  | IronOre
-  | CoalOre
-  | Log
-  | Leaves
-  | Sponge
-  | Glass
-  | LapisOre
-  | LapisBlock
-  | Dispenser
-  | Sandstone
-  | Noteblock
-  | Bed
-  | GoldenRail
-  | DetectorRail
-  | StickyPiston
-  | Web
-  | Tallgrass
-  | Deadbush
-  | Piston
-  | PistonHead
-  | Wool
-  | PistonExtension
-  | YellowFlower
-  | RedFlower
-  | BrownMushroom
-  | RedMushroom
-  | GoldBlock
-  | IronBlock
-  | DoubleStoneSlab
-  | StoneSlab
-  | BrickBlock
-  | TNT
-  | Bookshelf
-  | MossyCobblestone
-  | Obsidian
-  | Torch
-  | Fire
-  | MobSpawner
-  | OakStairs
-  | Chest
-  | RedstoneWire
-  | DiamondOre
-  | DiamondBlock
-  | CraftingTable
-  | Wheat
-  | Farmland
-  | Furnace
-  | LitFurnace
-  | StandingSign
-  | WoodenDoor
-  | Ladder
-  | Rail
-  | StoneStairs
-  | WallSign
-  | Lever
-  | StonePressurePlate
-  | IronDoor
-  | WoodenPressurePlate
-  | RedstoneOre
-  | LitRedstoneOre
-  | UnlitRedstoneTorch
-  | RedstoneTorch
-  | StoneButton
-  | SnowLayer
-  | Ice
-  | Snow
-  | Cactus
-  | Clay
-  | Reeds
-  | Jukebox
-  | Fence
-  | Pumpkin
-  | Netherrack
-  | SoulSand
-  | Glowstone
-  | Portal
-  | LitPumpkin
-  | Cake
-  | UnpoweredRepeater
-  | PoweredRepeater
-  | StainedGlass
-  | Trapdoor
-  | MonsterEgg
-  | StoneBrick
-  | BrownMushroomBlock
-  | RedMushroomBlock
-  | IronBars
-  | GlassPane
-  | MelonBlock
-  | PumpkinStem
-  | MelonStem
-  | Vine
-  | FenceGate
-  | BrickStairs
-  | StoneBrickStairs
-  | Mycelium
-  | Waterlily
-  | NetherBrick
-  | NetherBrickFence
-  | NetherBrickStairs
-  | NetherWart
-  | EnchantingTable
-  | BrewingStand
-  | Cauldron
-  | EndPortal
-  | EndPortalFrame
-  | EndStone
-  | DragonEgg
-  | RedstoneLamp
-  | LitRedstoneLamp
-  | DoubleWoodenSlab
-  | WoodenSlab
-  | Cocoa
-  | SandstoneStairs
-  | EmeraldOre
-  | EnderChest
-  | TripwireHook
-  | Tripwire
-  | EmeraldBlock
-  | SpruceStairs
-  | BirchStairs
-  | JungleStairs
-  | CommandBlock
-  | Beacon
-  | CobblestoneWall
-  | FlowerPot
-  | Carrots
-  | Potatoes
-  | WoodenButton
-  | Skull
-  | Anvil
-  | TrappedChest
-  | LightWeightedPressurePlate
-  | HeavyWeightedPressurePlate
-  | UnpoweredComparator
-  | PoweredComparator
-  | DaylightDetector
-  | RedstoneBlock
-  | QuartzOre
-  | Hopper
-  | QuartzBlock
-  | QuartzStairs
-  | ActivatorRail
-  | Dropper
-  | StainedHardenedClay
-  | StainedGlassPane
-  | Leaves2
-  | Log2
-  | AcaciaStairs
-  | DarkOakStairs
-  | Slime
-  | Barrier
-  | IronTrapdoor
-  | Prismarine
-  | SeaLantern
-  | HayBlock
-  | Carpet
-  | HardenedClay
-  | CoalBlock
-  | PackedIce
-  | DoublePlant
-  | StandingBanner
-  | WallBanner
-  | DaylightDetectorInverted
-  | RedSandstone
-  | RedSandstoneStairs
-  | DoubleStoneSlab2
-  | StoneSlab2
-  | SpruceFenceGate
-  | BirchFenceGate
-  | JungleFenceGate
-  | DarkOakFenceGate
-  | AcaciaFenceGate
-  | SpruceFence
-  | BirchFence
-  | JungleFence
-  | DarkOakFence
-  | AcaciaFence
-  | SpruceDoor
-  | BirchDoor
-  | JungleDoor
-  | AcaciaDoor
-  | DarkOakDoor
-  | EndRod
-  | ChorusPlant
-  | ChorusFlower
-  | PurpurBlock
-  | PurpurPillar
-  | PurpurStairs
-  | PurpurDoubleSlab
-  | PurpurSlab
-  | EndBricks
-  | Beetroots
-  | GrassPath
-  | EndGateway
-  | RepeatingCommandBlock
-  | ChainCommandBlock
-  | FrostedIce
-  | Magma
-  | NetherWartBlock
-  | RedNetherBrick
-  | BoneBlock
-  | StructureVoid
-  -- | BlockIDStructureBlock
-  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
+data Variation = Variation
+  { metadata      :: Word16
+  , displayName   :: T.Text
+  } deriving (Show,Eq,Ord,Generic,Data,Typeable)
 
-instance NFData BlockID
+instance ToJSON Variation
+instance FromJSON Variation
+instance NFData Variation
+
+{-
+
+data BlockState
+  = BlockStateAir
+  | BlockStateStone StoneVariant
+  | BlockStateGrass Snowy
+  | BlockStateDirt Snowy DirtVariant
+  | BlockStateCobblestone
+  | BlockStateWoodPlanks WoodPlanksVariant
+  | BlockStateSapling SaplingType
+  | BlockStateBedrock
+  | BlockStateFlowingWater FluidLevel
+  | BlockStateWater
+  | BlockStateFlowingLava FluidLevel
+  | BlockStateLava
+  | BlockStateSand SandVariant
+  | BlockStateGravel
+  | BlockStateGoldOre
+  | BlockStateIronOre
+  | BlockStateCoalOre
+  | BlockStateLog LogAxis LogVariant
+  | BlockStateLeaves CheckDecay Decayable LeavesVariant
+  | BlockStateSponge Wet
+  | BlockStateGlass Color
+  | BlockStateLapisOre
+  | BlockStateLapisBlock
+  | BlockStateDispenser Facing6 Triggered
+  | BlockStateSandstone SandstoneType
+  | BlockStateNoteblock
+  | BlockStateBed Facing4 Occupied BedPart
+  | BlockStateGoldenRail Powered RailShape
+  | BlockStateDetectorRail Powered RailShape
+  | BlockStateStickyPiston Extended Facing6
+  | BlockStateWeb
+  | BlockStateTallgrass GrassType
+  | BlockStateDeadbush
+  | BlockStatePiston Extended Facing6
+  | BlockStatePistonHead Facing6 Short PistonHeadType
+  | BlockStateWool Color
+  | BlockStatePistonExtension Extended Facing6
+  | BlockStateYellowFlower YellowFlowersType
+  | BlockStateRedFlower RedFlowersType
+  | BlockStateBrownMushroom
+  | BlockStateRedMushroom
+  | BlockStateGoldBlock
+  | BlockStateIronBlock
+  | BlockStateDoubleStoneSlab Seamless DoubleStoneSlabVariant
+  | BlockStateStoneSlab Half StoneSlabVariant
+  | BlockStateBrickBlock
+  | BlockStateTNT Explode
+  | BlockStateBookshelf
+  | BlockStateMossyCobblestone
+  | BlockStateObsidian
+  | BlockStateTorch Facing5
+  | BlockStateFire FireAge FireUp North South East West
+  | BlockStateMobSpawner
+  | BlockStateOakStairs Facing4 Half StairShape
+  | BlockStateChest Facing4
+  | BlockStateRedstoneWire RedstonePower -- NOTE(oldmanmike) Needs connection directions
+  | BlockStateDiamondOre
+  | BlockStateDiamondBlock
+  | BlockStateCraftingTable
+  | BlockStateWheat WheatAge
+  | BlockStateFarmland FarmlandMoisture
+  | BlockStateFurnace Facing4
+  | BlockStateLitFurnace Facing4
+  | BlockStateStandingSign SignStandingRotation
+  | BlockStateWoodenDoor Facing4 DoorHalf DoorHinge DoorOpen Powered
+  | BlockStateLadder Facing4
+  | BlockStateRail RailShape
+  | BlockStateStoneStairs Facing4 Half StairShape
+  | BlockStateWallSign Facing4
+  | BlockStateLever LeverFacing
+  | BlockStateStonePressurePlate Powered
+  | BlockStateIronDoor Facing4 DoorHalf DoorHinge DoorOpen Powered
+  | BlockStateWoodenPressurePlate Powered
+  | BlockStateRedstoneOre
+  | BlockStateLitRedstoneOre
+  | BlockStateUnlitRedstoneTorch Facing5
+  | BlockStateRedstoneTorch Facing5
+  | BlockStateStoneButton Facing6 Powered
+  | BlockStateSnowLayer SnowLayers
+  | BlockStateIce
+  | BlockStateSnow
+  | BlockStateCactus CactusAge
+  | BlockStateClay
+  | BlockStateReeds SugarCaneAge
+  | BlockStateJukebox HasRecord
+  | BlockStateFence North South East West
+  | BlockStatePumpkin Facing4
+  | BlockStateNetherrack
+  | BlockStateSoulSand
+  | BlockStateGlowstone
+  | BlockStatePortal Axis2D
+  | BlockStateLitPumpkin Facing4
+  | BlockStateCake CakeBites
+  | BlockStateUnpoweredRepeater RepeaterDelay Facing4 Locked
+  | BlockStatePoweredRepeater RepeaterDelay Facing4 Locked
+  | BlockStateStainedGlass Color
+  | BlockStateTrapdoor Facing4 Half DoorOpen
+  | BlockStateMonsterEgg
+  | BlockStateStoneBrick StoneBrickVariant
+  | BlockStateBrownMushroomBlock MushroomVariant
+  | BlockStateRedMushroomBlock MushroomVariant
+  | BlockStateIronBars North South East West
+  | BlockStateGlassPane North South East West
+  | BlockStateMelonBlock
+  | BlockStatePumpkinStem PumpkinStemAge Facing5
+  | BlockStateMelonStem MelonStemAge Facing5
+  | BlockStateVine North South East West Up
+  | BlockStateFenceGate Facing4 InWall Open Powered
+  | BlockStateBrickStairs Facing4 Half StairShape
+  | BlockStateStoneBrickStairs Facing4 Half StairShape
+  | BlockStateMycelium Snowy
+  | BlockStateWaterlily
+  | BlockStateNetherBrick
+  | BlockStateNetherBrickFence North South East West
+  | BlockStateNetherBrickStairs Facing4 Half StairShape
+  | BlockStateNetherWart NetherWartAge
+  | BlockStateEnchantingTable
+  | BlockStateBrewingStand HasBottle HasBottle HasBottle
+  | BlockStateCauldron CauldronLevel
+  | BlockStateEndPortal
+  | BlockStateEndPortalFrame Eye Facing4
+  | BlockStateEndStone
+  | BlockStateDragonEgg
+  | BlockStateRedstoneLamp
+  | BlockStateLitRedstoneLamp
+  | BlockStateDoubleWoodenSlab Seamless DoubleWoodenSlabVariant
+  | BlockStateWoodenSlab Half WoodenSlabVariant
+  | BlockStateCocoa CocoaAge Facing4
+  | BlockStateSandstoneStairs Facing4 Half StairShape
+  | BlockStateEmeraldOre
+  | BlockStateEnderChest Facing4
+  | BlockStateTripwireHook Attached Facing4 Powered
+  | BlockStateTripwire Attached Disarmed Facing4 Powered
+  | BlockStateEmeraldBlock
+  | BlockStateSpruceStairs Facing4 Half StairShape
+  | BlockStateBirchStairs Facing4 Half StairShape
+  | BlockStateJungleStairs Facing4 Half StairShape
+  | BlockStateCommandBlock Conditional Facing6
+  | BlockStateBeacon
+  | BlockStateCobblestoneWall North South East West Up CobblestoneWallVariant
+  | BlockStateFlowerPot FlowerPotContents
+  | BlockStateCarrots CarrotAge
+  | BlockStatePotatoes PotatoAge
+  | BlockStateWoodenButton Facing6 Powered
+  | BlockStateSkull Facing6 NoDrop
+  | BlockStateAnvil AnvilDamage Facing4
+  | BlockStateTrappedChest Facing4
+  | BlockStateLightWeightedPressurePlate WeightedPressurePlatePower
+  | BlockStateHeavyWeightedPressurePlate WeightedPressurePlatePower
+  | BlockStateUnpoweredComparator Facing4 ComparatorMode Powered
+  | BlockStatePoweredComparator Facing4 ComparatorMode Powered
+  | BlockStateDaylightDetector DaylightSensorPower
+  | BlockStateRedstoneBlock
+  | BlockStateQuartzOre
+  | BlockStateHopper Enabled Facing5
+  | BlockStateQuartzBlock QuartzVariant
+  | BlockStateQuartzStairs Facing4 Half StairShape
+  | BlockStateActivatorRail Powered RailShape
+  | BlockStateDropper Facing6 Triggered
+  | BlockStateStainedHardenedClay Color
+  | BlockStateStainedGlassPane Color North South East West
+  | BlockStateLeaves2 CheckDecay Decayable Leaves2Variant
+  | BlockStateLog2 LogAxis Log2Variant
+  | BlockStateAcaciaStairs Facing4 Half StairShape
+  | BlockStateDarkOakStairs Facing4 Half StairShape
+  | BlockStateSlime
+  | BlockStateBarrier
+  | BlockStateIronTrapdoor Facing4 Half Open
+  | BlockStatePrismarine PrismarineVariant
+  | BlockStateSeaLantern
+  | BlockStateHayBlock Axis3D
+  | BlockStateCarpet Color
+  | BlockStateHardenedClay Color
+  | BlockStateCoalBlock
+  | BlockStatePackedIce
+  | BlockStateDoublePlant Half DoublePlantVariant Facing4
+  | BlockStateStandingBanner BannerStanding
+  | BlockStateWallBanner Facing4
+  | BlockStateDaylightDetectorInverted DaylightSensorPower
+  | BlockStateRedSandstone RedSandstoneType
+  | BlockStateRedSandstoneStairs Facing4 Half StairShape
+  | BlockStateDoubleStoneSlab2 Seamless DoubleStoneSlab2Variant
+  | BlockStateStoneSlab2 Half StoneSlab2Variant
+  | BlockStateSpruceFenceGate Facing4 InWall Open Powered
+  | BlockStateBirchFenceGate Facing4 InWall Open Powered
+  | BlockStateJungleFenceGate Facing4 InWall Open Powered
+  | BlockStateDarkOakFenceGate Facing4 InWall Open Powered
+  | BlockStateAcaciaFenceGate Facing4 InWall Open Powered
+  | BlockStateSpruceFence North South East West
+  | BlockStateBirchFence North South East West
+  | BlockStateJungleFence North South East West
+  | BlockStateDarkOakFence North South East West
+  | BlockStateAcaciaFence North South East West
+  | BlockStateSpruceDoor Facing4 DoorHalf DoorHinge Open Powered
+  | BlockStateBirchDoor Facing4 DoorHalf DoorHinge Open Powered
+  | BlockStateJungleDoor Facing4 DoorHalf DoorHinge Open Powered
+  | BlockStateAcaciaDoor Facing4 DoorHalf DoorHinge Open Powered
+  | BlockStateDarkOakDoor Facing4 DoorHalf DoorHinge Open Powered
+  | BlockStateEndRod Facing6
+  | BlockStateChorusPlant North South East West Up Down
+  | BlockStateChorusFlower ChorusFlowerAge
+  | BlockStatePurpurBlock Axis3D
+  | BlockStatePurpurPillar Axis3D
+  | BlockStatePurpurStairs Facing4 Half StairShape
+  | BlockStatePurpurDoubleSlab PurpurDoubleSlabVariant
+  | BlockStatePurpurSlab Half PurpurSlabVariant
+  | BlockStateEndBricks
+  | BlockStateBeetroots BeetrootAge
+  | BlockStateGrassPath
+  | BlockStateEndGateway
+  | BlockStateRepeatingCommandBlock Conditional Facing6
+  | BlockStateChainCommandBlock Conditional Facing6
+  | BlockStateFrostedIce FrostedIceAge
+  | BlockStateMagma
+  | BlockStateNetherWartBlock
+  | BlockStateRedNetherBrick
+  | BlockStateBoneBlock Axis3D
+  | BlockStateStructureVoid StructureBlockMode
+  | BlockStateStructureBlock StructureBlockMode
+  deriving (Show,Eq,Ord,Generic,Data,Typeable)
+
+instance NFData BlockState
 
 type Snowy = Bool
+type CheckDecay = Bool
+type Decayable = Bool
+type Wet = Bool
+type Triggered = Bool
+type Powered = Bool
+type Short = Bool
+type Extended = Bool
+type Explode = Bool
+type FireUp = Bool
+type North = Bool
+type West = Bool
+type East = Bool
+type South = Bool
+type DoorOpen = Bool
+type HasRecord = Bool
+type Open = Bool
+type Attached = Bool
+type Eye = Bool
+type InWall = Bool
+type Disarmed = Bool
+type Conditional = Bool
+type Up = Bool
+type Down = Bool
+type NoDrop = Bool
+type Enabled = Bool
+type RepeaterDelay = Bool
+type Locked = Bool
 
 data Half = Top | Bottom
   deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData Half
 
-data Axis
-  = AxisX
-  | AxisY
-  | AxisZ
+data Axis2D
+  = Axis2DX
+  | Axis2DZ
   deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
-instance NFData Axis
+instance NFData Axis2D
+
+data Axis3D
+  = Axis3DX
+  | Axis3DY
+  | Axis3DZ
+  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
+
+instance NFData Axis3D
 
 data Facing4
   = Facing4N
@@ -710,28 +784,28 @@ data YellowFlowersType = FlowerDandelion
 instance NFData YellowFlowersType
 
 data FlowerPotContents
-  = FPC_Empty
-  | FPC_Rose
-  | FPC_BlueOrchid
-  | FPC_Allium
-  | FPC_Houstonia
-  | FPC_RedTulip
-  | FPC_OrangeTulip
-  | FPC_WhiteTulip
-  | FPC_PinkTulip
-  | FPC_OxeyeDaisy
-  | FPC_Dandelion
-  | FPC_OakSapling
-  | FPC_SpruceSapling
-  | FPC_BirchSapling
-  | FPC_JungleSapling
-  | FPC_AcaciaSapling
-  | FPC_DarkOakSapling
-  | FPC_MushroomRed
-  | FPC_MushroomBrown
-  | FPC_DeadBush
-  | FPC_Fern
-  | FPC_Cactus
+  = FPCEmpty
+  | FPCRose
+  | FPCBlueOrchid
+  | FPCAllium
+  | FPCHoustonia
+  | FPCRedTulip
+  | FPCOrangeTulip
+  | FPCWhiteTulip
+  | FPCPinkTulip
+  | FPCOxeyeDaisy
+  | FPCDandelion
+  | FPCOakSapling
+  | FPCSpruceSapling
+  | FPCBirchSapling
+  | FPCJungleSapling
+  | FPCAcaciaSapling
+  | FPCDarkOakSapling
+  | FPCMushroomRed
+  | FPCMushroomBrown
+  | FPCDeadBush
+  | FPCern
+  | FPCCactus
   deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData FlowerPotContents
@@ -871,13 +945,6 @@ data PistonHeadType
   deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
 
 instance NFData PistonHeadType
-
-data NetherPortalAxis
-  = NetherPortalAxisX
-  | NetherPortalAxisZ
-  deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)
-
-instance NFData NetherPortalAxis
 
 data PotatoAge
   = PotatoAge0
@@ -1272,3 +1339,5 @@ data RedSandstoneSlabs
   = SlabRedSandstone
   | SlabUpperRedSandstone
   deriving (Show,Eq)
+-}
+

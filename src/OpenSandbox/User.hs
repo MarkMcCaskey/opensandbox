@@ -17,13 +17,13 @@ module OpenSandbox.User
   , deleteUser
   ) where
 
-import qualified  Data.ByteString as B
-import qualified  Data.Map as Map
-import            Data.Maybe
-import qualified  Data.Text as T
-import            Data.Text.Encoding
-import            Data.UUID
-import            Data.UUID.V5
+import qualified Data.ByteString as B
+import qualified Data.Map as Map
+import Data.Maybe
+import qualified Data.Text as T
+import Data.Text.Encoding
+import Data.UUID
+import Data.UUID.V5
 
 type UserStore = Map.Map UUID User
 

@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
 -------------------------------------------------------------------------------
 -- |
 -- File         : server.hs
@@ -10,18 +11,14 @@
 --
 -------------------------------------------------------------------------------
 
-import            Control.Concurrent
-import            Control.Monad
-import qualified  Data.Aeson as A
-import qualified  Data.ByteString as B
-import            Data.Maybe
-import qualified  Data.Text as T
-import            Network.Wai.Handler.Warp (run)
-import            OpenSandbox
-import            Path
-import            System.Directory
-import            System.Exit
-import            System.Metrics
+import Control.Monad
+import qualified Data.Aeson as A
+import qualified Data.ByteString as B
+import qualified Data.Text as T
+import OpenSandbox
+import Path
+import System.Directory
+import System.Exit
 
 logMsg :: Logger -> Lvl -> String -> IO ()
 logMsg logger lvl msg = logIO logger "Main" lvl (T.pack msg)
@@ -29,12 +26,11 @@ logMsg logger lvl msg = logIO logger "Main" lvl (T.pack msg)
 main :: IO ()
 main = do
     args <- getOpts
-    if getVersionFlag args
-      then do print $ "OpenSandbox Version:   " `T.append` openSandboxVersion
-              print $ "MC Stable Version:     " `T.append` majorVersion
-              print $ "MC Snapshot Version:   " `T.append` snapshotVersion
-              exitSuccess
-      else return ()
+    when (getVersionFlag args) $ do
+      print $ "OpenSandbox Version:   " `T.append` openSandboxVersion
+      print $ "MC Stable Version:     " `T.append` majorVersion
+      print $ "MC Snapshot Version:   " `T.append` snapshotVersion
+      exitSuccess
 
     (rootDir,config1) <-
       case getCustomRootDir args of
@@ -53,36 +49,34 @@ main = do
           configDir <- parseRelDir "config"
           configFile <- parseRelFile "opensandboxd.yaml"
           createDirectoryIfMissing True $ toFilePath $ rootDir </> configDir
-          return $ (rootDir </> configDir </> configFile, config1)
+          return (rootDir </> configDir </> configFile, config1)
         Just customPath -> do
           configDir <- parseRelDir customPath
           configFile <- parseRelFile "opensandboxd.yaml"
           createDirectoryIfMissing True $ toFilePath $ rootDir </> configDir
-          return $ (rootDir </> configDir </> configFile, config1 {srvConfigDir = configDir})
+          return (rootDir </> configDir </> configFile, config1 {srvConfigDir = configDir})
 
     configFileExists <- doesFileExist (toFilePath configFilePath)
-    if configFileExists
-      then return ()
-      else writeDefaultConfig (toFilePath configFilePath) config2
+    unless configFileExists $ writeDefaultConfig (toFilePath configFilePath) config2
+
 
     potentialConfig <- loadConfig configFilePath
     case potentialConfig of
         Left err -> print err
         Right baseConfig -> do
 
-          encryption <- configEncryption
           (logFilePath,config) <-
             case getCustomLogDir args of
               Nothing -> do
                 logDir <- parseRelDir "logs"
                 logFile <- parseRelFile "latest.log"
                 createDirectoryIfMissing True $ toFilePath $ rootDir </> logDir
-                return $ (rootDir </> logDir </> logFile,baseConfig)
+                return (rootDir </> logDir </> logFile,baseConfig)
               Just customPath -> do
                 logDir <- parseRelDir customPath
                 logFile <- parseRelFile "latest.log"
                 createDirectoryIfMissing True $ toFilePath $ rootDir </> logDir
-                return $ (rootDir </> logDir </> logFile,baseConfig {srvLogDir = logDir})
+                return (rootDir </> logDir </> logFile,baseConfig {srvLogDir = logDir})
 
           let spec = FileLogSpec (toFilePath logFilePath) 1000000 10
 
@@ -95,12 +89,16 @@ main = do
           logMsg logger LvlInfo "----------------- Log Start -----------------"
           logMsg logger LvlInfo "Welcome to the OpenSandbox Minecraft Server!"
           logMsg logger LvlInfo $ "Starting minecraft server version " ++ show snapshotVersion
-          logMsg logger LvlInfo $ "Starting OpenSandbox server at: " ++ show (srvRootDir config)
           logMsg logger LvlInfo $ "Loading config from: " ++ show (srvConfigDir config)
+          logMsg logger LvlInfo $ "Starting OpenSandbox server at: " ++ show (srvRootDir config)
           logMsg logger LvlInfo $ "Writing logs to: " ++ show (srvLogDir config)
+
+          -- Encryption Step
+          encryption <- configEncryption
+          logMsg logger LvlInfo "Generating keypair..."
+
           logMsg logger LvlInfo $ "Starting Minecraft server on " ++ show (srvPort config)
-          logMsg logger LvlInfo $ "Done!"
-          {-
+
           rawBiomes <- B.readFile "data/biomes.json"
           rawBlocks <- B.readFile "data/blocks.json"
           rawEffects <- B.readFile "data/effects.json"
@@ -109,16 +107,16 @@ main = do
           rawItems <- B.readFile "data/items.json"
 
           let !biomes = A.eitherDecodeStrict' rawBiomes :: Either String [Biome]
-          let !blocks = A.eitherDecodeStrict' rawBlocks :: Either String [Block]
+          let !blocks = A.eitherDecodeStrict' rawBlocks :: Either String [BlockImport]
           let !effects = A.eitherDecodeStrict' rawEffects :: Either String [Effect]
           let !entities = A.eitherDecodeStrict' rawEntity :: Either String [Entity]
           let !instruments = A.eitherDecodeStrict' rawInstruments :: Either String [Instrument]
           let !items = A.eitherDecodeStrict' rawItems :: Either String [Item]
-          -}
 
-          store <- newStore
-          registerGcMetrics store
+          --let !globalPalette = fmap mkGlobalPalette blocks
 
-          _ <- forkIO $ run 3000 (monitor store)
+          -- World Gen Step
+          --logMsg logger LvlInfo "Generating world..."
+          --world <- genWorld logger
 
           runOpenSandboxServer config logger encryption
