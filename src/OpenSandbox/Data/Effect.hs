@@ -14,6 +14,7 @@
 -------------------------------------------------------------------------------
 module OpenSandbox.Data.Effect
   ( Effect (..)
+  , genEffectMap
   , EffectType (..)
   ) where
 
@@ -21,6 +22,7 @@ import Control.DeepSeq
 import Data.Aeson
 import Data.Aeson.Types
 import Data.Data
+import qualified Data.Map.Strict as Map
 import Data.Text as T
 import Data.Word
 import GHC.Generics (Generic)
@@ -52,6 +54,9 @@ instance FromJSON Effect where
   parseJSON x = typeMismatch "Error: Invalid Effect!" x
 
 instance NFData Effect
+
+genEffectMap :: [Effect] -> Map.Map Text Effect
+genEffectMap = Map.fromList . fmap (\e -> (name e, e))
 
 data EffectType = GoodEffect | BadEffect
   deriving (Show,Eq,Ord,Enum,Generic,Data,Typeable)

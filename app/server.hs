@@ -116,7 +116,12 @@ main = do
           let !instruments = A.eitherDecodeStrict' rawInstruments :: Either String [Instrument]
           let !items = A.eitherDecodeStrict' rawItems :: Either String [Item]
 
-          --let !globalPalette = fmap mkGlobalPalette blocks
+          let !biomeMap = fmap genBiomeMap biomes
+          let !globalPalette = fmap genGlobalPalette blocks
+          let !effectMap = fmap genEffectMap effects
+          let !entityMap = fmap genEntityMap entities
+          let !instrumentMap = fmap genInstrumentMap instruments
+          let !itemMap = fmap genItemMap items
 
           -- World Gen Step
           --logMsg logger LvlInfo "Generating world..."

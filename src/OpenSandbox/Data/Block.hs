@@ -15,86 +15,11 @@
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.Data.Block
-  ( BlockStateID
+  ( Palette
+  , genGlobalPalette
+  , BlockStateID
   , BlockIndice
   , BlockImport (..)
-  {-
-  , BlockState (..)
-  , Half (..)
-  , Axis2D (..)
-  , Axis3D (..)
-  , Facing4 (..)
-  , Facing5 (..)
-  , Facing6 (..)
-  , AnvilDamage (..)
-  , BannerStanding (..)
-  , BedPart (..)
-  , BeetrootAge (..)
-  , CactusAge (..)
-  , CakeBites (..)
-  , Color (..)
-  , CarrotAge (..)
-  , CauldronLevel (..)
-  , ChorusFlowerAge (..)
-  , CobblestoneWallVariant (..)
-  , CocoaAge (..)
-  , DaylightSensorPower (..)
-  , DirtVariant (..)
-  , DoorHalf (..)
-  , DoorHinge (..)
-  , FarmlandMoisture (..)
-  , FireAge (..)
-  , RedFlowersType (..)
-  , YellowFlowersType (..)
-  , FlowerPotContents (..)
-  , FrostedIceAge (..)
-  , GrassType (..)
-  , HopperFacing (..)
-  , FluidLevel (..)
-  , LeavesVariant (..)
-  , Leaves2Variant (..)
-  , LeverFacing (..)
-  , MelonStemAge (..)
-  , MonsterEggVariant (..)
-  , MushroomVariant (..)
-  , NetherWartAge (..)
-  , PistonHeadType (..)
-  , PotatoAge (..)
-  , PrismarineVariant (..)
-  , PumpkinStemAge (..)
-  , QuartzVariant (..)
-  , RailShape (..)
-  , UtilityRailShape (..)
-  , RedSandstoneType (..)
-  , ComparatorMode (..)
-  , RedstonePower (..)
-  , RedstoneRepeaterDelay (..)
-  , SandVariant (..)
-  , SandstoneType (..)
-  , SaplingType (..)
-  , SignStandingRotation
-  , StoneSlabVariant (..)
-  , StoneSlab2Variant (..)
-  , WoodenSlabVariant (..)
-  , PurpurSlabVariant (..)
-  , DoubleStoneSlabVariant (..)
-  , DoubleWoodenSlabVariant (..)
-  , PurpurDoubleSlabVariant (..)
-  , SnowLayers (..)
-  , StairShape (..)
-  , StoneVariant (..)
-  , StoneBrickVariant (..)
-  , StructureBlockMode (..)
-  , SugarCaneAge (..)
-  , DoublePlantVariant (..)
-  , WeightedPressurePlatePower (..)
-  , WheatAge (..)
-  , LogAxis (..)
-  , LogVariant (..)
-  , Log2Variant (..)
-  , WoodPlanksVariant (..)
-  , RedSandstoneSlabs (..)
-  -}
   ) where
 
 import Data.Aeson
@@ -104,14 +29,33 @@ import Data.Bits
 import Data.Data
 import Data.Hashable
 import qualified Data.HashMap.Strict as H
+import qualified Data.List as L
 import Data.Scientific
 import Data.Serialize
 import qualified Data.Text as T
+import qualified Data.Vector as V
 import Data.Word
 import Control.DeepSeq
 import Foreign.Storable
 import GHC.Generics (Generic)
 import Prelude hiding (id)
+
+type Palette = V.Vector BlockStateID
+
+genGlobalPalette :: [BlockImport] -> Palette
+genGlobalPalette = V.fromList . L.sort . L.concatMap encodeBlockImport
+  where
+    getBlockImportId :: BlockImport -> Word16
+    getBlockImportId = id
+    getMetadata :: Variation -> Word16
+    getMetadata = metadata
+    encodedBlockID :: BlockImport -> Word16
+    encodedBlockID bi = (fromIntegral $ getBlockImportId bi) `shiftL` 4
+    encodeBlockImport :: BlockImport -> [BlockStateID]
+    encodeBlockImport bi =
+      case variations bi of
+        Nothing -> [BlockStateID $ toEnum . fromEnum $ encodedBlockID bi]
+        Just vlst -> fmap (BlockStateID . toEnum . fromEnum . (\x -> encodedBlockID bi .|. x) . toEnum . fromEnum . getMetadata) vlst
 
 newtype BlockStateID = BlockStateID Word16
   deriving (Show,Eq,Ord,Enum,Bounded,Bits,Num,Real,Integral,Storable,Generic,Hashable)
@@ -236,7 +180,6 @@ instance FromJSON Variation
 instance NFData Variation
 
 {-
-
 data BlockState
   = BlockStateAir
   | BlockStateStone StoneVariant

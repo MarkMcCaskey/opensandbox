@@ -14,11 +14,13 @@
 -------------------------------------------------------------------------------
 module OpenSandbox.Data.Instrument
   ( Instrument (..)
+  , genInstrumentMap
   ) where
 
 import Control.DeepSeq
 import Data.Aeson
 import Data.Data
+import qualified Data.Map.Strict as Map
 import Data.Text as T
 import Data.Word
 import GHC.Generics (Generic)
@@ -32,3 +34,6 @@ data Instrument = Instrument
 instance ToJSON Instrument
 instance FromJSON Instrument
 instance NFData Instrument
+
+genInstrumentMap :: [Instrument] -> Map.Map Text Instrument
+genInstrumentMap = Map.fromList . fmap (\i -> (name i,i))

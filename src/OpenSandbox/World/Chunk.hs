@@ -130,7 +130,7 @@ unChunkColumnData (ChunkColumnData column) = column
 
 data ChunkBlock = ChunkBlock
   { _chunkBPB :: BitsPerBlock
-  , _chunkPalette :: LocalPalette
+  , _chunkPalette :: Palette
   , _chunkDataArray :: ChunkBlockData
   , _chunkBlockLight :: V.Vector Word8
   , _chunkSkyLight :: V.Vector Word8
@@ -223,9 +223,9 @@ newtype BlockIndices = BlockIndices [BlockIndice] deriving (Show,Eq)
 unBlockIndices :: BlockIndices -> [BlockIndice]
 unBlockIndices (BlockIndices indices) = indices
 
-type LocalPalette = V.Vector BlockStateID
+type Palette = V.Vector BlockStateID
 
-calcPalette :: ChunkBlockData -> (BitsPerBlock,LocalPalette)
+calcPalette :: ChunkBlockData -> (BitsPerBlock,Palette)
 calcPalette (ChunkBlockData blocks) = (bpb,palette)
   where
     palette = V.fromList . HS.toList . HS.fromList . V.toList $ blocks
@@ -240,14 +240,14 @@ calcPalette (ChunkBlockData blocks) = (bpb,palette)
       . (toEnum :: Int -> Word16)
       . V.length $ palette
 
-compressIndices :: BitsPerBlock -> LocalPalette -> ChunkBlockData -> [Word64]
+compressIndices :: BitsPerBlock -> Palette -> ChunkBlockData -> [Word64]
 compressIndices bpb palette (ChunkBlockData blocks) = packIndices bpb 0 0 compressedBlocks
   where
     compressedBlocks :: BlockIndices
     compressedBlocks = BlockIndices . V.toList
       $ fmap (\x -> fromIntegral $ fromJust $ V.elemIndex x palette) blocks
 
-decompressIndices :: BitsPerBlock -> LocalPalette -> [Word64] -> ChunkBlockData
+decompressIndices :: BitsPerBlock -> Palette -> [Word64] -> ChunkBlockData
 decompressIndices bpb palette indices = ChunkBlockData decompressedIndices
   where
     unpackedIndices = V.fromList $ unpackIndices bpb 0 0 indices :: V.Vector BlockIndice

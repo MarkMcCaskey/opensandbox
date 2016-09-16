@@ -13,11 +13,13 @@
 -------------------------------------------------------------------------------
 module OpenSandbox.Data.Item
   ( Item (..)
+  , genItemMap
   ) where
 
 import Control.DeepSeq
 import Data.Aeson
 import Data.Data
+import qualified Data.Map.Strict as Map
 import Data.Text as T
 import Data.Word
 import GHC.Generics (Generic)
@@ -32,5 +34,7 @@ data Item = Item
 
 instance ToJSON Item
 instance FromJSON Item
-
 instance NFData Item
+
+genItemMap :: [Item] -> Map.Map Text Item
+genItemMap = Map.fromList . fmap (\i -> (name i,i))

@@ -13,6 +13,7 @@
 -------------------------------------------------------------------------------
 module OpenSandbox.Data.Biome
   ( Biome (..)
+  , genBiomeMap
   , BiomeID (..)
   ) where
 
@@ -20,6 +21,7 @@ import Control.DeepSeq
 import Data.Aeson
 import Data.Aeson.Types
 import Data.Data
+import qualified Data.Map.Strict as Map
 import Data.Scientific
 import Data.Text as T
 import Data.Word
@@ -37,6 +39,9 @@ data Biome = Biome
 instance ToJSON Biome
 instance FromJSON Biome
 instance NFData Biome
+
+genBiomeMap :: [Biome] -> Map.Map Text Biome
+genBiomeMap = Map.fromList . fmap (\b -> (name b,b))
 
 data BiomeID
   = BiomeIDOcean

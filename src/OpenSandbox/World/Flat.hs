@@ -19,6 +19,7 @@ import qualified Data.Vector as V
 import OpenSandbox.Data.Block (BlockStateID)
 import OpenSandbox.World.Chunk
 
+
 newtype ChunkLayers = ChunkLayers (V.Vector BlockStateID) deriving (Show,Eq)
 
 mkChunkLayers :: V.Vector BlockStateID -> Either String ChunkLayers

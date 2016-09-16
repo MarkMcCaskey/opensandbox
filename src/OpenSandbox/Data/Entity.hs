@@ -14,6 +14,7 @@
 -------------------------------------------------------------------------------
 module OpenSandbox.Data.Entity
   ( Entity (..)
+  , genEntityMap
   , EntityType (..)
   , EntityCategory (..)
   ) where
@@ -22,6 +23,7 @@ import Control.DeepSeq
 import Data.Aeson
 import Data.Aeson.Types
 import Data.Data
+import qualified Data.Map.Strict as Map
 import Data.Monoid
 import Data.Text as T
 import Data.Word
@@ -67,6 +69,9 @@ instance FromJSON Entity where
   parseJSON _ = mempty
 
 instance NFData Entity
+
+genEntityMap :: [Entity] -> Map.Map Text Entity
+genEntityMap = Map.fromList . fmap (\e -> (name e, e))
 
 data EntityType = EntityMob | EntityObject
   deriving (Show,Eq,Ord,Generic,Data,Typeable)
