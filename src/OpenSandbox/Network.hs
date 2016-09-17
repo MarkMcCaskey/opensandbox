@@ -235,33 +235,39 @@ handleHandshaking logger = do
   liftIO $ logMsg logger LvlDebug $ "Recieving: " ++ show maybeHandshake
   case maybeHandshake of
     Nothing -> return ()
-    Just eitherHandshake -> do
+    Just eitherHandshake ->
       case eitherHandshake of
         Left parseErr -> do
           liftIO $ logMsg logger LvlError $ "Something went wrong: " ++ show parseErr
           return ()
-        Right ((SBHandshake _ _ _ ProtocolStatus),status) -> do
+        Right (SBHandshake _ _ _ ProtocolHandshake,_) -> do
+          liftIO $ logMsg logger LvlDebug "Redundant handshake"
+          return ()
+        Right (SBHandshake _ _ _ ProtocolStatus,status) -> do
           liftIO $ logMsg logger LvlDebug "Switching protocol state to STATUS"
           lift $ S.put ProtocolStatus
           case status of
             Nothing -> return ()
             Just status' -> yield (Right status')
-        Right ((SBHandshake _ _ _ ProtocolLogin),_) -> do
+        Right (SBHandshake _ _ _ ProtocolLogin,_) -> do
           liftIO $ logMsg logger LvlDebug "Switching protocol state to LOGIN"
           lift $ S.put ProtocolLogin
           return ()
-        Right (SBLegacyServerListPing,_)-> do
+        Right (SBHandshake _ _ _ ProtocolPlay,_) -> do
+          liftIO $ logMsg logger LvlDebug "Rejecting attempt to set protocol state to PLAY"
           return ()
-        Right _ -> undefined
+        Right (SBLegacyServerListPing,_)-> do
+          liftIO $ logMsg logger LvlDebug "Recieved LegacyServerListPing"
+          return ()
 
 handleStatus  :: Config -> Logger -> Conduit (Either String SBStatus) (StateT ProtocolState IO) CBStatus
 handleStatus config logger = do
   maybeStatus <- await
   case maybeStatus of
     Nothing -> return ()
-    Just eitherStatus -> do
+    Just eitherStatus ->
       case eitherStatus of
-        Left parseErr -> liftIO $ logMsg logger LvlError $ parseErr
+        Left parseErr -> liftIO $ logMsg logger LvlError parseErr
         Right SBRequest -> do
           let responsePacket =
                 CBResponse
@@ -283,12 +289,12 @@ handleLogin config logger encryption = do
   liftIO $ logMsg logger LvlDebug $ "Recieving: " ++ show maybeLoginStart
   case maybeLoginStart of
     Nothing -> return ()
-    Just eitherLogin -> do
+    Just eitherLogin ->
       case eitherLogin of
-        Left parseErr -> liftIO $ logMsg logger LvlError $ parseErr
+        Left parseErr -> liftIO $ logMsg logger LvlError parseErr
         Right (SBLoginStart username) -> do
           someUUID <- liftIO nextRandom
-          liftIO $ logMsg logger LvlDebug $ "Switching protocol state to PLAY"
+          liftIO $ logMsg logger LvlDebug "Switching protocol state to PLAY"
           lift $ S.put ProtocolPlay
           if srvEncryption config
             then do
@@ -298,11 +304,12 @@ handleLogin config logger encryption = do
               maybeEitherEncryptionResponse <- await
               case maybeEitherEncryptionResponse of
                 Nothing -> return ()
-                Just eitherEncryptionResponse -> do
+                Just eitherEncryptionResponse ->
                   case eitherEncryptionResponse of
-                    Left err -> liftIO $ logMsg logger LvlError $ err
+                    Left err -> liftIO $ logMsg logger LvlError err
+
                     Right (SBEncryptionResponse _ _) -> do
-                      liftIO $ logMsg logger LvlDebug $ "Got an encryption request!"
+                      liftIO $ logMsg logger LvlDebug "Got an encryption request!"
                       when (srvCompression config) $ do
                         let setCompression = CBSetCompression 0
                         liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show setCompression
@@ -310,7 +317,10 @@ handleLogin config logger encryption = do
                       let loginSuccess = CBLoginSuccess someUUID username
                       liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show loginSuccess
                       yield loginSuccess
-                    Right _ -> undefined
+
+                    Right (SBLoginStart _) -> do
+                      liftIO $ logMsg logger LvlError "Redundant SBLoginStart!"
+                      return ()
             else do
               when (srvCompression config) $ do
                 let setCompression = CBSetCompression 0
@@ -321,13 +331,13 @@ handleLogin config logger encryption = do
               yield loginSuccess
 
         Right (SBEncryptionResponse _ _) -> do
-          liftIO $ logMsg logger LvlError $ "Got an encryption request out of order!"
+          liftIO $ logMsg logger LvlError "Got an encryption request out of order!"
           return ()
 
 handlePlay  :: Config -> Logger -> World -> Conduit (Either String [SBPlay]) (StateT ProtocolState IO) CBPlay
 handlePlay config logger world = do
-  someUUID <- liftIO $ nextRandom
-  liftIO $ logMsg logger LvlDebug $ "Starting PLAY session"
+  someUUID <- liftIO nextRandom
+  liftIO $ logMsg logger LvlDebug "Starting PLAY session"
   let loginPacket =
         CBJoinGame
           2566
