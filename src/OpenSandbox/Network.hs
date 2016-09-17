@@ -20,7 +20,7 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Lazy
-import qualified Control.Monad.Trans.State.Lazy as S (put,get)
+import qualified Control.Monad.Trans.State.Lazy as S (put)
 import qualified Data.Attoparsec.ByteString as Decode
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
@@ -34,7 +34,6 @@ import qualified Data.Vector as V
 import Data.Text.Encoding
 import Data.UUID.V4
 import OpenSandbox.Config
-import OpenSandbox.Data
 import OpenSandbox.Logger
 import OpenSandbox.Protocol
 import OpenSandbox.Version
@@ -43,8 +42,8 @@ import OpenSandbox.World
 logMsg :: Logger -> Lvl -> String -> IO ()
 logMsg logger lvl msg = logIO logger "OpenSandbox.Network" lvl (T.pack msg)
 
-runOpenSandboxServer :: Config -> Logger -> Encryption -> GameData -> World -> IO ()
-runOpenSandboxServer config logger encryption gameData world =
+runOpenSandboxServer :: Config -> Logger -> Encryption -> World -> IO ()
+runOpenSandboxServer config logger encryption world =
     runTCPServer (serverSettings (srvPort config) "*") $ \app -> do
       firstState <- flip execStateT ProtocolHandshake
         $ packetSource app
@@ -97,11 +96,13 @@ packetSource app = transPipe liftIO $ appSource app
 packetSink  :: AppData -> Sink B.ByteString (StateT ProtocolState IO) ()
 packetSink app = transPipe liftIO $ appSink app
 
+{-
 compressPlay :: Conduit B.ByteString (StateT ProtocolState IO) B.ByteString
 compressPlay = awaitForever $ \play -> yield (BL.toStrict $ Zlib.compress (BL.fromStrict $ play))
 
 decompressPlay :: Conduit B.ByteString (StateT ProtocolState IO) B.ByteString
 decompressPlay = awaitForever $ \play -> yield (BL.toStrict $ Zlib.decompress (BL.fromStrict $ play))
+-}
 
 deserializeHandshaking :: Conduit B.ByteString (StateT ProtocolState IO) (Either String (SBHandshaking,Maybe SBStatus))
 deserializeHandshaking = do
@@ -251,6 +252,7 @@ handleHandshaking logger = do
           return ()
         Right (SBLegacyServerListPing,_)-> do
           return ()
+        Right _ -> undefined
 
 handleStatus  :: Config -> Logger -> Conduit (Either String SBStatus) (StateT ProtocolState IO) CBStatus
 handleStatus config logger = do
@@ -308,6 +310,7 @@ handleLogin config logger encryption = do
                       let loginSuccess = CBLoginSuccess someUUID username
                       liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show loginSuccess
                       yield loginSuccess
+                    Right _ -> undefined
             else do
               when (srvCompression config) $ do
                 let setCompression = CBSetCompression 0
@@ -328,10 +331,10 @@ handlePlay config logger world = do
   let loginPacket =
         CBJoinGame
           2566
-          (toEnum . fromEnum $ srvGameMode config)
-          (toEnum . fromEnum $ srvDimension config)
-          (toEnum . fromEnum $ srvDifficulty config)
-          (toEnum . fromEnum $ srvMaxPlayers config)
+          (srvGameMode config)
+          (srvDimension config)
+          (srvDifficulty config)
+          (srvMaxPlayers config)
           (T.pack . show $ srvWorldType config)
           True
 
@@ -346,7 +349,7 @@ handlePlay config logger world = do
   liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show customPayloadPacket2
   yield customPayloadPacket2
 
-  let difficultyPacket = CBServerDifficulty (toEnum . fromEnum $ srvDifficulty config)
+  let difficultyPacket = CBServerDifficulty (srvDifficulty config)
   liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show difficultyPacket
   yield difficultyPacket
 
@@ -396,9 +399,7 @@ handlePlay config logger world = do
   liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show setSlotPacket
   yield setSlotPacket
 
-  let keepAlivePacket = CBKeepAlive 100
   mapM_ (yield . CBChunkData) $ ML.elems world
   awaitForever $ \packets -> do
     liftIO $ threadDelay 10000
-    liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show packets
-
+    liftIO $ logMsg logger LvlDebug $ "Recieving: " ++ show packets

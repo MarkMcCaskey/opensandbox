@@ -26,7 +26,6 @@ import Data.ASN1.BinaryEncoding
 import Data.ASN1.Encoding
 import Data.ASN1.Types hiding (End)
 import qualified Data.ByteString as B
-import Data.Int
 import qualified Data.Text as T
 import Data.Word
 import Data.X509
@@ -55,7 +54,7 @@ data Config = Config
   , srvLogDir           :: (Path Rel Dir)
   , srvWorldDir         :: (Path Rel Dir)
   , srvMCVersion        :: T.Text
-  , srvMaxPlayers       :: Int32
+  , srvMaxPlayers       :: Word8
   , srvViewDistance     :: Word8
   , srvMaxBuildHeight   :: Int
   , srvGameMode         :: GameMode
@@ -167,7 +166,7 @@ loadConfig path = do
               else Left "Error: Invalid Max Build Height!"
 
       let hasValidMaxPlayers c =
-            if (srvMaxPlayers c < (maxBound :: Int32)) && (srvMaxPlayers c >= 0)
+            if (srvMaxPlayers c < (maxBound :: Word8)) && (srvMaxPlayers c >= 0)
               then Right c
               else Left "Error: Invalid Max Players!"
 

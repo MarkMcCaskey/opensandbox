@@ -123,10 +123,6 @@ data Encryption = Encryption
   , getVerifyToken  :: B.ByteString
   } deriving (Show,Eq)
 
--------------------------------------------------------------------------------
--- | Core Protocol Types
--------------------------------------------------------------------------------
-
 type Short = Int16
 
 putText :: T.Text -> Put
@@ -333,10 +329,6 @@ getNetcodeByteString = do
   ln <- getVarInt
   bs <- getBytes ln
   return bs
-
--------------------------------------------------------------------------------
--- | Protocol Enums
--------------------------------------------------------------------------------
 
 data Animation
   = SwingArm

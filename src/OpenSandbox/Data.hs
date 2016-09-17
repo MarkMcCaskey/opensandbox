@@ -32,15 +32,14 @@ import Data.Aeson (FromJSON,eitherDecodeStrict')
 import qualified Data.ByteString as B
 import Data.Map.Strict
 import Data.Text
-import Path
 
 data GameData = GameData
-  { biomeMap :: Map Text Biome
-  , globalPalette :: Palette
-  , effectMap :: Map Text Effect
-  , entityMap :: Map Text Entity
-  , instrumentMap :: Map Text Instrument
-  , itemMap :: Map Text Item
+  { getBiomeMap :: Map Text Biome
+  , getBlockMap :: Map Text Block
+  , getEffectMap :: Map Text Effect
+  , getEntityMap :: Map Text Entity
+  , getInstrumentMap :: Map Text Instrument
+  , getItemMap :: Map Text Item
   } deriving (Show,Eq)
 
 
@@ -54,17 +53,17 @@ loadGameData = do
   rawItems <- B.readFile "data/items.json"
 
   let biomes = eitherDecodeStrict' rawBiomes :: Either String [Biome]
-  let blocks = eitherDecodeStrict' rawBlocks :: Either String [BlockImport]
+  let blocks = eitherDecodeStrict' rawBlocks :: Either String [Block]
   let effects = eitherDecodeStrict' rawEffects :: Either String [Effect]
   let entities = eitherDecodeStrict' rawEntity :: Either String [Entity]
   let instruments = eitherDecodeStrict' rawInstruments :: Either String [Instrument]
   let items = eitherDecodeStrict' rawItems :: Either String [Item]
 
   let biomeMap = fmap genBiomeMap biomes
-  let globalPalette = fmap genGlobalPalette blocks
+  let blockMap = fmap genBlockMap blocks
   let effectMap = fmap genEffectMap effects
   let entityMap = fmap genEntityMap entities
   let instrumentMap = fmap genInstrumentMap instruments
   let itemMap = fmap genItemMap items
 
-  return $ GameData <$> biomeMap <*> globalPalette <*> effectMap <*> entityMap <*> instrumentMap <*> itemMap
+  return $ GameData <$> biomeMap <*> blockMap <*> effectMap <*> entityMap <*> instrumentMap <*> itemMap

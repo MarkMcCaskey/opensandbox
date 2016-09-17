@@ -202,7 +202,7 @@ data CBPlay
   | CBChunkData ChunkColumn
   | CBEffect Int32 Position Int32 Bool
   | CBParticle Int32 Bool Float Float Float Float Float Float Float (V.Vector VarInt)
-  | CBJoinGame Int32 Word8 Int32 Word8 Word8 T.Text Bool
+  | CBJoinGame Int32 GameMode Dimension Difficulty Word8 T.Text Bool
   | CBMap VarInt Int8 Bool (V.Vector Icon) UpdatedColumns
   | CBEntityRelativeMove VarInt Short Short Short Bool
   | CBEntityLookAndRelativeMove VarInt Short Short Short Angle Angle Bool

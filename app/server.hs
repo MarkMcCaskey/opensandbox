@@ -108,7 +108,7 @@ main = do
           let eitherWorld = genWorld Flat logger
           case eitherGameData of
             Left err -> print err
-            Right gameData ->
+            Right _ ->
               case eitherWorld of
                 Left err -> print err
-                Right world -> runOpenSandboxServer config logger encryption gameData world
+                Right world -> runOpenSandboxServer config logger encryption world
