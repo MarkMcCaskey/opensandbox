@@ -9,9 +9,35 @@
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.World
-  ( module OpenSandbox.World.Chunk
+  ( module OpenSandbox.World.Amplified
+  , module OpenSandbox.World.Chunk
+  , module OpenSandbox.World.Default
   , module OpenSandbox.World.Flat
+  , module OpenSandbox.World.LargeBiomes
+  , World
+  , WorldType (..)
+  , genWorld
   ) where
 
+import OpenSandbox.World.Amplified
 import OpenSandbox.World.Chunk
+import OpenSandbox.World.Default
 import OpenSandbox.World.Flat
+import OpenSandbox.World.LargeBiomes
+
+import Data.Int
+import qualified Data.Map.Lazy as ML
+import qualified Data.Vector as V
+
+import OpenSandbox.Config
+import OpenSandbox.Logger
+
+type World = ML.Map (Int32,Int32) ChunkColumn
+
+genWorld :: WorldType -> Logger -> Either String World
+genWorld worldType _ =
+  case worldType of
+    Default -> Left "Error: No implemented world gen for Default!"
+    Flat -> ML.fromList <$> ((\layers -> genFlatWorld layers) =<< (mkChunkLayers classicFlatPreset))
+    LargeBiomes -> Left "Error: No implemented world gen for LargeBiomes!"
+    Amplified -> Left "Error: No implemented world gen for Amplified!"

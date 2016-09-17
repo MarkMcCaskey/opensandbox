@@ -15,6 +15,7 @@ module OpenSandbox.Network
   ) where
 
 import qualified Codec.Compression.Zlib as Zlib
+import Control.Concurrent (threadDelay)
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
@@ -25,20 +26,25 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import Data.Conduit
 import Data.Conduit.Network
+import qualified Data.Map.Lazy as ML
+import Data.NBT
 import Data.Serialize
 import qualified Data.Text as T
+import qualified Data.Vector as V
 import Data.Text.Encoding
 import Data.UUID.V4
 import OpenSandbox.Config
+import OpenSandbox.Data
 import OpenSandbox.Logger
 import OpenSandbox.Protocol
 import OpenSandbox.Version
+import OpenSandbox.World
 
 logMsg :: Logger -> Lvl -> String -> IO ()
 logMsg logger lvl msg = logIO logger "OpenSandbox.Network" lvl (T.pack msg)
 
-runOpenSandboxServer :: Config -> Logger -> Encryption -> IO ()
-runOpenSandboxServer config logger encryption =
+runOpenSandboxServer :: Config -> Logger -> Encryption -> GameData -> World -> IO ()
+runOpenSandboxServer config logger encryption gameData world =
     runTCPServer (serverSettings (srvPort config) "*") $ \app -> do
       firstState <- flip execStateT ProtocolHandshake
         $ packetSource app
@@ -79,7 +85,7 @@ runOpenSandboxServer config logger encryption =
               void $ flip execStateT ProtocolPlay
                 $ packetSource app
                 $$ deserializePlay config
-                =$= handlePlay config logger
+                =$= handlePlay config logger world
                 =$= serializePlay config
                 =$= packetSink app
             else liftIO $ logMsg logger LvlDebug $ "Somebody failed login"
@@ -315,8 +321,8 @@ handleLogin config logger encryption = do
           liftIO $ logMsg logger LvlError $ "Got an encryption request out of order!"
           return ()
 
-handlePlay  :: Config -> Logger -> Conduit (Either String [SBPlay]) (StateT ProtocolState IO) CBPlay
-handlePlay config logger = do
+handlePlay  :: Config -> Logger -> World -> Conduit (Either String [SBPlay]) (StateT ProtocolState IO) CBPlay
+handlePlay config logger world = do
   someUUID <- liftIO $ nextRandom
   liftIO $ logMsg logger LvlDebug $ "Starting PLAY session"
   let loginPacket =
@@ -381,19 +387,18 @@ handlePlay config logger = do
   let updateTimePacket = CBTimeUpdate 1000 25
   liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show updateTimePacket
   yield updateTimePacket
-{-
-  let windowItemsPacket = CBWindowItems 0 (V.replicate 46 (mkSlot (-1) 1 1 (TagByte "" 0)))
+
+  let windowItemsPacket = CBWindowItems 0 (V.replicate 46 (mkSlot (-1) 1 1 (NBT "" (ByteTag 0))))
   liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show windowItemsPacket
   yield windowItemsPacket
 
-  let setSlotPacket = CBSetSlot (-1) (-1) (mkSlot (-1) 1 1 (TagByte "" 0))
+  let setSlotPacket = CBSetSlot (-1) (-1) (mkSlot (-1) 1 1 (NBT "" (ByteTag 0)))
   liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show setSlotPacket
   yield setSlotPacket
--}
-{-
+
   let keepAlivePacket = CBKeepAlive 100
-  mapM_ yield $ genFlatWorld (toEnum . fromEnum . srvViewDistance $ config)
+  mapM_ (yield . CBChunkData) $ ML.elems world
   awaitForever $ \packets -> do
     liftIO $ threadDelay 10000
     liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show packets
--}
+

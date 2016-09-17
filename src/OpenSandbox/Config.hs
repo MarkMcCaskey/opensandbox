@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.Config
@@ -10,7 +11,8 @@
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.Config
-  ( Config (..)
+  ( WorldType (..)
+  , Config (..)
   , writeDefaultConfig
   , genDefaultConfig
   , configEncryption
@@ -29,9 +31,21 @@ import qualified Data.Text as T
 import Data.Word
 import Data.X509
 import Data.Yaml
+import GHC.Generics (Generic)
 import OpenSandbox.Protocol.Types
 import Path
 
+data WorldType = Default | Flat | LargeBiomes | Amplified
+  deriving (Eq,Enum,Generic)
+
+instance Show WorldType where
+  show Default = "default"
+  show Flat = "flat"
+  show LargeBiomes = "largeBiomes"
+  show Amplified = "amplified"
+
+instance ToJSON WorldType
+instance FromJSON WorldType
 
 data Config = Config
   { srvPort             :: Int
@@ -78,7 +92,6 @@ instance ToJSON Config where
     , "enabled"         .= srvEnabled c
     ]
 
-
 instance FromJSON Config where
   parseJSON (Object v) =
     Config
@@ -103,10 +116,8 @@ instance FromJSON Config where
       <*> v .: "enabled"
   parseJSON _ = mzero
 
-
 writeDefaultConfig :: FilePath -> Config -> IO ()
 writeDefaultConfig path c = encodeFile path c
-
 
 genDefaultConfig :: IO Config
 genDefaultConfig = do
@@ -138,7 +149,6 @@ genDefaultConfig = do
       , srvEnabled          = False
       }
 
-
 loadConfig :: Path b File -> IO (Either String Config)
 loadConfig path = do
   maybeConfig <- decodeFileEither (toFilePath path)
@@ -162,7 +172,6 @@ loadConfig path = do
               else Left "Error: Invalid Max Players!"
 
       return $ (hasValidViewDistance >=> hasValidMaxBuildHeight >=> hasValidMaxPlayers) rawConfig
-
 
 configEncryption :: IO Encryption
 configEncryption = do

@@ -104,11 +104,11 @@ data ChunkColumnData = ChunkColumnData (V.Vector ChunkBlock) deriving (Show,Eq)
 instance Serialize ChunkColumnData where
   put (ChunkColumnData chunks)= do
     let bs = runPut (V.mapM_ put chunks)
-    putVarInt . B.length $ bs
+    putVarInt . (+256) . B.length $ bs
     putByteString bs
 
   get = do
-    ln <- getVarInt
+    ln <- ((\x -> x - 256) <$> getVarInt)
     bs <- getBytes ln
     case runGet (many1 get) bs of
       Left err -> fail err
@@ -118,7 +118,6 @@ instance Serialize ChunkColumnData where
       many1 g = liftA2 (:) g (many g)
 
 mkChunkColumnData :: V.Vector ChunkBlock -> Either String ChunkColumnData
-mkChunkColumnData [] = Left "Error: Needs at least one chunk in column defined!"
 mkChunkColumnData chunks
   | length chunks <= 16 = Right (ChunkColumnData chunks)
   | otherwise = Left "Error: Can only have up to 16 chunks per column!"
@@ -192,7 +191,7 @@ instance Serialize PrimaryBitMask where
   get = (PrimaryBitMask . fromIntegral) <$> getVarInt
 
 mkPrimaryBitMask :: ChunkColumnData -> PrimaryBitMask
-mkPrimaryBitMask = PrimaryBitMask . (2^) . length . unChunkColumnData
+mkPrimaryBitMask = PrimaryBitMask . foldr1 (.|.) . fmap (2^) . (\n -> take n $ iterate (+1) (0 :: Word16)) . length . unChunkColumnData
 
 unPrimaryBitMask :: PrimaryBitMask -> Word16
 unPrimaryBitMask (PrimaryBitMask pbm) = pbm

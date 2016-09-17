@@ -16,17 +16,17 @@ module OpenSandbox.Version
   , protocolVersion
   ) where
 
-import qualified Data.Text as T
+import Data.Text
 
-openSandboxVersion :: T.Text
+openSandboxVersion :: Text
 openSandboxVersion = "0.0.1.4"
 
 
-majorVersion :: T.Text
+majorVersion :: Text
 majorVersion = "1.10"
 
 
-snapshotVersion :: T.Text
+snapshotVersion :: Text
 snapshotVersion = "1.10"
 
 

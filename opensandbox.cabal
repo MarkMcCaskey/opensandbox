@@ -36,8 +36,12 @@ library
                             OpenSandbox.User
                             OpenSandbox.Version
                             OpenSandbox.World
+                            OpenSandbox.World.Amplified
                             OpenSandbox.World.Chunk
+                            OpenSandbox.World.Default
                             OpenSandbox.World.Flat
+                            OpenSandbox.World.LargeBiomes
+
     build-depends:          aeson,
                             ansi-terminal,
                             asn1-encoding,
@@ -115,7 +119,11 @@ test-suite opensandbox-test
                             OpenSandbox.Protocol.PacketSpec
                             OpenSandbox.Protocol.TypesSpec
                             OpenSandbox.UserSpec
+                            OpenSandbox.World.AmplifiedSpec
                             OpenSandbox.World.ChunkSpec
+                            OpenSandbox.World.DefaultSpec
+                            OpenSandbox.World.FlatSpec
+                            OpenSandbox.World.LargeBiomesSpec
 
     build-depends:          array,
                             base,

@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists #-}
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.World.Flat
@@ -9,16 +10,29 @@
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.World.Flat
-  ( ChunkLayers
+  ( genFlatWorld
+  , ChunkLayers
   , mkChunkLayers
   , flatChunkColumn
-  )where
+  , classicFlatPreset
+  ) where
 
 import Data.Int
 import qualified Data.Vector as V
 import OpenSandbox.Data.Block (BlockStateID)
 import OpenSandbox.World.Chunk
 
+classicFlatPreset :: V.Vector BlockStateID
+classicFlatPreset = fmap toEnum [112,48,48,32]
+
+genFlatWorld :: ChunkLayers -> Either String [((Int32,Int32), ChunkColumn)]
+genFlatWorld layers =
+  case eitherChunkColumns of
+    Left err -> Left err
+    Right chunkColumns -> Right $ zip coords chunkColumns
+  where
+    coords = [(x,z) | x <- [(-10)..10], z <- [(-10)..10]]
+    eitherChunkColumns = sequence $ fmap (\(x,z) -> flatChunkColumn x z layers) coords
 
 newtype ChunkLayers = ChunkLayers (V.Vector BlockStateID) deriving (Show,Eq)
 
@@ -37,15 +51,17 @@ flatChunkColumn x z layers =
 -- of the chunk.
 flatChunkColumnData :: ChunkLayers -> Either String ChunkColumnData
 flatChunkColumnData (ChunkLayers layers) = do
-  let filled = layers V.++ V.replicate (256 - V.length layers) 0
-  let dataLoaf = V.concatMap (V.replicate 256) filled
-  let slices = fmap (\i -> V.slice (i * 256) (16 * 256) dataLoaf) [0..15]
-  let chunkBlockDatas = sequence $ fmap mkChunkBlockData slices :: Either String [ChunkBlockData]
+  let fullLayers = layers V.++ V.replicate (256 - V.length layers) 0
+  let neededLn = (ceiling ((fromIntegral . V.length $ layers) / 16)) * 16
+  let neededLayers = V.take neededLn fullLayers
+  let neededColumn = V.concatMap (V.replicate 256) neededLayers
+  let chunked = fmap (\i -> V.slice (i * 4096) 4096 neededColumn) $ take (neededLn `div` 16) $ iterate (+1) 0
+  let chunkBlockDats = sequence $ fmap mkChunkBlockData chunked :: Either String [ChunkBlockData]
   let chunkBlocks =
-        chunkBlockDatas
-        >>= (\lst -> sequence $ fmap (\x -> mkChunkBlock x (V.replicate 2048 0) (V.replicate 2048 0)) lst)
+        chunkBlockDats
+        >>= (\lst -> sequence $ fmap (\x -> mkChunkBlock x (V.replicate 2048 255) (V.replicate 2048 255)) lst)
   mkChunkColumnData . V.fromList =<< chunkBlocks
 
 flatBiomeIndices :: BiomeIndices
-flatBiomeIndices = fillBiomeIndices 0
+flatBiomeIndices = fillBiomeIndices 1
 

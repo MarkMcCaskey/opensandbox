@@ -19,7 +19,6 @@
 module OpenSandbox.Protocol.Types
   ( Encryption (..)
   , Compression (..)
-  , WorldType (..)
   , Chat
   , Short
   , Angle
@@ -113,18 +112,6 @@ import qualified Data.Vector as V
 import Data.Word
 import GHC.Generics
 import Prelude hiding (max)
-
-data WorldType = Default | Flat | LargeBiomes | Amplified
-  deriving (Eq,Enum,Generic)
-
-instance Show WorldType where
-  show Default = "default"
-  show Flat = "flat"
-  show LargeBiomes = "largeBiomes"
-  show Amplified = "amplified"
-
-instance A.ToJSON WorldType
-instance A.FromJSON WorldType
 
 data Compression = Everything | Int
   deriving (Show,Eq)
