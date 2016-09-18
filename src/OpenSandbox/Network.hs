@@ -370,7 +370,7 @@ handlePlay config logger worldClock world = do
   liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show spawnPositionPacket
   yield spawnPositionPacket
 
-  let playerAbilitiesPacket = CBPlayerAbilities 0 1028443341 1036831949
+  let playerAbilitiesPacket = CBPlayerAbilities 0 1028443341 0
   liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show playerAbilitiesPacket
   yield playerAbilitiesPacket
 
@@ -416,7 +416,7 @@ handlePlay config logger worldClock world = do
 
   mapM_ (yield . CBChunkData) $ ML.elems world
 
-  --let entityMetadata = CBEntityMetadata 0 
+  --let entityMetadata = CBEntityMetadata 0 (V.singleton (Entry 13 MetadataByte ))
   --liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show entityMetadata
   --yield entityMetadata
 
