@@ -427,6 +427,14 @@ handlePlay config logger worldClock world = do
         liftIO $ threadDelay 10000
         liftIO $ logMsg logger LvlDebug $ "Recieving: " ++ show packets
         mapM_ handle packets
+        age <- liftIO $ getWorldAge worldClock
+        t <- liftIO $ getWorldTime worldClock
+        when (mod t 20 == 0) $ do
+          liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show (CBTimeUpdate age t)
+          yield (CBTimeUpdate age t)
+        when (mod t 40 == 0) $ do
+          liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show (CBKeepAlive 5346)
+          yield (CBKeepAlive 5346)
   where
     handle packet =
       case packet of
@@ -441,7 +449,7 @@ handlePlay config logger worldClock world = do
         SBCloseWindow {} -> return ()
         SBPluginMessage {} -> return ()
         SBUseEntity {} -> return ()
-        SBKeepAlive payload -> yield (CBKeepAlive payload)
+        SBKeepAlive {} -> return ()
         SBPlayerPosition {} -> return ()
         SBPlayerPositionAndLook {} -> return ()
         SBPlayerLook {} -> return ()
