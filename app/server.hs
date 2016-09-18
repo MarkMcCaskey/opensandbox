@@ -11,7 +11,9 @@
 --
 -------------------------------------------------------------------------------
 
+import Control.Concurrent
 import Control.Monad
+import Data.Int
 import qualified Data.Text as T
 import OpenSandbox
 import Path
@@ -111,4 +113,7 @@ main = do
             Right _ ->
               case eitherWorld of
                 Left err -> print err
-                Right world -> runOpenSandboxServer config logger encryption world
+                Right world -> do
+                  worldClock <- newMVar (0 :: Int64)
+                  _ <- forkIO $ tick worldClock
+                  runOpenSandboxServer config logger encryption worldClock world

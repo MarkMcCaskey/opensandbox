@@ -16,6 +16,7 @@ module OpenSandbox.Network
 
 import qualified Codec.Compression.Zlib as Zlib
 import Control.Concurrent (threadDelay)
+import Control.Concurrent.MVar
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
@@ -26,6 +27,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import Data.Conduit
 import Data.Conduit.Network
+import Data.Int
 import qualified Data.Map.Lazy as ML
 import Data.NBT
 import Data.Serialize
@@ -36,14 +38,15 @@ import Data.UUID.V4
 import OpenSandbox.Config
 import OpenSandbox.Logger
 import OpenSandbox.Protocol
+import OpenSandbox.Time
 import OpenSandbox.Version
 import OpenSandbox.World
 
 logMsg :: Logger -> Lvl -> String -> IO ()
 logMsg logger lvl msg = logIO logger "OpenSandbox.Network" lvl (T.pack msg)
 
-runOpenSandboxServer :: Config -> Logger -> Encryption -> World -> IO ()
-runOpenSandboxServer config logger encryption world =
+runOpenSandboxServer :: Config -> Logger -> Encryption -> MVar Int64 -> World -> IO ()
+runOpenSandboxServer config logger encryption worldClock world =
     runTCPServer (serverSettings (srvPort config) "*") $ \app -> do
       firstState <- flip execStateT ProtocolHandshake
         $ packetSource app
@@ -84,7 +87,7 @@ runOpenSandboxServer config logger encryption world =
               void $ flip execStateT ProtocolPlay
                 $ packetSource app
                 $$ deserializePlay config
-                =$= handlePlay config logger world
+                =$= handlePlay config logger worldClock world
                 =$= serializePlay config
                 =$= packetSink app
             else liftIO $ logMsg logger LvlDebug $ "Somebody failed login"
@@ -334,8 +337,8 @@ handleLogin config logger encryption = do
           liftIO $ logMsg logger LvlError "Got an encryption request out of order!"
           return ()
 
-handlePlay  :: Config -> Logger -> World -> Conduit (Either String [SBPlay]) (StateT ProtocolState IO) CBPlay
-handlePlay config logger world = do
+handlePlay  :: Config -> Logger -> MVar Int64 -> World -> Conduit (Either String [SBPlay]) (StateT ProtocolState IO) CBPlay
+handlePlay config logger worldClock world = do
   someUUID <- liftIO nextRandom
   liftIO $ logMsg logger LvlDebug "Starting PLAY session"
   let loginPacket =
@@ -397,7 +400,9 @@ handlePlay config logger world = do
   liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show worldBorderPacket
   yield worldBorderPacket
 
-  let updateTimePacket = CBTimeUpdate 1000 25
+  worldAge <- liftIO $ getWorldAge worldClock
+  worldTime <- liftIO $ getWorldTime worldClock
+  let updateTimePacket = CBTimeUpdate worldAge worldTime
   liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show updateTimePacket
   yield updateTimePacket
 
@@ -410,6 +415,48 @@ handlePlay config logger world = do
   yield setSlotPacket
 
   mapM_ (yield . CBChunkData) $ ML.elems world
-  awaitForever $ \packets -> do
-    liftIO $ threadDelay 10000
-    liftIO $ logMsg logger LvlDebug $ "Recieving: " ++ show packets
+
+  --let entityMetadata = CBEntityMetadata 0 
+  --liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show entityMetadata
+  --yield entityMetadata
+
+  awaitForever $ \eitherPackets ->
+    case eitherPackets of
+      Left err -> liftIO $ logMsg logger LvlError err
+      Right packets -> do
+        liftIO $ threadDelay 10000
+        liftIO $ logMsg logger LvlDebug $ "Recieving: " ++ show packets
+        mapM_ handle packets
+  where
+    handle packet =
+      case packet of
+        SBTeleportConfirm {} -> return ()
+        SBTabComplete {} -> return ()
+        SBChatMessage {} -> return ()
+        SBClientStatus {} -> return ()
+        SBClientSettings {} -> return ()
+        SBConfirmTransaction {} -> return ()
+        SBEnchantItem {} -> return ()
+        SBClickWindow {} -> return ()
+        SBCloseWindow {} -> return ()
+        SBPluginMessage {} -> return ()
+        SBUseEntity {} -> return ()
+        SBKeepAlive payload -> yield (CBKeepAlive payload)
+        SBPlayerPosition {} -> return ()
+        SBPlayerPositionAndLook {} -> return ()
+        SBPlayerLook {} -> return ()
+        SBPlayer {} -> return ()
+        SBVehicleMove {} -> return ()
+        SBSteerBoat {} -> return ()
+        SBPlayerAbilities {} -> return ()
+        SBPlayerDigging {} -> return ()
+        SBEntityAction {} -> return ()
+        SBSteerVehicle {} -> return ()
+        SBResourcePackStatus {} -> return ()
+        SBHeldItemChange {} -> return ()
+        SBCreativeInventoryAction {} -> return ()
+        SBUpdateSign {} -> return ()
+        SBAnimation {} -> return ()
+        SBSpectate {} -> return ()
+        SBPlayerBlockPlacement {} -> return ()
+        SBUseItem {} -> return ()
