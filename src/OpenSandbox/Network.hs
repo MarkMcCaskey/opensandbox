@@ -15,6 +15,7 @@ module OpenSandbox.Network
   ) where
 
 import qualified Codec.Compression.Zlib as Zlib
+import Control.Applicative
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.MVar
 import Control.Monad
@@ -99,14 +100,6 @@ packetSource app = transPipe liftIO $ appSource app
 packetSink  :: AppData -> Sink B.ByteString (StateT ProtocolState IO) ()
 packetSink app = transPipe liftIO $ appSink app
 
-{-
-compressPlay :: Conduit B.ByteString (StateT ProtocolState IO) B.ByteString
-compressPlay = awaitForever $ \play -> yield (BL.toStrict $ Zlib.compress (BL.fromStrict $ play))
-
-decompressPlay :: Conduit B.ByteString (StateT ProtocolState IO) B.ByteString
-decompressPlay = awaitForever $ \play -> yield (BL.toStrict $ Zlib.decompress (BL.fromStrict $ play))
--}
-
 deserializeHandshaking :: Conduit B.ByteString (StateT ProtocolState IO) (Either String (SBHandshaking,Maybe SBStatus))
 deserializeHandshaking = do
     maybeBS <- await
@@ -174,6 +167,14 @@ serializeLogin config = do
   maybeLogin <- await
   case maybeLogin of
     Nothing -> return ()
+    Just (CBSetCompression threshold) -> do
+      let bs = encode (CBSetCompression threshold)
+      let ln = runPut . putVarInt . B.length $ bs
+      yield (ln `B.append` bs)
+      maybeLoginSuccess <- await
+      case maybeLoginSuccess of
+        Nothing -> return ()
+        Just loginSuccess -> handle loginSuccess
     Just (CBLoginSuccess a b) -> do
       let uncompressedBS = (encodeLazy (CBLoginSuccess a b))
       if srvCompression config
@@ -191,31 +192,49 @@ serializeLogin config = do
       let bs = encode login
       let ln = runPut . putVarInt . B.length $ bs
       yield (ln `B.append` bs)
+  where
+    handle l = do
+      let uncompressedBS = (encodeLazy l)
+      if srvCompression config
+        then do
+          let dataLn = runPut . putVarInt . B.length . BL.toStrict $ uncompressedBS
+          let compressedBS = BL.toStrict . Zlib.compress $ uncompressedBS
+          let packetData = dataLn `B.append` compressedBS
+          let packetLn = runPut . putVarInt . B.length $ packetData
+          yield (packetLn `B.append` packetData)
+        else do
+          let bs = encode l
+          let ln = runPut . putVarInt . B.length $ bs
+          yield (ln `B.append` bs)
+
 
 deserializePlay :: Config -> Conduit B.ByteString (StateT ProtocolState IO) (Either String [SBPlay])
-deserializePlay config = awaitForever (\bs -> yield $ runGet getPackets bs)
+deserializePlay config = awaitForever $ \rawBytes -> yield $ runGet getPackets rawBytes
   where
-  getPackets = Decode.many1 $ do
-    case srvCompression config of
-      False -> do
-        ln <- getVarInt
-        bs' <- getBytes ln
-        case decode bs' of
-          Left err -> fail err
-          Right packet -> return packet
-      True -> do
-        ln <- getVarInt
-        bs' <- getBytes ln
-        case runGet getCompressed bs' of
-          Left err -> fail err
-          Right packet -> return packet
-  getCompressed = do
+  getPackets = many1 $ do
     ln <- getVarInt
-    compressedBS <- getLazyByteString (toEnum ln)
-    let uncompressedBS = BL.toStrict $ Zlib.decompress compressedBS
+    bs <- getBytes ln
+    if srvCompression config
+       then
+         case runGet getCompressed bs of
+           Left err -> fail err
+           Right packet -> return packet
+       else
+         case decode bs of
+           Left err -> fail err
+           Right packet -> return packet
+
+  getCompressed = do
+    dataLn <- getVarInt
+    r <- remaining
+    compressedBS <- getLazyByteString (toEnum r)
+    let uncompressedBS = BL.toStrict $ Zlib.decompressWith Zlib.defaultDecompressParams compressedBS
     case decode uncompressedBS of
       Left err -> fail err
       Right packet -> return packet
+
+  many1 :: Alternative f => f a -> f [a]
+  many1 g = liftA2 (:) g (many g)
 
 serializePlay :: Config -> Conduit CBPlay (StateT ProtocolState IO) B.ByteString
 serializePlay config = awaitForever $ \play -> do
@@ -223,7 +242,7 @@ serializePlay config = awaitForever $ \play -> do
   if srvCompression config
     then do
       let dataLn = runPut . putVarInt . B.length . BL.toStrict $ uncompressedBS
-      let compressedBS = BL.toStrict . Zlib.compress $ uncompressedBS
+      let compressedBS = BL.toStrict . Zlib.compressWith Zlib.defaultCompressParams $ uncompressedBS
       let packetData = (dataLn `B.append` compressedBS)
       let packetLn = runPut . putVarInt . B.length $ packetData
       yield (packetLn `B.append` packetData)
