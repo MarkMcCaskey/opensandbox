@@ -94,7 +94,9 @@ main = do
           logMsg logger LvlInfo $ "Starting OpenSandbox server at: " ++ show (srvRootDir config)
           logMsg logger LvlInfo $ "Writing logs to: " ++ show (srvLogDir config)
 
-          _ <- Ekg.forkServer "localhost" 8000
+          if getEkgFlag args
+            then void $ Ekg.forkServer "localhost" 8000
+            else when (srvEkgEnabled config) $ void $ Ekg.forkServer "localhost" 8000
 
           -- Encryption Step
           encryption <- configEncryption

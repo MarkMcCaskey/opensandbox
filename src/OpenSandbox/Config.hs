@@ -64,7 +64,7 @@ data Config = Config
   , srvMotd             :: T.Text
   , srvEncryption       :: Bool
   , srvCompression      :: Bool
-  , srvMonitoring       :: Bool
+  , srvEkgEnabled       :: Bool
   , srvEnabled          :: Bool
   } deriving (Show,Eq)
 
@@ -87,7 +87,7 @@ instance ToJSON Config where
     , "motd"            .= srvMotd c
     , "encryption"      .= srvEncryption c
     , "compression"     .= srvCompression c
-    , "monitoring"      .= srvMonitoring c
+    , "ekgEnabled"      .= srvEkgEnabled c
     , "enabled"         .= srvEnabled c
     ]
 
@@ -111,7 +111,7 @@ instance FromJSON Config where
       <*> v .: "motd"
       <*> v .: "encryption"
       <*> v .: "compression"
-      <*> v .: "monitoring"
+      <*> v .: "ekgEnabled"
       <*> v .: "enabled"
   parseJSON _ = mzero
 
@@ -144,7 +144,7 @@ genDefaultConfig = do
       , srvMotd             = "A OpenSandbox Server"
       , srvEncryption       = False
       , srvCompression      = False
-      , srvMonitoring       = True
+      , srvEkgEnabled       = False
       , srvEnabled          = False
       }
 

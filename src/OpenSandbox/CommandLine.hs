@@ -26,6 +26,7 @@ data OpenSandboxOption = OpenSandboxOption
   , getVerboseFlag      :: Bool
   , getDaemonFlag       :: Bool
   , getCompressionFlag  :: Bool
+  , getEkgFlag          :: Bool
   } deriving (Show,Eq)
 
 getOpts :: IO OpenSandboxOption
@@ -69,3 +70,6 @@ openSandboxOptions = OpenSandboxOption
   <*> switch
     ( long "no-compression"
     <> help "Turn off compression.")
+  <*> switch
+    ( long "ekg"
+    <> help "Run ekg monitoring.")

@@ -15,5 +15,5 @@ worldType: "Flat"
 motd: "A OpenSandbox Server"
 encryption: false
 compression: false
-monitoring: true
+ekgEnabled: true
 enabled: true
