@@ -90,10 +90,12 @@ executable server
     build-depends:          aeson,
                             base,
                             bytestring,
+                            containers,
                             directory,
                             ekg,
                             opensandbox,
                             path,
+                            stm,
                             text,
                             unordered-containers,
                             warp

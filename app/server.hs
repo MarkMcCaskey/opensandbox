@@ -12,8 +12,10 @@
 -------------------------------------------------------------------------------
 
 import Control.Concurrent
+import Control.Concurrent.STM.TVar
 import Control.Monad
 import qualified Data.Text as T
+import qualified Data.Map.Strict as MS
 import OpenSandbox
 import Path
 import System.Directory
@@ -99,7 +101,6 @@ main = do
 
           -- Encryption Step
           encryption <- configEncryption
-          print encryption
           logMsg logger LvlInfo "Generating keypair..."
 
           logMsg logger LvlInfo $ "Starting Minecraft server on " ++ show (srvPort config)
@@ -110,6 +111,9 @@ main = do
           logMsg logger LvlInfo "Generating world..."
           let eitherWorld = genWorld Flat config logger
 
+          -- User Store
+          existingUsers <- newTVarIO MS.empty
+
           case eitherGameData of
             Left err -> print err
             Right _ ->
@@ -118,4 +122,5 @@ main = do
                 Right world -> do
                   worldClock <- newWorldClock
                   _ <- forkIO $ tick worldClock
-                  runOpenSandboxServer config logger encryption worldClock world
+                  let server = Server config logger worldClock world existingUsers
+                  runOpenSandboxServer server encryption

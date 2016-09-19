@@ -17,8 +17,10 @@ module OpenSandbox.Network
 import qualified Codec.Compression.Zlib as Zlib
 import Control.Applicative
 import Control.Concurrent (threadDelay)
+import Control.Concurrent.STM.TVar
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Monad.STM
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Lazy
 import qualified Control.Monad.Trans.State.Lazy as S (put)
@@ -28,6 +30,7 @@ import qualified Data.ByteString.Lazy as BL
 import Data.Conduit
 import Data.Conduit.Network
 import qualified Data.Map.Lazy as ML
+import qualified Data.Map.Strict as MS
 import Data.NBT
 import Data.Serialize
 import qualified Data.Text as T
@@ -37,15 +40,17 @@ import Data.UUID.V4
 import OpenSandbox.Config
 import OpenSandbox.Logger
 import OpenSandbox.Protocol
+import OpenSandbox.Server
 import OpenSandbox.Time
+import OpenSandbox.User
 import OpenSandbox.Version
 import OpenSandbox.World
 
 logMsg :: Logger -> Lvl -> String -> IO ()
 logMsg logger lvl msg = logIO logger "OpenSandbox.Network" lvl (T.pack msg)
 
-runOpenSandboxServer :: Config -> Logger -> Encryption -> WorldClock -> World -> IO ()
-runOpenSandboxServer config logger encryption worldClock world =
+runOpenSandboxServer :: Server -> Encryption -> IO ()
+runOpenSandboxServer server encryption =
     runTCPServer (serverSettings (srvPort config) "*") $ \app -> do
       firstState <- flip execStateT ProtocolHandshake
         $ packetSource app
@@ -77,7 +82,7 @@ runOpenSandboxServer config logger encryption worldClock world =
           thirdState <- flip execStateT ProtocolLogin
             $ packetSource app
             $$ deserializeLogin
-            =$= handleLogin config logger encryption
+            =$= handleLogin config logger encryption existingUsers
             =$= serializeLogin config
             =$= packetSink app
           if thirdState == ProtocolPlay
@@ -91,6 +96,12 @@ runOpenSandboxServer config logger encryption worldClock world =
                 =$= packetSink app
             else liftIO $ logMsg logger LvlDebug $ "Somebody failed login"
         _ -> return ()
+  where
+    config = srvConfig server
+    logger = srvLogger server
+    worldClock = srvWorldClock server
+    world = srvWorld server
+    existingUsers = srvUserStore server
 
 packetSource  :: AppData -> Source (StateT ProtocolState IO) B.ByteString
 packetSource app = transPipe liftIO $ appSource app
@@ -303,8 +314,8 @@ handleStatus config logger = do
           liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show pongPacket
           yield pongPacket
 
-handleLogin :: Config -> Logger -> Encryption -> Conduit (Either String SBLogin) (StateT ProtocolState IO) CBLogin
-handleLogin config logger encryption = do
+handleLogin :: Config -> Logger -> Encryption -> TVar UserStore -> Conduit (Either String SBLogin) (StateT ProtocolState IO) CBLogin
+handleLogin config logger encryption existingUsers = do
   maybeLoginStart <- await
   liftIO $ logMsg logger LvlDebug $ "Recieving: " ++ show maybeLoginStart
   case maybeLoginStart of
@@ -313,7 +324,15 @@ handleLogin config logger encryption = do
       case eitherLogin of
         Left parseErr -> liftIO $ logMsg logger LvlError parseErr
         Right (SBLoginStart username) -> do
-          someUUID <- liftIO nextRandom
+          existingUsers' <- liftIO $ readTVarIO existingUsers
+          thisUser <- case MS.lookup username existingUsers' of
+                        Nothing -> do
+                          someUUID <- liftIO nextRandom
+                          let newUser = User someUUID username
+                          liftIO . atomically . writeTVar existingUsers $
+                            MS.insert username newUser existingUsers'
+                          return newUser
+                        Just user -> return user
           liftIO $ logMsg logger LvlDebug "Switching protocol state to PLAY"
           lift $ S.put ProtocolPlay
           if srvEncryption config
@@ -334,7 +353,7 @@ handleLogin config logger encryption = do
                         let setCompression = CBSetCompression 0
                         liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show setCompression
                         yield setCompression
-                      let loginSuccess = CBLoginSuccess someUUID username
+                      let loginSuccess = CBLoginSuccess (getUserUUID thisUser) (getUserName thisUser)
                       liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show loginSuccess
                       yield loginSuccess
 
@@ -346,7 +365,7 @@ handleLogin config logger encryption = do
                 let setCompression = CBSetCompression 0
                 liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show setCompression
                 yield setCompression
-              let loginSuccess = CBLoginSuccess someUUID username
+              let loginSuccess = CBLoginSuccess (getUserUUID thisUser) (getUserName thisUser)
               liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show loginSuccess
               yield loginSuccess
 
