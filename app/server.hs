@@ -13,7 +13,6 @@
 
 import Control.Concurrent
 import Control.Monad
-import Data.Int
 import qualified Data.Text as T
 import OpenSandbox
 import Path
@@ -100,6 +99,7 @@ main = do
 
           -- Encryption Step
           encryption <- configEncryption
+          print encryption
           logMsg logger LvlInfo "Generating keypair..."
 
           logMsg logger LvlInfo $ "Starting Minecraft server on " ++ show (srvPort config)
@@ -108,14 +108,14 @@ main = do
 
           -- World Gen Step
           logMsg logger LvlInfo "Generating world..."
+          let eitherWorld = genWorld Flat config logger
 
-          let eitherWorld = genWorld Flat logger
           case eitherGameData of
             Left err -> print err
             Right _ ->
               case eitherWorld of
                 Left err -> print err
                 Right world -> do
-                  worldClock <- newMVar (0 :: Int64)
+                  worldClock <- newWorldClock
                   _ <- forkIO $ tick worldClock
                   runOpenSandboxServer config logger encryption worldClock world

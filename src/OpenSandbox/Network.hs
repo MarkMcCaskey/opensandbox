@@ -17,7 +17,6 @@ module OpenSandbox.Network
 import qualified Codec.Compression.Zlib as Zlib
 import Control.Applicative
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.MVar
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
@@ -28,7 +27,6 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import Data.Conduit
 import Data.Conduit.Network
-import Data.Int
 import qualified Data.Map.Lazy as ML
 import Data.NBT
 import Data.Serialize
@@ -46,7 +44,7 @@ import OpenSandbox.World
 logMsg :: Logger -> Lvl -> String -> IO ()
 logMsg logger lvl msg = logIO logger "OpenSandbox.Network" lvl (T.pack msg)
 
-runOpenSandboxServer :: Config -> Logger -> Encryption -> MVar Int64 -> World -> IO ()
+runOpenSandboxServer :: Config -> Logger -> Encryption -> WorldClock -> World -> IO ()
 runOpenSandboxServer config logger encryption worldClock world =
     runTCPServer (serverSettings (srvPort config) "*") $ \app -> do
       firstState <- flip execStateT ProtocolHandshake
@@ -356,7 +354,7 @@ handleLogin config logger encryption = do
           liftIO $ logMsg logger LvlError "Got an encryption request out of order!"
           return ()
 
-handlePlay  :: Config -> Logger -> MVar Int64 -> World -> Conduit (Either String [SBPlay]) (StateT ProtocolState IO) CBPlay
+handlePlay  :: Config -> Logger -> WorldClock -> World -> Conduit (Either String [SBPlay]) (StateT ProtocolState IO) CBPlay
 handlePlay config logger worldClock world = do
   someUUID <- liftIO nextRandom
   liftIO $ logMsg logger LvlDebug "Starting PLAY session"

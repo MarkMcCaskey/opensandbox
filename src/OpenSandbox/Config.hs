@@ -174,6 +174,6 @@ loadConfig path = do
 
 configEncryption :: IO Encryption
 configEncryption = do
-  (pubKey,privKey) <- generate 128 65537
+  (pubKey,privKey) <- generate 128 3645
   let cert = encodeASN1' DER $ toASN1 (PubKeyRSA pubKey) []
   return (Encryption cert pubKey privKey (B.pack [26,120,188,217]))

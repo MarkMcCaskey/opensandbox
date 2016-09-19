@@ -1,5 +1,7 @@
 module OpenSandbox.Time
-  ( tick
+  ( WorldClock
+  , newWorldClock
+  , tick
   , getWorldAge
   , getWorldTime
   ) where
@@ -8,13 +10,18 @@ import Control.Concurrent
 import Control.Monad
 import Data.Int
 
-tick :: MVar Int64 -> IO ()
-tick srvTicks = forever $ do
+newtype WorldClock = WorldClock (MVar Int64)
+
+newWorldClock :: IO WorldClock
+newWorldClock = WorldClock <$> newMVar (0 :: Int64)
+
+tick :: WorldClock -> IO ()
+tick (WorldClock tickStore) = forever $ do
   threadDelay 50000
-  modifyMVar_ srvTicks (\t -> return (t+1))
+  modifyMVar_ tickStore (\t -> return (t+1))
 
-getWorldAge :: MVar Int64 -> IO Int64
-getWorldAge = readMVar
+getWorldAge :: WorldClock -> IO Int64
+getWorldAge (WorldClock tickStore)= readMVar tickStore
 
-getWorldTime :: MVar Int64 -> IO Int64
-getWorldTime ticks = readMVar ticks >>= (\t -> return $ mod t 24000)
+getWorldTime :: WorldClock -> IO Int64
+getWorldTime (WorldClock tickStore) = readMVar tickStore >>= (\t -> return $ mod t 24000)

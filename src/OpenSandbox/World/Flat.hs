@@ -19,19 +19,21 @@ module OpenSandbox.World.Flat
 
 import Data.Int
 import qualified Data.Vector as V
+import Data.Word
 import OpenSandbox.Data.Block (BlockStateID)
 import OpenSandbox.World.Chunk
 
 classicFlatPreset :: V.Vector BlockStateID
 classicFlatPreset = fmap toEnum [112,48,48,32]
 
-genFlatWorld :: ChunkLayers -> Either String [((Int32,Int32), ChunkColumn)]
-genFlatWorld layers =
+genFlatWorld :: ChunkLayers -> Word8 -> Either String [((Int32,Int32), ChunkColumn)]
+genFlatWorld layers viewDistance =
   case eitherChunkColumns of
     Left err -> Left err
     Right chunkColumns -> Right $ zip coords chunkColumns
   where
-    coords = [(x,z) | x <- [(-10)..10], z <- [(-10)..10]]
+    k = fromIntegral viewDistance
+    coords = [(x,z) | x <- [(-k)..k], z <- [(-k)..k]]
     eitherChunkColumns = sequence $ fmap (\(x,z) -> flatChunkColumn x z layers) coords
 
 newtype ChunkLayers = ChunkLayers (V.Vector BlockStateID) deriving (Show,Eq)
