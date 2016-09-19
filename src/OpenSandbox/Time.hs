@@ -1,3 +1,13 @@
+-------------------------------------------------------------------------------
+-- |
+-- Module       : OpenSandbox.Time
+-- Copyright    : (c) 2016 Michael Carpenter
+-- License      : GPL3
+-- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
+-- Stability    : experimental
+-- Portability  : portable
+--
+-------------------------------------------------------------------------------
 module OpenSandbox.Time
   ( WorldClock
   , newWorldClock
