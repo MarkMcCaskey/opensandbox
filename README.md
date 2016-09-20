@@ -28,6 +28,7 @@ Planned features are:
 * Pervasive parallelism and concurrency support (multi-threaded, GPGPU, distributed)
 * Significantly better sysadmin tools
 * Modular, composable, and orthogonal DSL for good modding support and server customization.
+* Data-driven
 
 ## Installation
 
