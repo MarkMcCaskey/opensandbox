@@ -14,6 +14,7 @@ module OpenSandbox.Server
 
 import Control.Concurrent.STM.TVar
 import OpenSandbox.Config
+import OpenSandbox.Event
 import OpenSandbox.Logger
 import OpenSandbox.Time
 import OpenSandbox.User
@@ -24,5 +25,6 @@ data Server = Server
   , srvLogger :: Logger
   , srvWorldClock :: WorldClock
   , srvWorld :: World
-  , srvUserStore :: TVar UserStore
+  , srvUserCache :: TVar UserStore
+  , srvEventJournal :: TVar [Event]
   }

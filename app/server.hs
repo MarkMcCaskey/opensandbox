@@ -114,6 +114,8 @@ main = do
           -- User Store
           existingUsers <- newTVarIO MS.empty
 
+          history <- newTVarIO []
+
           case eitherGameData of
             Left err -> print err
             Right _ ->
@@ -122,5 +124,5 @@ main = do
                 Right world -> do
                   worldClock <- newWorldClock
                   _ <- forkIO $ tick worldClock
-                  let server = Server config logger worldClock world existingUsers
+                  let server = Server config logger worldClock world existingUsers history
                   runOpenSandboxServer server encryption

@@ -28,6 +28,7 @@ library
                             OpenSandbox.Data.Instrument
                             OpenSandbox.Data.Item
                             OpenSandbox.Data.Yggdrasil
+                            OpenSandbox.Event
                             OpenSandbox.Logger
                             OpenSandbox.Network
                             OpenSandbox.Protocol

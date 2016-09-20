@@ -29,6 +29,8 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import Data.Conduit
 import Data.Conduit.Network
+import Data.Int
+import Data.List
 import qualified Data.Map.Lazy as ML
 import qualified Data.Map.Strict as MS
 import Data.NBT
@@ -38,6 +40,7 @@ import qualified Data.Vector as V
 import Data.Text.Encoding
 import Data.UUID.V4
 import OpenSandbox.Config
+import OpenSandbox.Event
 import OpenSandbox.Logger
 import OpenSandbox.Protocol
 import OpenSandbox.Server
@@ -91,7 +94,7 @@ runOpenSandboxServer server encryption =
               void $ flip execStateT ProtocolPlay
                 $ packetSource app
                 $$ deserializePlay config
-                =$= handlePlay config logger worldClock world
+                =$= handlePlay config logger worldClock world journal
                 =$= serializePlay config
                 =$= packetSink app
             else liftIO $ logMsg logger LvlDebug $ "Somebody failed login"
@@ -101,7 +104,8 @@ runOpenSandboxServer server encryption =
     logger = srvLogger server
     worldClock = srvWorldClock server
     world = srvWorld server
-    existingUsers = srvUserStore server
+    existingUsers = srvUserCache server
+    journal = srvEventJournal server
 
 packetSource  :: AppData -> Source (StateT ProtocolState IO) B.ByteString
 packetSource app = transPipe liftIO $ appSource app
@@ -373,8 +377,8 @@ handleLogin config logger encryption existingUsers = do
           liftIO $ logMsg logger LvlError "Got an encryption request out of order!"
           return ()
 
-handlePlay  :: Config -> Logger -> WorldClock -> World -> Conduit (Either String [SBPlay]) (StateT ProtocolState IO) CBPlay
-handlePlay config logger worldClock world = do
+handlePlay  :: Config -> Logger -> WorldClock -> World -> TVar [Event] -> Conduit (Either String [SBPlay]) (StateT ProtocolState IO) CBPlay
+handlePlay config logger worldClock world history = do
   someUUID <- liftIO nextRandom
   liftIO $ logMsg logger LvlDebug "Starting PLAY session"
   let loginPacket =
@@ -452,19 +456,27 @@ handlePlay config logger worldClock world = do
 
   mapM_ (yield . CBChunkData) $ ML.elems world
 
-  --let entityMetadata = CBEntityMetadata 0 (V.singleton (Entry 13 MetadataByte ))
-  --liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show entityMetadata
-  --yield entityMetadata
-
   awaitForever $ \eitherPackets ->
     case eitherPackets of
       Left err -> liftIO $ logMsg logger LvlError err
       Right packets -> do
         liftIO $ threadDelay 10000
         liftIO $ logMsg logger LvlDebug $ "Recieving: " ++ show packets
-        mapM_ handle packets
         age <- liftIO $ getWorldAge worldClock
         t <- liftIO $ getWorldTime worldClock
+        liftIO $ atomically $ do
+          past <- readTVar history
+          let newHistory =
+                if length past < 1000
+                  then handle age past packets
+                  else handle age [] packets
+          writeTVar history newHistory
+        when (mod t 1000 == 0) $ do
+          past <- liftIO $ readTVarIO history
+          forM_ past $ \event -> do
+            liftIO $ logMsg logger LvlDebug $ "Rewind: " ++ show event
+            liftIO $ threadDelay 10000
+            yield . eventToCBPlay $ event
         when (mod t 20 == 0) $ do
           liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show (CBTimeUpdate age t)
           yield (CBTimeUpdate age t)
@@ -472,35 +484,60 @@ handlePlay config logger worldClock world = do
           liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show (CBKeepAlive 5346)
           yield (CBKeepAlive 5346)
   where
-    handle packet =
+    handle :: Int64 -> [Event] -> [SBPlay] -> [Event]
+    handle _ history [] = history
+    handle age history (packet:packets) =
       case packet of
-        SBTeleportConfirm {} -> return ()
-        SBTabComplete {} -> return ()
-        SBChatMessage {} -> return ()
-        SBClientStatus {} -> return ()
-        SBClientSettings {} -> return ()
-        SBConfirmTransaction {} -> return ()
-        SBEnchantItem {} -> return ()
-        SBClickWindow {} -> return ()
-        SBCloseWindow {} -> return ()
-        SBPluginMessage {} -> return ()
-        SBUseEntity {} -> return ()
-        SBKeepAlive {} -> return ()
-        SBPlayerPosition {} -> return ()
-        SBPlayerPositionAndLook {} -> return ()
-        SBPlayerLook {} -> return ()
-        SBPlayer {} -> return ()
-        SBVehicleMove {} -> return ()
-        SBSteerBoat {} -> return ()
-        SBPlayerAbilities {} -> return ()
-        SBPlayerDigging {} -> return ()
-        SBEntityAction {} -> return ()
-        SBSteerVehicle {} -> return ()
-        SBResourcePackStatus {} -> return ()
-        SBHeldItemChange {} -> return ()
-        SBCreativeInventoryAction {} -> return ()
-        SBUpdateSign {} -> return ()
-        SBAnimation {} -> return ()
-        SBSpectate {} -> return ()
-        SBPlayerBlockPlacement {} -> return ()
-        SBUseItem {} -> return ()
+        SBTeleportConfirm {} -> handle age history packets
+        SBTabComplete {} -> handle age history packets
+        SBChatMessage {} -> handle age history packets
+        SBClientStatus {} -> handle age history packets
+        SBClientSettings {} -> handle age history packets
+        SBConfirmTransaction {} -> handle age history packets
+        SBEnchantItem {} -> handle age history packets
+        SBClickWindow {} -> handle age history packets
+        SBCloseWindow {} -> handle age history packets
+        SBPluginMessage {} -> handle age history packets
+        SBUseEntity {} -> handle age history packets
+        SBKeepAlive {} -> handle age history packets
+
+        SBPlayerPosition x y z onGround ->
+          case (fmap fst . uncons $ history) of
+            Nothing ->
+              handle age [Event age (PlayerPositionAndLookDiff x y z 0 0 True)] packets
+            Just (Event _ (PlayerPositionAndLookDiff xO yO zO yawO pitchO _)) ->
+              handle age ((Event age (PlayerPositionAndLookDiff x y z yaw0 pitch0 onGround)):history) packets
+
+        SBPlayerPositionAndLook x y z yaw pitch onGround ->
+              handle age ((Event age (PlayerPositionAndLookDiff x y z yaw pitch onGround)):history) packets
+
+        SBPlayerLook yaw pitch onGround ->
+          case (fmap fst . uncons $ history) of
+            Nothing ->
+              handle age [Event age (PlayerPositionAndLookDiff 0 0 0 yaw pitch onGround)] packets
+            Just (Event _ (PlayerPositionAndLookDiff x0 y0 z0 _ _ _)) ->
+              handle age ((Event age (PlayerPositionAndLookDiff x0 y0 z0 yaw pitch onGround)):history) packets
+
+        SBPlayer {} -> handle age history packets
+        SBVehicleMove {} -> handle age history packets
+        SBSteerBoat {} -> handle age history packets
+        SBPlayerAbilities {} -> handle age history packets
+        SBPlayerDigging {} -> handle age history packets
+        SBEntityAction {} -> handle age history packets
+        SBSteerVehicle {} -> handle age history packets
+        SBResourcePackStatus {} -> handle age history packets
+        SBHeldItemChange {} -> handle age history packets
+        SBCreativeInventoryAction {} -> handle age history packets
+        SBUpdateSign {} -> handle age history packets
+        SBAnimation {} -> handle age history packets
+        SBSpectate {} -> handle age history packets
+        SBPlayerBlockPlacement {} -> handle age history packets
+        SBUseItem {} -> handle age history packets
+      where
+        yaw0 = 0
+        pitch0 = 0
+
+
+eventToCBPlay :: Event -> CBPlay
+eventToCBPlay (Event age (PlayerPositionAndLookDiff x y z yaw pitch onGround)) =
+  CBPlayerPositionAndLook x y z yaw pitch 0 (fromEnum age)
