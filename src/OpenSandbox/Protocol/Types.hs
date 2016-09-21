@@ -19,7 +19,7 @@
 module OpenSandbox.Protocol.Types
   ( Encryption (..)
   , Compression (..)
-  , Chat
+  , Chat (..)
   , Short
   , Angle
   , Position
@@ -136,7 +136,20 @@ getText = do
   bs <- getBytes ln
   return $ decodeUtf8 bs
 
-type Chat = T.Text
+data Chat = Chat
+  { text :: T.Text
+  } deriving (Show,Eq,Generic)
+
+instance A.ToJSON Chat
+instance A.FromJSON Chat
+
+instance Serialize Chat where
+  put = putNetcodeByteString . BL.toStrict . A.encode
+  get = do
+    bs <- getNetcodeByteString
+    case A.eitherDecodeStrict bs of
+      Left err -> fail err
+      Right chat -> return chat
 
 type VarInt = Int
 
@@ -453,7 +466,7 @@ data BossBarAction
 instance Serialize BossBarAction where
   put (BossBarAdd title health color division flags) = do
     putVarInt 0
-    putText title
+    put title
     putFloat32be health
     putVarInt color
     putVarInt division
@@ -465,7 +478,7 @@ instance Serialize BossBarAction where
     putFloat32be health
   put (BossBarUpdateTitle title) = do
     putVarInt 3
-    putText title
+    put title
   put (BossBarUpdateStyle color dividers) = do
     putVarInt 4
     putVarInt . toEnum $ color
@@ -478,7 +491,7 @@ instance Serialize BossBarAction where
     action <- getVarInt
     case action of
       0 -> do
-        title <- getText
+        title <- get
         health <- getFloat32be
         color <- getVarInt
         division <- getVarInt
@@ -489,7 +502,7 @@ instance Serialize BossBarAction where
         health <- getFloat32be
         return $ BossBarUpdateHealth health
       3 -> do
-        title <- getText
+        title <- get
         return $ BossBarUpdateTitle title
       4 -> do
         color <- getVarInt
@@ -1038,7 +1051,7 @@ instance Serialize CombatEvent where
     putVarInt 2
     putVarInt playerID
     put entityID
-    putText message
+    put message
 
   get = do
     event <- getVarInt
@@ -1051,7 +1064,7 @@ instance Serialize CombatEvent where
       2 -> do
         playerID <- getVarInt
         entityID <- getInt32be
-        message <- getText
+        message <- get
         return $ EntityDead playerID entityID message
       err -> fail $ "Error: Unrecognized combat event: " ++ show err
 
@@ -1211,10 +1224,10 @@ data TitleAction
 instance Serialize TitleAction where
   put (SetTitle titleText) = do
     putVarInt 0
-    putText titleText
+    put titleText
   put (SetSubtitle subtitleText) = do
     putVarInt 1
-    putText subtitleText
+    put subtitleText
   put (SetTimesAndDisplay fadeIn stay fadeOut) = do
     putVarInt 2
     put fadeIn
@@ -1227,10 +1240,10 @@ instance Serialize TitleAction where
     action <- getVarInt
     case action of
       0 -> do
-        titleText <- getText
+        titleText <- get
         return $ SetTitle titleText
       1 -> do
-        subtitleText <- getText
+        subtitleText <- get
         return $ SetSubtitle subtitleText
       2 -> do
         fadeIn <- getInt32be

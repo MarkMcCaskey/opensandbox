@@ -19,6 +19,9 @@ import OpenSandbox.World.ChunkSpec()
 import Common
 import Data.NBTSpec()
 
+instance Arbitrary Chat where
+  arbitrary = Chat <$> (arbitrary :: Gen T.Text)
+
 instance Arbitrary UpdatedColumns where
   arbitrary = do
     columns <- (arbitrary :: Gen Int8)

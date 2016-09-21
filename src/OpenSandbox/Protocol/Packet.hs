@@ -87,9 +87,12 @@ instance Serialize CBStatus where
               (protocol . version $ json)
               (online . players $ json)
               (max . players $ json)
-              (text . description $ json)
+              (text' . description $ json)
       0x01 -> CBPong <$> getInt64be
       err -> fail $ "Error: Unrecognized packetID: " ++ show err
+      where
+        text' :: Description -> T.Text
+        text' (Description t) = t
 
 data SBStatus
   = SBRequest
@@ -345,7 +348,7 @@ instance Serialize CBPlay where
     mapM_ putText matches
   put (CBChatMessage jsonData position) = do
     putWord8 0x0F
-    putText jsonData
+    put jsonData
     put position
   put (CBMultiBlockChange chunkX chunkZ records) = do
     putWord8 0x10
@@ -367,12 +370,12 @@ instance Serialize CBPlay where
     case windowType of
       Left entityID -> do
         putText "EntityHorse"
-        putText windowTitle
+        put windowTitle
         putWord8 numOfSlots
         put entityID
       Right windowType' -> do
         putText windowType'
-        putText windowTitle
+        put windowTitle
         putWord8 numOfSlots
   put (CBWindowItems windowID slotData) = do
     putWord8 0x14
@@ -408,7 +411,7 @@ instance Serialize CBPlay where
     putFloat32be pitch
   put (CBPlayDisconnect reason) = do
     putWord8 0x1A
-    putText reason
+    put reason
   put (CBEntityStatus entityID entityStatus) = do
     putWord8 0x1B
     put entityID
@@ -636,8 +639,8 @@ instance Serialize CBPlay where
     put pitch
   put (CBPlayerListHeaderAndFooter header footer) = do
     putWord8 0x47
-    putText header
-    putText footer
+    put header
+    put footer
   put (CBCollectItem collectedEntityID collectorEntityID) = do
     putWord8 0x48
     putVarInt collectedEntityID
@@ -725,14 +728,14 @@ instance Serialize CBPlay where
       0x0C -> CBBossBar <$> getUUID <*> get
       0x0D -> CBServerDifficulty <$> get
       0x0E -> CBTabComplete <$> (getVarInt >>= \n -> V.replicateM n getText)
-      0x0F -> CBChatMessage <$> getText <*> getInt8
+      0x0F -> CBChatMessage <$> get <*> getInt8
       0x10 -> CBMultiBlockChange <$> getInt32be <*> getInt32be <*> (getVarInt >>= \n -> V.replicateM n get)
       0x11 -> CBConfirmTransaction <$> getInt8 <*> getInt16be <*> get
       0x12 -> CBCloseWindow <$> getWord8
       0x13 -> do
         windowID <- getWord8
         windowType <- getText
-        windowTitle <- getText
+        windowTitle <- get
         numberOfSlots <- getWord8
         case windowType of
           "EntityHorse" -> do
@@ -757,7 +760,7 @@ instance Serialize CBPlay where
         volume <- getFloat32be
         pitch <- getFloat32be
         return $ CBNamedSoundEffect soundName soundCategory effectPosX effectPosY effectPosZ volume pitch
-      0x1A -> CBPlayDisconnect <$> getText
+      0x1A -> CBPlayDisconnect <$> get
       0x1B -> CBEntityStatus <$> getInt32be <*> get
       0x1C -> do
         x <- getFloat32be
@@ -858,7 +861,7 @@ instance Serialize CBPlay where
       0x44 -> CBTimeUpdate <$> getInt64be <*> getInt64be
       0x45 -> CBTitle <$> get
       0x46 -> CBSoundEffect <$> getVarInt <*> getVarInt <*> getInt32be <*> getInt32be <*> getInt32be <*> getFloat32be <*> getFloat32be
-      0x47 -> CBPlayerListHeaderAndFooter <$> getText <*> getText
+      0x47 -> CBPlayerListHeaderAndFooter <$> get <*> get
       0x48 -> CBCollectItem <$> getVarInt <*> getVarInt
       0x49 -> CBEntityTeleport <$> getVarInt <*> getFloat64be <*> getFloat64be <*> getFloat64be <*> getAngle <*> getAngle <*> get
       0x4A -> CBEntityProperties <$> getVarInt <*> (getInt32be >>= \n -> V.replicateM (fromEnum n) get)

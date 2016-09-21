@@ -499,10 +499,13 @@ handlePlay config logger worldClock world history = do
                     Right prefix -> do
                       let matches = filter (T.isPrefixOf prefix) availableCommands
                       return (Just $ CBTabComplete (V.fromList matches))
-
+        SBChatMessage message -> do
+          past <- readTVar eventJournal
+          writeTVar eventJournal $ (Event age (ChatMessage message 0)):past
+          return (Just $ CBChatMessage (Chat message) 0)
         SBPlayerPosition x y z onGround -> do
           past <- readTVar eventJournal
-          case (fmap fst . uncons $ past) of
+          case find isLatestPlayerPositionAndLook past of
             Nothing ->
               writeTVar eventJournal [Event age (PlayerPositionAndLook x y z 0 0 True)]
             Just (Event _ (PlayerPositionAndLook xO yO zO yawO pitchO _)) ->
@@ -515,7 +518,7 @@ handlePlay config logger worldClock world history = do
 
         SBPlayerLook yaw pitch onGround -> do
           past <- readTVar eventJournal
-          case (fmap fst . uncons $ past) of
+          case find isLatestPlayerPositionAndLook past of
             Nothing -> do
               writeTVar eventJournal [Event age (PlayerPositionAndLook 0 0 0 yaw pitch onGround)]
               return Nothing
@@ -526,6 +529,8 @@ handlePlay config logger worldClock world history = do
       where
         yaw0 = 0
         pitch0 = 0
+        isLatestPlayerPositionAndLook (Event _ PlayerPositionAndLook{}) = True
+        isLatestPlayerPositionAndLook _ = False
 
 
 
@@ -546,3 +551,6 @@ availableCommands = ["/rewind","/help"]
 eventToCBPlay :: Event -> CBPlay
 eventToCBPlay (Event age (PlayerPositionAndLook x y z yaw pitch onGround)) =
   CBPlayerPositionAndLook x y z yaw pitch 0 (fromEnum age)
+eventToCBPlay (Event age (ChatMessage message position)) =
+  CBChatMessage (Chat message) position
+
