@@ -9,21 +9,15 @@
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.World
-  ( module OpenSandbox.World.Amplified
-  , module OpenSandbox.World.Chunk
-  , module OpenSandbox.World.Default
+  ( module OpenSandbox.World.Chunk
   , module OpenSandbox.World.Flat
-  , module OpenSandbox.World.LargeBiomes
   , World
   , WorldType (..)
   , genWorld
   ) where
 
-import OpenSandbox.World.Amplified
 import OpenSandbox.World.Chunk
-import OpenSandbox.World.Default
 import OpenSandbox.World.Flat
-import OpenSandbox.World.LargeBiomes
 
 import Data.Int
 import qualified Data.Map.Lazy as ML

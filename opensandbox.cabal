@@ -40,11 +40,8 @@ library
                             OpenSandbox.User
                             OpenSandbox.Version
                             OpenSandbox.World
-                            OpenSandbox.World.Amplified
                             OpenSandbox.World.Chunk
-                            OpenSandbox.World.Default
                             OpenSandbox.World.Flat
-                            OpenSandbox.World.LargeBiomes
 
     build-depends:          aeson,
                             ansi-terminal,

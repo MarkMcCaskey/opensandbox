@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.Network
@@ -239,7 +240,7 @@ deserializePlay config = awaitForever $ \rawBytes -> yield $ runGet getPackets r
            Right packet -> return packet
 
   getCompressed = do
-    dataLn <- getVarInt
+    _ <- getVarInt
     r <- remaining
     compressedBS <- getLazyByteString (toEnum r)
     let uncompressedBS = BL.toStrict $ Zlib.decompressWith Zlib.defaultDecompressParams compressedBS
@@ -499,18 +500,22 @@ handlePlay config logger worldClock world history = do
                     Right prefix -> do
                       let matches = filter (T.isPrefixOf prefix) availableCommands
                       return (Just $ CBTabComplete (V.fromList matches))
+
         SBChatMessage message -> do
           past <- readTVar eventJournal
           writeTVar eventJournal $ (Event age (ChatMessage message 0)):past
           return (Just $ CBChatMessage (Chat message) 0)
+
         SBPlayerPosition x y z onGround -> do
           past <- readTVar eventJournal
-          case find isLatestPlayerPositionAndLook past of
+          case fmap getEventCmd . find isLatestPlayerPositionAndLook $ past of
             Nothing ->
               writeTVar eventJournal [Event age (PlayerPositionAndLook x y z 0 0 True)]
-            Just (Event _ (PlayerPositionAndLook xO yO zO yawO pitchO _)) ->
-              writeTVar eventJournal $ (Event age (PlayerPositionAndLook x y z yaw0 pitch0 onGround)):past
+            Just (PlayerPositionAndLook _ _ _ yaw pitch _) ->
+              writeTVar eventJournal $ (Event age (PlayerPositionAndLook x y z yaw pitch onGround)):past
+            Just _ -> undefined
           return Nothing
+
         SBPlayerPositionAndLook x y z yaw pitch onGround -> do
           past <- readTVar eventJournal
           writeTVar eventJournal $ (Event age (PlayerPositionAndLook x y z yaw pitch onGround)):past
@@ -518,17 +523,16 @@ handlePlay config logger worldClock world history = do
 
         SBPlayerLook yaw pitch onGround -> do
           past <- readTVar eventJournal
-          case find isLatestPlayerPositionAndLook past of
+          case fmap getEventCmd . find isLatestPlayerPositionAndLook $ past of
             Nothing -> do
               writeTVar eventJournal [Event age (PlayerPositionAndLook 0 0 0 yaw pitch onGround)]
               return Nothing
-            Just (Event _ (PlayerPositionAndLook x0 y0 z0 _ _ _)) -> do
+            Just (PlayerPositionAndLook x0 y0 z0 _ _ _) -> do
               writeTVar eventJournal $ (Event age (PlayerPositionAndLook x0 y0 z0 yaw pitch onGround)):past
               return Nothing
+            Just _ -> undefined
         _ -> return Nothing
       where
-        yaw0 = 0
-        pitch0 = 0
         isLatestPlayerPositionAndLook (Event _ PlayerPositionAndLook{}) = True
         isLatestPlayerPositionAndLook _ = False
 
@@ -541,7 +545,7 @@ assumedCommand = do
 
 potentialCommand :: A.Parser T.Text
 potentialCommand = do
-  A.char '/'
+  _ <- A.char '/'
   txt <- A.takeText
   return $ T.cons '/' txt
 
@@ -549,8 +553,7 @@ availableCommands :: [T.Text]
 availableCommands = ["/rewind","/help"]
 
 eventToCBPlay :: Event -> CBPlay
-eventToCBPlay (Event age (PlayerPositionAndLook x y z yaw pitch onGround)) =
+eventToCBPlay (Event age (PlayerPositionAndLook x y z yaw pitch _)) =
   CBPlayerPositionAndLook x y z yaw pitch 0 (fromEnum age)
-eventToCBPlay (Event age (ChatMessage message position)) =
+eventToCBPlay (Event _ (ChatMessage message position)) =
   CBChatMessage (Chat message) position
-

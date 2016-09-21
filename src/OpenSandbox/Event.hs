@@ -1,3 +1,13 @@
+-------------------------------------------------------------------------------
+-- |
+-- Module       : OpenSandbox.Event
+-- Copyright    : (c) 2016 Michael Carpenter
+-- License      : GPL3
+-- Maintainer   : Michael Carpenter <oldmanmike.dev@gmail.com>
+-- Stability    : experimental
+-- Portability  : portable
+--
+-------------------------------------------------------------------------------
 module OpenSandbox.Event
   ( Event (..)
   , Command (..)
@@ -5,12 +15,13 @@ module OpenSandbox.Event
 
 import qualified Data.Text as T
 import Data.Int
-import qualified Data.Vector as V
 
-data Event = Event Int64 Command deriving (Show,Eq)
+data Event = Event
+  { getEventTick :: Int64
+  , getEventCmd :: Command
+  } deriving (Show,Eq)
 
 data Command
   = PlayerPositionAndLook Double Double Double Float Float Bool
-  | TabComplete (V.Vector T.Text)
   | ChatMessage T.Text Int8
   deriving (Show,Eq)

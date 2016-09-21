@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.World.Chunk
@@ -184,7 +184,9 @@ fillChunkBlockData = ChunkBlockData . V.replicate 4096
 
 --------------------------------------------------------------------------------
 
-newtype PrimaryBitMask = PrimaryBitMask Word16 deriving (Show,Eq,Bits,Generic,NFData)
+newtype PrimaryBitMask = PrimaryBitMask Word16 deriving (Show,Eq,Bits,Generic)
+
+instance NFData PrimaryBitMask
 
 instance Serialize PrimaryBitMask where
   put (PrimaryBitMask pbm) = putVarInt (fromIntegral pbm)
@@ -253,7 +255,7 @@ decompressIndices bpb palette indices = ChunkBlockData decompressedIndices
     decompressedIndices = V.backpermute palette (fmap fromEnum unpackedIndices)
 
 packIndices :: BitsPerBlock -> BlockIndice -> Int -> BlockIndices -> [Word64]
-packIndices (BitsPerBlock bpb) partialL offsetL (BlockIndices []) =
+packIndices (BitsPerBlock _) partialL offsetL (BlockIndices []) =
   [fromIntegral partialL `shift` (64 - offsetL)]
 packIndices (BitsPerBlock bpb) partialL offsetL (BlockIndices indices) =
   case L.uncons encodeNext of

@@ -54,14 +54,14 @@ flatChunkColumn x z layers =
 flatChunkColumnData :: ChunkLayers -> Either String ChunkColumnData
 flatChunkColumnData (ChunkLayers layers) = do
   let fullLayers = layers V.++ V.replicate (256 - V.length layers) 0
-  let neededLn = (ceiling ((fromIntegral . V.length $ layers) / 16)) * 16
+  let neededLn = 16 * ceiling ((fromIntegral . V.length $ layers :: Double) / 16)
   let neededLayers = V.take neededLn fullLayers
   let neededColumn = V.concatMap (V.replicate 256) neededLayers
   let chunked = fmap (\i -> V.slice (i * 4096) 4096 neededColumn) $ take (neededLn `div` 16) $ iterate (+1) 0
   let chunkBlockDats = sequence $ fmap mkChunkBlockData chunked :: Either String [ChunkBlockData]
   let chunkBlocks =
         chunkBlockDats
-        >>= (\lst -> sequence $ fmap (\x -> mkChunkBlock x (V.replicate 2048 255) (V.replicate 2048 255)) lst)
+        >>= \lst -> sequence $ fmap (\x -> mkChunkBlock x (V.replicate 2048 255) (V.replicate 2048 255)) lst
   mkChunkColumnData . V.fromList =<< chunkBlocks
 
 flatBiomeIndices :: BiomeIndices
