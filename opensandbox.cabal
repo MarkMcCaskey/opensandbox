@@ -116,16 +116,14 @@ test-suite opensandbox-test
                             OpenSandbox.Protocol.PacketSpec
                             OpenSandbox.Protocol.TypesSpec
                             OpenSandbox.UserSpec
-                            OpenSandbox.World.AmplifiedSpec
                             OpenSandbox.World.ChunkSpec
-                            OpenSandbox.World.DefaultSpec
                             OpenSandbox.World.FlatSpec
-                            OpenSandbox.World.LargeBiomesSpec
 
     build-depends:          array,
                             base,
                             bytestring,
                             cereal,
+                            generic-random,
                             hspec,
                             nbt,
                             opensandbox,

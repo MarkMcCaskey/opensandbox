@@ -1,5 +1,5 @@
 flags: {}
 packages:
 - '.'
-extra-deps: [nbt-0.6,ekg-0.4.0.10]
+extra-deps: [nbt-0.6,ekg-0.4.0.10,generic-random-0.3.0.0]
 resolver: lts-7.0

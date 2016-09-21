@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE DeriveGeneric #-}
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.Protocol.Packet
@@ -29,6 +30,7 @@ import Data.Serialize
 import Data.UUID
 import qualified Data.Vector as V
 import Data.Word
+import GHC.Generics
 import OpenSandbox.Protocol.Types
 import OpenSandbox.World
 import Prelude hiding (max)
@@ -36,7 +38,7 @@ import Prelude hiding (max)
 data SBHandshaking
   = SBHandshake VarInt T.Text Short ProtocolState
   | SBLegacyServerListPing
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize SBHandshaking where
   put (SBHandshake protocolVersion srvAddress srvPort nextState) = do
@@ -63,7 +65,7 @@ instance Serialize SBHandshaking where
 data CBStatus
   = CBResponse T.Text Word8 Word8 Word8 T.Text
   | CBPong Int64
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize CBStatus where
   put (CBResponse mvVersion versionID currentPlayers maxPlayers motd) = do
@@ -97,7 +99,7 @@ instance Serialize CBStatus where
 data SBStatus
   = SBRequest
   | SBPing Int64
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize SBStatus where
   put SBRequest = putWord8 0x00
@@ -116,7 +118,7 @@ data CBLogin
   | CBEncryptionRequest T.Text B.ByteString B.ByteString
   | CBLoginSuccess UUID T.Text
   | CBSetCompression VarInt
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize CBLogin where
   put (CBLoginDisconnect reason) = do
@@ -151,7 +153,7 @@ instance Serialize CBLogin where
 data SBLogin
   = SBLoginStart T.Text
   | SBEncryptionResponse B.ByteString B.ByteString
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize SBLogin where
   put (SBLoginStart name) = do
@@ -246,7 +248,7 @@ data CBPlay
   | CBEntityTeleport VarInt Double Double Double Angle Angle Bool
   | CBEntityProperties VarInt (V.Vector EntityProperty)
   | CBEntityEffect VarInt Int8 Int8 VarInt Word8
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize CBPlay where
   put (CBSpawnObject entityID objectUUID entityType x y z pitch yaw dat vX vY vZ) = do
@@ -899,7 +901,7 @@ data SBPlay
   | SBSpectate UUID
   | SBPlayerBlockPlacement Position VarInt VarInt Word8 Word8 Word8
   | SBUseItem VarInt
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize SBPlay where
   put (SBTeleportConfirm teleportID) = do
