@@ -45,12 +45,12 @@ data GameData = GameData
 
 loadGameData :: IO (Either String GameData)
 loadGameData = do
-  rawBiomes <- B.readFile "data/biomes.json"
-  rawBlocks <- B.readFile "data/blocks.json"
-  rawEffects <- B.readFile "data/effects.json"
-  rawEntity <- B.readFile "data/entities.json"
-  rawInstruments <- B.readFile "data/instruments.json"
-  rawItems <- B.readFile "data/items.json"
+  rawBiomes <- B.readFile "minecraft-data/data/pc/1.10/biomes.json"
+  rawBlocks <- B.readFile "minecraft-data/data/pc/1.10/blocks.json"
+  rawEffects <- B.readFile "minecraft-data/data/pc/1.10/effects.json"
+  rawEntity <- B.readFile "minecraft-data/data/pc/1.10/entities.json"
+  rawInstruments <- B.readFile "minecraft-data/data/pc/1.10/instruments.json"
+  rawItems <- B.readFile "minecraft-data/data/pc/1.10/items.json"
 
   let biomes = eitherDecodeStrict' rawBiomes :: Either String [Biome]
   let blocks = eitherDecodeStrict' rawBlocks :: Either String [Block]
