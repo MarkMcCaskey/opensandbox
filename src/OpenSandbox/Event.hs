@@ -1,12 +1,16 @@
 module OpenSandbox.Event
   ( Event (..)
-  , GameStateDiff (..)
+  , Command (..)
   ) where
 
+import qualified Data.Text as T
 import Data.Int
+import qualified Data.Vector as V
 
-data Event = Event Int64 GameStateDiff deriving (Show,Eq)
+data Event = Event Int64 Command deriving (Show,Eq)
 
-data GameStateDiff
-  = PlayerPositionAndLookDiff Double Double Double Float Float Bool
+data Command
+  = PlayerPositionAndLook Double Double Double Float Float Bool
+  | TabComplete (V.Vector T.Text)
+  | ChatMessage T.Text Int8
   deriving (Show,Eq)

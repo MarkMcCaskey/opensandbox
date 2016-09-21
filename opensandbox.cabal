@@ -34,6 +34,7 @@ library
                             OpenSandbox.Protocol
                             OpenSandbox.Protocol.Packet
                             OpenSandbox.Protocol.Types
+                            OpenSandbox.Rules
                             OpenSandbox.Server
                             OpenSandbox.Time
                             OpenSandbox.User

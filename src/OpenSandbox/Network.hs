@@ -25,6 +25,7 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Lazy
 import qualified Control.Monad.Trans.State.Lazy as S (put)
 import qualified Data.Attoparsec.ByteString as Decode
+import qualified Data.Attoparsec.Text as A
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import Data.Conduit
@@ -464,19 +465,18 @@ handlePlay config logger worldClock world history = do
         liftIO $ logMsg logger LvlDebug $ "Recieving: " ++ show packets
         age <- liftIO $ getWorldAge worldClock
         t <- liftIO $ getWorldTime worldClock
-        liftIO $ atomically $ do
-          past <- readTVar history
-          let newHistory =
-                if length past < 1000
-                  then handle age past packets
-                  else handle age [] packets
-          writeTVar history newHistory
+        maybeOutgoing <- liftIO $ atomically $ fmap sequence $ sequence $ fmap (handle history age) packets
+        case maybeOutgoing of
+          Nothing -> return ()
+          Just outgoing -> mapM_ yield outgoing
+        -- Rewind
         when (mod t 1000 == 0) $ do
           past <- liftIO $ readTVarIO history
           forM_ past $ \event -> do
-            liftIO $ logMsg logger LvlDebug $ "Rewind: " ++ show event
+            liftIO $ logMsg logger LvlDebug $ "Undoing: " ++ show event
             liftIO $ threadDelay 10000
             yield . eventToCBPlay $ event
+          liftIO $ atomically $ writeTVar history []
         when (mod t 20 == 0) $ do
           liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show (CBTimeUpdate age t)
           yield (CBTimeUpdate age t)
@@ -484,60 +484,65 @@ handlePlay config logger worldClock world history = do
           liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show (CBKeepAlive 5346)
           yield (CBKeepAlive 5346)
   where
-    handle :: Int64 -> [Event] -> [SBPlay] -> [Event]
-    handle _ history [] = history
-    handle age history (packet:packets) =
+    handle :: TVar [Event] -> Int64 -> SBPlay -> STM (Maybe CBPlay)
+    handle eventJournal age packet =
       case packet of
-        SBTeleportConfirm {} -> handle age history packets
-        SBTabComplete {} -> handle age history packets
-        SBChatMessage {} -> handle age history packets
-        SBClientStatus {} -> handle age history packets
-        SBClientSettings {} -> handle age history packets
-        SBConfirmTransaction {} -> handle age history packets
-        SBEnchantItem {} -> handle age history packets
-        SBClickWindow {} -> handle age history packets
-        SBCloseWindow {} -> handle age history packets
-        SBPluginMessage {} -> handle age history packets
-        SBUseEntity {} -> handle age history packets
-        SBKeepAlive {} -> handle age history packets
+        SBTabComplete txt shouldAssumeCommand _ ->
+          if shouldAssumeCommand
+             then case A.parseOnly assumedCommand txt of
+                    Left _ -> return (Just $ CBTabComplete V.empty)
+                    Right prefix -> do
+                      let matches = filter (T.isPrefixOf prefix) availableCommands
+                      return (Just $ CBTabComplete (V.fromList matches))
+             else case A.parseOnly potentialCommand txt of
+                    Left _ -> return (Just $ CBTabComplete V.empty)
+                    Right prefix -> do
+                      let matches = filter (T.isPrefixOf prefix) availableCommands
+                      return (Just $ CBTabComplete (V.fromList matches))
 
-        SBPlayerPosition x y z onGround ->
-          case (fmap fst . uncons $ history) of
+        SBPlayerPosition x y z onGround -> do
+          past <- readTVar eventJournal
+          case (fmap fst . uncons $ past) of
             Nothing ->
-              handle age [Event age (PlayerPositionAndLookDiff x y z 0 0 True)] packets
-            Just (Event _ (PlayerPositionAndLookDiff xO yO zO yawO pitchO _)) ->
-              handle age ((Event age (PlayerPositionAndLookDiff x y z yaw0 pitch0 onGround)):history) packets
+              writeTVar eventJournal [Event age (PlayerPositionAndLook x y z 0 0 True)]
+            Just (Event _ (PlayerPositionAndLook xO yO zO yawO pitchO _)) ->
+              writeTVar eventJournal $ (Event age (PlayerPositionAndLook x y z yaw0 pitch0 onGround)):past
+          return Nothing
+        SBPlayerPositionAndLook x y z yaw pitch onGround -> do
+          past <- readTVar eventJournal
+          writeTVar eventJournal $ (Event age (PlayerPositionAndLook x y z yaw pitch onGround)):past
+          return Nothing
 
-        SBPlayerPositionAndLook x y z yaw pitch onGround ->
-              handle age ((Event age (PlayerPositionAndLookDiff x y z yaw pitch onGround)):history) packets
-
-        SBPlayerLook yaw pitch onGround ->
-          case (fmap fst . uncons $ history) of
-            Nothing ->
-              handle age [Event age (PlayerPositionAndLookDiff 0 0 0 yaw pitch onGround)] packets
-            Just (Event _ (PlayerPositionAndLookDiff x0 y0 z0 _ _ _)) ->
-              handle age ((Event age (PlayerPositionAndLookDiff x0 y0 z0 yaw pitch onGround)):history) packets
-
-        SBPlayer {} -> handle age history packets
-        SBVehicleMove {} -> handle age history packets
-        SBSteerBoat {} -> handle age history packets
-        SBPlayerAbilities {} -> handle age history packets
-        SBPlayerDigging {} -> handle age history packets
-        SBEntityAction {} -> handle age history packets
-        SBSteerVehicle {} -> handle age history packets
-        SBResourcePackStatus {} -> handle age history packets
-        SBHeldItemChange {} -> handle age history packets
-        SBCreativeInventoryAction {} -> handle age history packets
-        SBUpdateSign {} -> handle age history packets
-        SBAnimation {} -> handle age history packets
-        SBSpectate {} -> handle age history packets
-        SBPlayerBlockPlacement {} -> handle age history packets
-        SBUseItem {} -> handle age history packets
+        SBPlayerLook yaw pitch onGround -> do
+          past <- readTVar eventJournal
+          case (fmap fst . uncons $ past) of
+            Nothing -> do
+              writeTVar eventJournal [Event age (PlayerPositionAndLook 0 0 0 yaw pitch onGround)]
+              return Nothing
+            Just (Event _ (PlayerPositionAndLook x0 y0 z0 _ _ _)) -> do
+              writeTVar eventJournal $ (Event age (PlayerPositionAndLook x0 y0 z0 yaw pitch onGround)):past
+              return Nothing
+        _ -> return Nothing
       where
         yaw0 = 0
         pitch0 = 0
 
 
+
+assumedCommand :: A.Parser T.Text
+assumedCommand = do
+  A.skip (=='/')
+  A.takeText
+
+potentialCommand :: A.Parser T.Text
+potentialCommand = do
+  A.char '/'
+  txt <- A.takeText
+  return $ T.cons '/' txt
+
+availableCommands :: [T.Text]
+availableCommands = ["/rewind","/help"]
+
 eventToCBPlay :: Event -> CBPlay
-eventToCBPlay (Event age (PlayerPositionAndLookDiff x y z yaw pitch onGround)) =
+eventToCBPlay (Event age (PlayerPositionAndLook x y z yaw pitch onGround)) =
   CBPlayerPositionAndLook x y z yaw pitch 0 (fromEnum age)
