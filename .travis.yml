@@ -10,6 +10,8 @@ cache:
     - $HOME/.stack/
 
 before_install:
+  - sudo apt-get -qq update
+  - sudo apt-get install -y libblas-dev liblapack-dev
   - mkdir -p ~/.local/bin
   - export PATH=~/.local/bin:$PATH
   - travis_retry wget https://github.com/commercialhaskell/stack/releases/download/v1.1.2/stack-1.1.2-linux-x86_64.tar.gz
