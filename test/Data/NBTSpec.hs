@@ -19,9 +19,6 @@ import OpenSandbox.Protocol.Types (putVarInt,getVarInt)
 instance Arbitrary TagType where
     arbitrary = toEnum <$> choose (1, 11)
 
-instance Arbitrary (V.Vector NBT) where
-  arbitrary = V.fromList <$> (arbitrary >>= \n -> vectorOf n arbitrary)
-
 instance Serialize (V.Vector NBT) where
   put nbts = do
     putVarInt . V.length $ nbts

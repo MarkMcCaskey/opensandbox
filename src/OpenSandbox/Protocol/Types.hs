@@ -216,7 +216,7 @@ getEntityMetadata = do
 data EntityMetadataEntry
   = MetadataEnd
   | Entry !Word8 !Int8 !MetadataType
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize EntityMetadataEntry where
   put MetadataEnd = do
@@ -249,7 +249,7 @@ data MetadataType
   | MetadataDirection
   | MetadataOptUUID
   | MetadataBlockID
-  deriving (Show,Eq,Enum)
+  deriving (Show,Eq,Enum,Generic)
 
 instance Serialize MetadataType where
   put m = putWord8 (toEnum . fromEnum $ m)
@@ -258,7 +258,7 @@ instance Serialize MetadataType where
 data Slot = Slot
   { blockID     :: !Int16
   , slotData    :: !(Maybe SlotData)
-  } deriving (Show,Eq)
+  } deriving (Show,Eq,Generic)
 
 instance Serialize Slot where
   put (Slot bid sd) = do
@@ -281,7 +281,7 @@ data SlotData = SlotData
   { itemCount   :: !Int8
   , itemDamage  :: !Int16
   , nbt         :: !NBT
-  } deriving (Show,Eq)
+  } deriving (Show,Eq,Generic)
 
 instance Serialize SlotData where
   put (SlotData itemCount' itemDamage' nbt') = do
@@ -350,7 +350,7 @@ data Animation
   | EatFood
   | CriticalEffect
   | MagicCriticalEffect
-  deriving (Show,Eq,Enum)
+  deriving (Show,Eq,Enum,Generic)
 
 instance Serialize Animation where
   put = putWord8 . toEnum . fromEnum
@@ -360,7 +360,7 @@ data BlockAction
   = NoteBlockAction !InstrumentType !NotePitch
   | PistonBlockAction !PistonState !PistonDirection
   | ChestBlockAction !Word8
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize BlockAction where
   put (NoteBlockAction i n) = do
@@ -392,7 +392,7 @@ data InstrumentType
   | SnareDrum
   | Clicks
   | BassDrum
-  deriving (Show,Eq,Enum)
+  deriving (Show,Eq,Enum,Generic)
 
 data NotePitch
   = FSharp
@@ -420,12 +420,12 @@ data NotePitch
   | E2
   | F2
   | FSharp3
-  deriving (Show,Eq,Enum)
+  deriving (Show,Eq,Enum,Generic)
 
 data PistonState
   = PistonPushing
   | PistonPulling
-  deriving (Show,Eq,Enum)
+  deriving (Show,Eq,Enum,Generic)
 
 data PistonDirection
   = PistonDown
@@ -434,13 +434,13 @@ data PistonDirection
   | PistonWest
   | PistonNorth
   | PistonEast
-  deriving (Show,Eq,Enum)
+  deriving (Show,Eq,Enum,Generic)
 
 data BlockChange = BlockChange
   { hPosition     :: !Word8
   , yCoord        :: !Word8
   , blockId       :: !Int
-  } deriving (Show,Eq)
+  } deriving (Show,Eq,Generic)
 
 instance Serialize BlockChange where
   put (BlockChange h y b) = do
@@ -461,7 +461,7 @@ data BossBarAction
   | BossBarUpdateTitle !Chat
   | BossBarUpdateStyle !Int !Int
   | BossBarUpdateFlags !Word8
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize BossBarAction where
   put (BossBarAdd title health color division flags) = do
@@ -556,7 +556,7 @@ instance Serialize GameMode where
   get = (toEnum . fromEnum) <$> getWord8
 
 data ProtocolState = ProtocolHandshake | ProtocolStatus | ProtocolLogin | ProtocolPlay
-  deriving (Show,Eq,Enum)
+  deriving (Show,Eq,Enum,Generic)
 
 instance Serialize ProtocolState where
   put = putWord8 . toEnum . fromEnum
@@ -572,7 +572,7 @@ data UpdateBlockEntityAction
   | SetStuctureTileEntity
   | SetGateway
   | SetSign
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Enum UpdateBlockEntityAction where
   fromEnum SetSpawnPotentials = 1
@@ -606,14 +606,14 @@ data WindowProperty
   | WindowBeacon BeaconProperty
   | WindowAnvil AnvilProperty
   | WindowBrewingStand BrewingStandProperty
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 data FurnaceProperty
   = FireIcon
   | MaxBurnTime
   | ProgressArrow
   | MaxProgress
-  deriving (Show,Eq,Enum)
+  deriving (Show,Eq,Enum,Generic)
 
 data EnchantmentTableProperty
   = LvlReqTopSlot
@@ -623,21 +623,21 @@ data EnchantmentTableProperty
   | TopMouseHover
   | MiddleMouseHover
   | BottomMouseHover
-  deriving (Show,Eq,Enum)
+  deriving (Show,Eq,Enum,Generic)
 
 data BeaconProperty
   = PowerLevel
   | FirstPotionEffect
   | SecondPotionEffect
-  deriving (Show,Eq,Enum)
+  deriving (Show,Eq,Enum,Generic)
 
 data AnvilProperty
   = RepairCost
-  deriving (Show,Eq,Enum)
+  deriving (Show,Eq,Enum,Generic)
 
 data BrewingStandProperty
   = BrewTime
-  deriving (Show,Eq,Enum)
+  deriving (Show,Eq,Enum,Generic)
 
 data EntityStatus
   = TippedArrowParticles
@@ -675,7 +675,7 @@ data EntityStatus
   | FishingRodBobber
   | ArmorstandHitSound
   | EntityHurtFromThorns
-  deriving (Show,Eq,Enum)
+  deriving (Show,Eq,Enum,Generic)
 
 instance Serialize EntityStatus where
   put es = put (toEnum . fromEnum $ es :: Int8)
@@ -692,7 +692,7 @@ data GameChangeReason
   | FadeValue
   | FateTime
   | PlayElderGuardianAppearance
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Enum GameChangeReason where
   fromEnum InvalidBed = 0
@@ -742,7 +742,7 @@ data EffectID
   | GhastShoots
   | EnderdragonShoots
   | BlazeShoots
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 data SmokeDirection
   = SouthEast
@@ -754,7 +754,7 @@ data SmokeDirection
   | NorthEast
   | North
   | NorthWest
-  deriving (Show,Eq,Enum)
+  deriving (Show,Eq,Enum,Generic)
 
 data ParticleID
   = Explode
@@ -803,7 +803,7 @@ data ParticleID
   | Endrod
   | DamageIndicator
   | SweepAttack
-  deriving (Show,Eq,Enum)
+  deriving (Show,Eq,Enum,Generic)
 
 data ValueField
   = ByteField
@@ -819,7 +819,7 @@ data ValueField
   | DirectionField
   | OptUUIDField
   | BlockIDField
-  deriving (Show,Eq,Enum)
+  deriving (Show,Eq,Enum,Generic)
 
 data StatusPayload = StatusPayload
   { version       :: !Version
@@ -853,7 +853,7 @@ data Description = Description
 instance A.ToJSON Description
 instance A.FromJSON Description
 
-data Statistic = Statistic !T.Text !VarInt deriving (Show,Eq)
+data Statistic = Statistic !T.Text !VarInt deriving (Show,Eq,Generic)
 
 instance Serialize Statistic where
   put (Statistic t val) = do
@@ -870,7 +870,7 @@ data PlayerListEntries
   | PlayerListUpdateLatencies (V.Vector PlayerListUpdateLatency)
   | PlayerListUpdateDisplayNames (V.Vector PlayerListUpdateDisplayName)
   | PlayerListRemovePlayers (V.Vector PlayerListRemovePlayer)
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize PlayerListEntries where
   put (PlayerListAdds lst) = do
@@ -906,7 +906,7 @@ instance Serialize PlayerListEntries where
       err -> fail $ "Error: Invaid PlayerList action " ++ show err
 
 data PlayerListAdd = PlayerListAdd !UUID !T.Text !(V.Vector PlayerProperty) !GameMode !Int !(Maybe T.Text)
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize PlayerListAdd where
   put (PlayerListAdd uuid name properties gamemode ping maybeDisplayName) = do
@@ -939,7 +939,7 @@ instance Serialize PlayerListAdd where
         return $ PlayerListAdd uuid name properties gameMode ping Nothing
 
 data PlayerListUpdateGameMode = PlayerListUpdateGameMode !UUID !GameMode
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize PlayerListUpdateGameMode where
   put (PlayerListUpdateGameMode uuid gameMode) = do
@@ -952,7 +952,7 @@ instance Serialize PlayerListUpdateGameMode where
     return $ PlayerListUpdateGameMode uuid gameMode
 
 data PlayerListUpdateLatency = PlayerListUpdateLatency !UUID !Int
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize PlayerListUpdateLatency where
   put (PlayerListUpdateLatency uuid ping) = do
@@ -965,7 +965,7 @@ instance Serialize PlayerListUpdateLatency where
     return $ PlayerListUpdateLatency uuid ping
 
 data PlayerListUpdateDisplayName = PlayerListUpdateDisplayName !UUID !(Maybe T.Text)
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize PlayerListUpdateDisplayName where
   put (PlayerListUpdateDisplayName uuid maybeDisplayName) = do
@@ -987,7 +987,7 @@ instance Serialize PlayerListUpdateDisplayName where
         return $ PlayerListUpdateDisplayName uuid Nothing
 
 data PlayerListRemovePlayer = PlayerListRemovePlayer !UUID
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize PlayerListRemovePlayer where
   put (PlayerListRemovePlayer uuid) = putUUID' uuid
@@ -997,7 +997,7 @@ data PlayerProperty = PlayerProperty
   { playerName    :: !T.Text
   , playerValue   :: !T.Text
   , playerSig     :: !(Maybe T.Text)
-  } deriving (Show,Eq)
+  } deriving (Show,Eq,Generic)
 
 instance Serialize PlayerProperty where
   put (PlayerProperty name val maybeSig) = do
@@ -1024,7 +1024,7 @@ data Icon = Icon
   { directionAndType  :: !Word8
   , x                 :: !Word8
   , z                 :: !Word8
-  } deriving (Show,Eq)
+  } deriving (Show,Eq,Generic)
 
 instance Serialize Icon where
   put (Icon directionAndType' x' z') = do
@@ -1038,7 +1038,7 @@ data CombatEvent
   = EnterCombat
   | EndCombat !Int !Int32
   | EntityDead !Int !Int32 !Chat
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize CombatEvent where
   put EnterCombat = do
@@ -1075,7 +1075,7 @@ data WorldBorderAction
   | Initialize !Double !Double !Double !Double !Int64 !Int !Int !Int
   | SetWarningTime !Int
   | SetWarningBlocks !Int
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize WorldBorderAction where
   put (SetSize diameter) = do
@@ -1146,7 +1146,7 @@ data TeamMode
   | UpdateTeamInfo !T.Text !T.Text !T.Text !Int8 !T.Text !T.Text !Int8
   | AddPlayers !(V.Vector T.Text)
   | RemovePlayers !(V.Vector T.Text)
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize TeamMode where
   put (CreateTeam displayName prefix suffix flags tagVisibility collision color players) = do
@@ -1219,7 +1219,7 @@ data TitleAction
   | SetTimesAndDisplay !Int32 !Int32 !Int32
   | Hide
   | Reset
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize TitleAction where
   put (SetTitle titleText) = do
@@ -1259,7 +1259,7 @@ data EntityProperty = EntityProperty
   , value           :: !Double
   , numOfModifiers  :: !Int
   , modifiers       :: !Int
-  } deriving (Show,Eq)
+  } deriving (Show,Eq,Generic)
 
 instance Serialize EntityProperty where
   put (EntityProperty k v n m) = do
@@ -1285,7 +1285,7 @@ encodeStatusPayload mcVersion versionID currentPlayers maxPlayers motd =
 data UpdatedColumns
   = NoUpdatedColumns
   | UpdatedColumns !Int8 !Int8 !Int8 !Int8 !B.ByteString
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize UpdatedColumns where
   put NoUpdatedColumns = do
@@ -1311,7 +1311,7 @@ instance Serialize UpdatedColumns where
 data UpdateScoreAction
   = CreateOrUpdateScoreItem !T.Text !T.Text !VarInt
   | RemoveScoreItem !T.Text !T.Text
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize UpdateScoreAction where
   put (CreateOrUpdateScoreItem scoreName objectiveName val) = do
@@ -1339,7 +1339,7 @@ data UseEntityType
   = InteractWithEntity !VarInt
   | AttackEntity
   | InteractAtEntity !Float !Float !Float !EntityHand
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize UseEntityType where
   put (InteractWithEntity h) = do
@@ -1361,7 +1361,7 @@ instance Serialize UseEntityType where
       2 -> InteractAtEntity <$> getFloat32be <*> getFloat32be <*> getFloat32be <*> get
       err -> fail $ "Error: Could not get UseEntityType type: " ++ show err
 
-data EntityHand = MainHand | OffHand deriving (Show,Eq,Enum)
+data EntityHand = MainHand | OffHand deriving (Show,Eq,Enum,Generic)
 
 instance Serialize EntityHand where
   put = putWord8 . toEnum . fromEnum
@@ -1371,7 +1371,7 @@ data ScoreboardMode
   = CreateScoreboard !T.Text !T.Text
   | RemoveScoreboard
   | UpdateDisplayText !T.Text !T.Text
-  deriving (Show,Eq)
+  deriving (Show,Eq,Generic)
 
 instance Serialize ScoreboardMode where
   put (CreateScoreboard ov t) = do

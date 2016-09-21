@@ -5,10 +5,7 @@
 module OpenSandbox.Protocol.PacketSpec (main,spec) where
 
 import Control.Monad
-import qualified Data.ByteString as B
-import Data.Word
 import Generic.Random.Generic
-import GHC.Generics
 import OpenSandbox
 import Test.Hspec
 import Test.QuickCheck

@@ -7,7 +7,20 @@ module Common
 import qualified Data.ByteString as B
 import Data.Serialize
 import qualified Data.Text as T
+import Data.UUID
+import qualified Data.Vector as V
 import Test.QuickCheck
+
+instance Arbitrary a => Arbitrary (V.Vector a) where
+  arbitrary = fmap V.fromList $ listOf arbitrary
+
+instance Arbitrary UUID where
+  arbitrary = do
+    a <- arbitrary
+    b <- arbitrary
+    c <- arbitrary
+    d <- arbitrary
+    return $ fromWords a b c d
 
 instance Arbitrary T.Text where
   arbitrary = fmap T.pack arbitrary
