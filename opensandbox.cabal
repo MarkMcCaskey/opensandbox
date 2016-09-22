@@ -32,6 +32,8 @@ library
                             OpenSandbox.Logger
                             OpenSandbox.Network
                             OpenSandbox.Protocol
+                            OpenSandbox.Protocol.Compression
+                            OpenSandbox.Protocol.Encryption
                             OpenSandbox.Protocol.Packet
                             OpenSandbox.Protocol.Types
                             OpenSandbox.Rules

@@ -17,9 +17,7 @@
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.Protocol.Types
-  ( Encryption (..)
-  , Compression (..)
-  , Chat (..)
+  ( Chat (..)
   , Short
   , Angle
   , Position
@@ -112,16 +110,6 @@ import qualified Data.Vector as V
 import Data.Word
 import GHC.Generics
 import Prelude hiding (max)
-
-data Compression = Everything | Int
-  deriving (Show,Eq)
-
-data Encryption = Encryption
-  { getCert         :: B.ByteString
-  , getPubKey       :: PublicKey
-  , getPrivKey      :: PrivateKey
-  , getVerifyToken  :: B.ByteString
-  } deriving (Show,Eq)
 
 type Short = Int16
 

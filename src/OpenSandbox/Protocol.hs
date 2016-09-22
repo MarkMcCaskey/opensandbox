@@ -9,9 +9,13 @@
 --
 -------------------------------------------------------------------------------
 module OpenSandbox.Protocol
-  ( module OpenSandbox.Protocol.Packet
+  ( module OpenSandbox.Protocol.Compression
+  , module OpenSandbox.Protocol.Encryption
+  , module OpenSandbox.Protocol.Packet
   , module OpenSandbox.Protocol.Types
   ) where
 
+import OpenSandbox.Protocol.Compression
+import OpenSandbox.Protocol.Encryption
 import OpenSandbox.Protocol.Packet
 import OpenSandbox.Protocol.Types
