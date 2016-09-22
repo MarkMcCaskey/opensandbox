@@ -26,6 +26,7 @@ data OpenSandboxOption = OpenSandboxOption
   , getVerboseFlag      :: Bool
   , getDaemonFlag       :: Bool
   , getCompressionFlag  :: Bool
+  , getEncryptionFlag   :: Bool
   , getEkgFlag          :: Bool
   } deriving (Show,Eq)
 
@@ -70,6 +71,9 @@ openSandboxOptions = OpenSandboxOption
   <*> switch
     ( long "no-compression"
     <> help "Turn off compression.")
+  <*> switch
+    ( long "no-encryption"
+    <> help "Turn off encryption.")
   <*> switch
     ( long "ekg"
     <> help "Run ekg monitoring.")
