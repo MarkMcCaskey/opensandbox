@@ -20,16 +20,18 @@ import Control.Applicative
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM.TVar
 import Control.Monad
+import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Control.Monad.STM
 import Control.Monad.Trans.Class
-import Control.Monad.Trans.State.Lazy
-import qualified Control.Monad.Trans.State.Lazy as S (put)
+import Control.Monad.Trans.State.Lazy (StateT,execStateT)
+import qualified Control.Monad.Trans.State.Lazy as State
 import qualified Data.Attoparsec.ByteString as Decode
 import qualified Data.Attoparsec.Text as A
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import Data.Conduit
+import Data.Conduit.Cereal
 import Data.Conduit.Network
 import Data.Int
 import Data.List
@@ -62,7 +64,8 @@ runOpenSandboxServer server encryption =
         $$ deserializeHandshaking
         =$= handleHandshaking logger
         =$= handleStatus config logger
-        =$= serializeStatus
+        =$= serializePacket
+        =$= fmtPacket
         =$= packetSink app
       liftIO $ logMsg logger LvlDebug $ "Somebody's handshaking!"
       case firstState of
@@ -70,23 +73,28 @@ runOpenSandboxServer server encryption =
           liftIO $ logMsg logger LvlDebug $ "Beginning Status handling..."
           _ <- flip execStateT ProtocolStatus
             $ packetSource app
-            $$ deserializeStatus
+            $$ breakupPackets
+            =$= deserializePacket
             =$= handleStatus config logger
-            =$= serializeStatus
+            =$= serializePacket
+            =$= fmtPacket
             =$= packetSink app
           liftIO $ logMsg logger LvlDebug $ "Somebody's pinging!"
           _ <- flip execStateT ProtocolStatus
             $ packetSource app
-            $$ deserializeStatus
+            $$ breakupPackets
+            =$= deserializePacket
             =$= handleStatus config logger
-            =$= serializeStatus
+            =$= serializePacket
+            =$= fmtPacket
             =$= packetSink app
           return ()
         ProtocolLogin -> do
           liftIO $ logMsg logger LvlDebug $ "Beginning Login handling..."
           thirdState <- flip execStateT ProtocolLogin
             $ packetSource app
-            $$ deserializeLogin
+            $$ breakupPackets
+            =$= deserializePacket
             =$= handleLogin config logger encryption existingUsers
             =$= serializeLogin config
             =$= packetSink app
@@ -109,13 +117,13 @@ runOpenSandboxServer server encryption =
     existingUsers = srvUserCache server
     journal = srvEventJournal server
 
-packetSource  :: AppData -> Source (StateT ProtocolState IO) B.ByteString
+packetSource  :: MonadIO m => AppData -> Source m B.ByteString
 packetSource app = transPipe liftIO $ appSource app
 
-packetSink  :: AppData -> Sink B.ByteString (StateT ProtocolState IO) ()
+packetSink  :: MonadIO m => AppData -> Sink B.ByteString m ()
 packetSink app = transPipe liftIO $ appSink app
 
-deserializeHandshaking :: Conduit B.ByteString (StateT ProtocolState IO) (Either String (SBHandshaking,Maybe SBStatus))
+deserializeHandshaking :: Conduit B.ByteString (StateT ProtocolState IO) (SBHandshaking,Maybe SBStatus)
 deserializeHandshaking = do
     maybeBS <- await
     case maybeBS of
@@ -124,12 +132,12 @@ deserializeHandshaking = do
         if B.take 2 bs /= "\254\SOH"
           then do
             case runGet getSBHandshaking' bs of
-              Left err -> yield (Left err) >> leftover bs
-              Right (handshake,status) -> yield (Right (handshake,status))
+              Left err -> leftover bs
+              Right (handshake,status) -> yield (handshake,status)
           else do
             case Decode.parseOnly (Decode.takeByteString <* Decode.endOfInput) (B.tail bs) of
-              Left err -> yield (Left err) >> leftover bs
-              Right _ -> yield $ Right (SBLegacyServerListPing,Nothing)
+              Left err -> leftover bs
+              Right _ -> yield $ (SBLegacyServerListPing,Nothing)
   where
   getSBHandshaking' = do
     ln <- getVarInt
@@ -147,35 +155,26 @@ deserializeHandshaking = do
               Left _ -> return (handshake,Nothing)
               Right earlyStatus -> return (handshake,Just earlyStatus)
 
-deserializeStatus :: Conduit B.ByteString (StateT ProtocolState IO) (Either String SBStatus)
-deserializeStatus = do
-    maybeBS <- await
-    case maybeBS of
-      Nothing -> return ()
-      Just bs -> do
-        case decode (B.tail bs) of
-          Left err -> yield (Left err) >> leftover bs
-          Right status -> yield (Right status)
+breakupPackets :: (MonadIO m, MonadThrow m) => Conduit B.ByteString m B.ByteString
+breakupPackets = awaitForever $ \stream -> mapM_ yield (breakup stream)
+  where
+    breakup :: B.ByteString -> [B.ByteString]
+    breakup "" = []
+    breakup bs =
+      case runGetPartial getVarInt bs of
+        Fail err leftover -> error "Error: Failed to breakup packets!"
+        Partial resumeMe -> error $ "Error: Partial breakup?"
+        Done ln leftover -> (B.take ln leftover):breakup (B.drop ln leftover)
 
-serializeStatus :: Conduit CBStatus (StateT ProtocolState IO) B.ByteString
-serializeStatus = do
-  maybeStatus <- await
-  case maybeStatus of
-    Nothing -> return ()
-    Just status -> do
-      let bs = encode status
-      let ln = runPut . putVarInt . B.length $ bs
-      yield (ln `B.append` bs)
+fmtPacket :: (MonadIO m, MonadThrow m) => Conduit B.ByteString m B.ByteString
+fmtPacket = awaitForever $ \payload ->
+  yield ((runPut . putVarInt . B.length $ payload) `B.append` payload)
 
-deserializeLogin :: Conduit B.ByteString (StateT ProtocolState IO) (Either String SBLogin)
-deserializeLogin = do
-  maybeBS <- await
-  case maybeBS of
-    Nothing -> return ()
-    Just bs -> do
-      case decode (B.tail bs) of
-        Left err -> yield (Left err) >> leftover bs
-        Right login -> yield (Right login)
+deserializePacket :: (Serialize a, MonadIO m, MonadThrow m) => Conduit B.ByteString m a
+deserializePacket = conduitGet2 get
+
+serializePacket :: (Serialize a, MonadIO m, MonadThrow m) => Conduit a m B.ByteString
+serializePacket = conduitPut put
 
 serializeLogin :: Config -> Conduit CBLogin (StateT ProtocolState IO) B.ByteString
 serializeLogin config = do
@@ -183,45 +182,16 @@ serializeLogin config = do
   case maybeLogin of
     Nothing -> return ()
     Just (CBSetCompression threshold) -> do
-      let bs = encode (CBSetCompression threshold)
-      let ln = runPut . putVarInt . B.length $ bs
-      yield (ln `B.append` bs)
+      handleWithoutCompression (CBSetCompression threshold)
       maybeLoginSuccess <- await
       case maybeLoginSuccess of
         Nothing -> return ()
-        Just loginSuccess -> handle loginSuccess
+        Just loginSuccess -> handleWithCompression loginSuccess
     Just (CBLoginSuccess a b) -> do
-      let uncompressedBS = (encodeLazy (CBLoginSuccess a b))
       if srvCompression config
-        then do
-          let dataLn = runPut . putVarInt . B.length . BL.toStrict $ uncompressedBS
-          let compressedBS = BL.toStrict . Zlib.compress $ uncompressedBS
-          let packetData = dataLn `B.append` compressedBS
-          let packetLn = runPut . putVarInt . B.length $ packetData
-          yield (packetLn `B.append` packetData)
-        else do
-          let bs = encode (CBLoginSuccess a b)
-          let ln = runPut . putVarInt . B.length $ bs
-          yield (ln `B.append` bs)
-    Just login -> do
-      let bs = encode login
-      let ln = runPut . putVarInt . B.length $ bs
-      yield (ln `B.append` bs)
-  where
-    handle l = do
-      let uncompressedBS = (encodeLazy l)
-      if srvCompression config
-        then do
-          let dataLn = runPut . putVarInt . B.length . BL.toStrict $ uncompressedBS
-          let compressedBS = BL.toStrict . Zlib.compress $ uncompressedBS
-          let packetData = dataLn `B.append` compressedBS
-          let packetLn = runPut . putVarInt . B.length $ packetData
-          yield (packetLn `B.append` packetData)
-        else do
-          let bs = encode l
-          let ln = runPut . putVarInt . B.length $ bs
-          yield (ln `B.append` bs)
-
+        then handleWithCompression (CBLoginSuccess a b)
+        else handleWithoutCompression (CBLoginSuccess a b)
+    Just login -> handleWithoutCompression login
 
 deserializePlay :: Config -> Conduit B.ByteString (StateT ProtocolState IO) (Either String [SBPlay])
 deserializePlay config = awaitForever $ \rawBytes -> yield $ runGet getPackets rawBytes
@@ -253,59 +223,38 @@ deserializePlay config = awaitForever $ \rawBytes -> yield $ runGet getPackets r
 
 serializePlay :: Config -> Conduit CBPlay (StateT ProtocolState IO) B.ByteString
 serializePlay config = awaitForever $ \play -> do
-  let uncompressedBS = encodeLazy play
   if srvCompression config
-    then do
-      let dataLn = runPut . putVarInt . B.length . BL.toStrict $ uncompressedBS
-      let compressedBS = BL.toStrict . Zlib.compressWith Zlib.defaultCompressParams $ uncompressedBS
-      let packetData = (dataLn `B.append` compressedBS)
-      let packetLn = runPut . putVarInt . B.length $ packetData
-      yield (packetLn `B.append` packetData)
-    else do
-      let bs = encode play
-      let ln = runPut . putVarInt . B.length $ bs
-      yield (ln `B.append` bs)
+    then handleWithCompression play
+    else handleWithoutCompression play
 
-handleHandshaking :: Logger -> Conduit (Either String (SBHandshaking,Maybe SBStatus)) (StateT ProtocolState IO) (Either String SBStatus)
-handleHandshaking logger = do
-  maybeHandshake <- await
-  liftIO $ logMsg logger LvlDebug $ "Recieving: " ++ show maybeHandshake
-  case maybeHandshake of
-    Nothing -> return ()
-    Just eitherHandshake ->
-      case eitherHandshake of
-        Left parseErr -> do
-          liftIO $ logMsg logger LvlError $ "Something went wrong: " ++ show parseErr
-          return ()
-        Right (SBHandshake _ _ _ ProtocolHandshake,_) -> do
-          liftIO $ logMsg logger LvlDebug "Redundant handshake"
-          return ()
-        Right (SBHandshake _ _ _ ProtocolStatus,status) -> do
-          liftIO $ logMsg logger LvlDebug "Switching protocol state to STATUS"
-          lift $ S.put ProtocolStatus
-          case status of
-            Nothing -> return ()
-            Just status' -> yield (Right status')
-        Right (SBHandshake _ _ _ ProtocolLogin,_) -> do
-          liftIO $ logMsg logger LvlDebug "Switching protocol state to LOGIN"
-          lift $ S.put ProtocolLogin
-          return ()
-        Right (SBHandshake _ _ _ ProtocolPlay,_) -> do
-          liftIO $ logMsg logger LvlDebug "Rejecting attempt to set protocol state to PLAY"
-          return ()
-        Right (SBLegacyServerListPing,_)-> do
-          liftIO $ logMsg logger LvlDebug "Recieved LegacyServerListPing"
-          return ()
+handleHandshaking :: Logger -> Conduit (SBHandshaking,Maybe SBStatus) (StateT ProtocolState IO) SBStatus
+handleHandshaking logger = awaitForever $ \handshake -> do
+  liftIO $ logMsg logger LvlDebug $ "Recieving: " ++ show handshake
+  case handshake of
+    (SBHandshake _ _ _ ProtocolHandshake,_) -> do
+      liftIO $ logMsg logger LvlDebug "Redundant handshake"
+      return ()
+    (SBHandshake _ _ _ ProtocolStatus,status) -> do
+      liftIO $ logMsg logger LvlDebug "Switching protocol state to STATUS"
+      lift $ State.put ProtocolStatus
+      case status of
+        Nothing -> return ()
+        Just status' -> yield status'
+    (SBHandshake _ _ _ ProtocolLogin,_) -> do
+      liftIO $ logMsg logger LvlDebug "Switching protocol state to LOGIN"
+      lift $ State.put ProtocolLogin
+      return ()
+    (SBHandshake _ _ _ ProtocolPlay,_) -> do
+      liftIO $ logMsg logger LvlDebug "Rejecting attempt to set protocol state to PLAY"
+      return ()
+    (SBLegacyServerListPing,_) -> do
+      liftIO $ logMsg logger LvlDebug "Recieved LegacyServerListPing"
+      return ()
 
-handleStatus  :: Config -> Logger -> Conduit (Either String SBStatus) (StateT ProtocolState IO) CBStatus
-handleStatus config logger = do
-  maybeStatus <- await
-  case maybeStatus of
-    Nothing -> return ()
-    Just eitherStatus ->
-      case eitherStatus of
-        Left parseErr -> liftIO $ logMsg logger LvlError parseErr
-        Right SBRequest -> do
+handleStatus  :: Config -> Logger -> Conduit SBStatus (StateT ProtocolState IO) CBStatus
+handleStatus config logger = awaitForever $ \status -> do
+      case status of
+        SBRequest -> do
           let responsePacket =
                 CBResponse
                   snapshotVersion
@@ -315,21 +264,16 @@ handleStatus config logger = do
                   (srvMotd config)
           liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show responsePacket
           yield responsePacket
-        Right (SBPing payload) -> do
+        (SBPing payload) -> do
           let pongPacket = CBPong payload
           liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show pongPacket
           yield pongPacket
 
-handleLogin :: Config -> Logger -> Encryption -> TVar UserStore -> Conduit (Either String SBLogin) (StateT ProtocolState IO) CBLogin
-handleLogin config logger encryption existingUsers = do
-  maybeLoginStart <- await
-  liftIO $ logMsg logger LvlDebug $ "Recieving: " ++ show maybeLoginStart
-  case maybeLoginStart of
-    Nothing -> return ()
-    Just eitherLogin ->
-      case eitherLogin of
-        Left parseErr -> liftIO $ logMsg logger LvlError parseErr
-        Right (SBLoginStart username) -> do
+handleLogin :: Config -> Logger -> Encryption -> TVar UserStore -> Conduit SBLogin (StateT ProtocolState IO) CBLogin
+handleLogin config logger encryption existingUsers = awaitForever $ \packet -> do
+    liftIO $ logMsg logger LvlDebug $ "Recieving: " ++ show packet
+    case packet of
+        (SBLoginStart username) -> do
           existingUsers' <- liftIO $ readTVarIO existingUsers
           thisUser <- case MS.lookup username existingUsers' of
                         Nothing -> do
@@ -340,7 +284,7 @@ handleLogin config logger encryption existingUsers = do
                           return newUser
                         Just user -> return user
           liftIO $ logMsg logger LvlDebug "Switching protocol state to PLAY"
-          lift $ S.put ProtocolPlay
+          lift $ State.put ProtocolPlay
           if srvEncryption config
             then do
               let encryptionRequest = CBEncryptionRequest "" (getCert encryption) (getVerifyToken encryption)
@@ -351,9 +295,7 @@ handleLogin config logger encryption existingUsers = do
                 Nothing -> return ()
                 Just eitherEncryptionResponse ->
                   case eitherEncryptionResponse of
-                    Left err -> liftIO $ logMsg logger LvlError err
-
-                    Right (SBEncryptionResponse _ _) -> do
+                    (SBEncryptionResponse _ _) -> do
                       liftIO $ logMsg logger LvlDebug "Got an encryption request!"
                       when (srvCompression config) $ do
                         let setCompression = CBSetCompression 0
@@ -363,7 +305,7 @@ handleLogin config logger encryption existingUsers = do
                       liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show loginSuccess
                       yield loginSuccess
 
-                    Right (SBLoginStart _) -> do
+                    (SBLoginStart _) -> do
                       liftIO $ logMsg logger LvlError "Redundant SBLoginStart!"
                       return ()
             else do
@@ -375,7 +317,7 @@ handleLogin config logger encryption existingUsers = do
               liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show loginSuccess
               yield loginSuccess
 
-        Right (SBEncryptionResponse _ _) -> do
+        (SBEncryptionResponse _ _) -> do
           liftIO $ logMsg logger LvlError "Got an encryption request out of order!"
           return ()
 
@@ -535,8 +477,6 @@ handlePlay config logger worldClock world history = do
       where
         isLatestPlayerPositionAndLook (Event _ PlayerPositionAndLook{}) = True
         isLatestPlayerPositionAndLook _ = False
-
-
 
 assumedCommand :: A.Parser T.Text
 assumedCommand = do
