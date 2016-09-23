@@ -12,15 +12,30 @@
 module OpenSandbox.User
   ( User (..)
   , UserStore
+  , registerUser
   ) where
 
-import qualified Data.Map.Strict as M
+import Control.Concurrent.STM
+import qualified Data.Map.Strict as MS
 import qualified Data.Text as T
 import Data.UUID
+import Data.UUID.V4
 
-type UserStore = M.Map T.Text User
+type UserStore = MS.Map T.Text User
 
 data User = User
   { getUserUUID     :: UUID
   , getUserName     :: T.Text
   } deriving (Show,Eq)
+
+registerUser :: TVar UserStore -> T.Text -> IO User
+registerUser existingUsers username = do
+  existingUsers' <- readTVarIO existingUsers
+  case MS.lookup username existingUsers' of
+    Nothing -> do
+      someUUID <- nextRandom
+      let newUser = User someUUID username
+      atomically . writeTVar existingUsers $
+        MS.insert username newUser existingUsers'
+      return newUser
+    Just user -> return user

@@ -21,6 +21,7 @@ module OpenSandbox.Protocol.Types
   , Short
   , Angle
   , Position
+  , Session (..)
   , ProtocolState (..)
   , Difficulty (..)
   , Dimension (..)
@@ -542,6 +543,17 @@ instance NFData GameMode
 instance Serialize GameMode where
   put = putWord8 . toEnum . fromEnum
   get = (toEnum . fromEnum) <$> getWord8
+
+data Session = Session
+  { sessionProtoState :: ProtocolState
+  , sessionUsername :: Maybe T.Text
+  , sessionSharedSecret :: Maybe B.ByteString
+  , sessionVerifyToken :: B.ByteString
+  , sessionCompressionIsEnabled :: Bool
+  , sessionEncryptionIsEnabled :: Bool
+  , sessionCompressionIsActive :: Bool
+  , sessionEncryptionIsActive :: Bool
+  } deriving (Show,Eq)
 
 data ProtocolState = ProtocolHandshake | ProtocolStatus | ProtocolLogin | ProtocolPlay
   deriving (Show,Eq,Enum,Generic)
