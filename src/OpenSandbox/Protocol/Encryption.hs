@@ -24,12 +24,9 @@ import qualified Data.ByteString as B
 import Data.X509
 import Data.Word
 import Crypto.Cipher.AES (AES128)
-import Crypto.Hash
 import Crypto.PubKey.RSA
 import Crypto.Cipher.Types (BlockCipher(..), Cipher(..),makeIV,nullIV)
 import Crypto.Error (CryptoFailable(..))
-
-import Debug.Trace
 
 data Encryption = Encryption
   { getCert         :: ByteString
@@ -38,7 +35,6 @@ data Encryption = Encryption
   , getVerifyToken  :: VerifyToken
   } deriving (Show,Eq)
 
-type SharedSecret = ByteString
 type VerifyToken = ByteString
 
 data Key a = Key ByteString

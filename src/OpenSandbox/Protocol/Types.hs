@@ -63,7 +63,6 @@ module OpenSandbox.Protocol.Types
   , UpdateBlockEntityAction (..)
   , EntityStatus (..)
   , GameChangeReason (..)
-  , WindowProperty (..)
   , NBT (..)
   , UpdatedColumns (..)
   , UpdateScoreAction (..)
@@ -599,45 +598,6 @@ instance Enum UpdateBlockEntityAction where
 instance Serialize UpdateBlockEntityAction where
   put ubea = putWord8 (toEnum . fromEnum $ ubea)
   get = (toEnum . fromEnum) <$> getWord8
-
-data WindowProperty
-  = WindowFurnace FurnaceProperty
-  | WindowEnchantmentTable EnchantmentTableProperty
-  | WindowBeacon BeaconProperty
-  | WindowAnvil AnvilProperty
-  | WindowBrewingStand BrewingStandProperty
-  deriving (Show,Eq,Generic)
-
-data FurnaceProperty
-  = FireIcon
-  | MaxBurnTime
-  | ProgressArrow
-  | MaxProgress
-  deriving (Show,Eq,Enum,Generic)
-
-data EnchantmentTableProperty
-  = LvlReqTopSlot
-  | LvlReqMiddleSlot
-  | LvlReqBottomSlot
-  | Seed
-  | TopMouseHover
-  | MiddleMouseHover
-  | BottomMouseHover
-  deriving (Show,Eq,Enum,Generic)
-
-data BeaconProperty
-  = PowerLevel
-  | FirstPotionEffect
-  | SecondPotionEffect
-  deriving (Show,Eq,Enum,Generic)
-
-data AnvilProperty
-  = RepairCost
-  deriving (Show,Eq,Enum,Generic)
-
-data BrewingStandProperty
-  = BrewTime
-  deriving (Show,Eq,Enum,Generic)
 
 data EntityStatus
   = TippedArrowParticles

@@ -27,6 +27,7 @@ library
                             OpenSandbox.Data.Entity
                             OpenSandbox.Data.Instrument
                             OpenSandbox.Data.Item
+                            OpenSandbox.Data.Window
                             OpenSandbox.Data.Yggdrasil
                             OpenSandbox.Event
                             OpenSandbox.Logger

@@ -587,6 +587,7 @@ handlePlay config logger worldClock world history = do
     handle :: TVar [Event] -> Int64 -> SBPlay -> STM (Maybe CBPlay)
     handle eventJournal age packet =
       case packet of
+        SBTeleportConfirm {} -> return Nothing
         SBTabComplete txt shouldAssumeCommand _ ->
           if shouldAssumeCommand
              then case A.parseOnly assumedCommand txt of
@@ -604,7 +605,20 @@ handlePlay config logger worldClock world history = do
           past <- readTVar eventJournal
           writeTVar eventJournal $ (Event age (ChatMessage message 0)):past
           return (Just $ CBChatMessage (Chat message) 0)
+        SBClientStatus {} -> return Nothing
+          -- Request to respawn
+        SBClientSettings {} -> return Nothing
+          -- Config this client's settings with the packet
+        SBConfirmTransaction {} -> return Nothing
+        -- if accepted then performActions else send CBConfirmTransaction false
+        SBEnchantItem {} -> return Nothing
+        SBClickWindow {} -> return Nothing
 
+        -- Data: Window
+        SBCloseWindow {} -> return Nothing
+        SBPluginMessage {} -> return Nothing
+        SBUseEntity {} -> return Nothing
+        SBKeepAlive {} -> return Nothing
         SBPlayerPosition x y z onGround -> do
           past <- readTVar eventJournal
           case fmap getEventCmd . find isLatestPlayerPositionAndLook $ past of
@@ -630,6 +644,22 @@ handlePlay config logger worldClock world history = do
               writeTVar eventJournal $ (Event age (PlayerPositionAndLook x0 y0 z0 yaw pitch onGround)):past
               return Nothing
             Just _ -> undefined
+
+        SBPlayer {} -> return Nothing
+        SBVehicleMove {} -> return Nothing
+        SBSteerBoat {} -> return Nothing
+        SBPlayerAbilities {} -> return Nothing
+        SBPlayerDigging {} -> return Nothing
+        SBEntityAction {} -> return Nothing
+        SBSteerVehicle {} -> return Nothing
+        SBResourcePackStatus {} -> return Nothing
+        SBHeldItemChange {} -> return Nothing
+        SBCreativeInventoryAction {} -> return Nothing
+        SBUpdateSign {} -> return Nothing
+        SBAnimation {} -> return Nothing
+        SBSpectate {} -> return Nothing
+        SBPlayerBlockPlacement {} -> return Nothing
+        SBUseItem {} -> return Nothing
         _ -> return Nothing
       where
         isLatestPlayerPositionAndLook (Event _ PlayerPositionAndLook{}) = True

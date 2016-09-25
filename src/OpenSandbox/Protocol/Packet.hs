@@ -193,7 +193,7 @@ data CBPlay
   | CBCloseWindow Word8
   | CBOpenWindow Word8 (Either Int32 T.Text) Chat Word8
   | CBWindowItems Word8 (V.Vector Slot)
-  | CBWindowProperty Word8 Short Short
+  | CBWindowProperty Word8 Int16 Int16
   | CBSetSlot Int8 Short Slot
   | CBSetCooldown VarInt VarInt
   | CBPluginMessage T.Text B.ByteString
