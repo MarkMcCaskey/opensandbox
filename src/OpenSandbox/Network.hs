@@ -15,6 +15,8 @@ module OpenSandbox.Network
   ( runOpenSandboxServer
   ) where
 
+import Crypto.PubKey.RSA.PKCS15 (decryptSafer,unpad)
+import Crypto.PubKey.RSA.Types
 import qualified Codec.Compression.Zlib as Zlib
 import Control.Applicative
 import Control.Concurrent (threadDelay)
@@ -107,7 +109,7 @@ runOpenSandboxServer server encryption =
             $$ breakupPackets
             =$= deserializePacket
             =$= handleLogin config logger encryption existingUsers
-            =$= serializeLogin
+            =$= serializeLogin logger
             =$= packetSink app
           liftIO $ logMsg logger LvlDebug $ show session
           if (sessionProtoState session) == ProtocolPlay
@@ -115,13 +117,15 @@ runOpenSandboxServer server encryption =
               liftIO $ logMsg logger LvlDebug $ "Beginning Play handling..."
               void $ flip execStateT session
                 $ packetSource app
-                $$ breakupPackets
+                $$ decryptPacket
+                =$= breakupPackets
                 =$= decompressPacket
                 =$= deserializePacket
                 =$= handlePlay config logger worldClock world journal
                 =$= serializePacket
                 =$= compressPacket
                 =$= fmtPacket
+                =$= encryptPacket logger
                 =$= packetSink app
             else liftIO $ logMsg logger LvlDebug $ "Somebody failed login"
         _ -> return ()
@@ -218,46 +222,139 @@ decompressPacket = awaitForever $ \compressedBS -> do
     compressedBS <- getLazyByteString (toEnum r)
     return $ BL.toStrict $ Zlib.decompressWith Zlib.defaultDecompressParams compressedBS
 
-serializeLogin :: Conduit CBLogin (StateT Session IO) B.ByteString
-serializeLogin = do
+encryptPacket :: Logger -> Conduit B.ByteString (StateT Session IO) B.ByteString
+encryptPacket logger = awaitForever $ \packet -> do
+  s <- lift State.get
+  if (sessionEncryptionIsActive s) && (sessionEncryptionIsEnabled s)
+    then do
+      case sessionSharedSecret s of
+        Nothing -> error "Could not get shared secret from session state!"
+        Just sharedSecret -> yield (B.concat . fmap (encrypt sharedSecret) . breakup $ packet)
+    else yield packet
+  where
+    breakup :: B.ByteString -> [B.ByteString]
+    breakup bs = if B.length bs > 16
+                 then (B.take 16 bs):breakup (B.drop 16 bs)
+                 else [bs]
+
+decryptPacket :: Conduit B.ByteString (StateT Session IO) B.ByteString
+decryptPacket = awaitForever $ \packet -> do
+  s <- lift State.get
+  if (sessionEncryptionIsActive s) && (sessionEncryptionIsEnabled s)
+    then do
+      case sessionSharedSecret s of
+        Nothing -> error "Could not get shared secret from session state!"
+        Just sharedSecret -> yield (B.concat . fmap (decrypt sharedSecret) . breakup $ packet)
+    else yield packet
+  where
+    breakup :: B.ByteString -> [B.ByteString]
+    breakup bs = if B.length bs > 16
+                 then (B.take 16 bs):breakup (B.drop 16 bs)
+                 else [bs]
+
+serializeLogin :: Logger -> Conduit CBLogin (StateT Session IO) B.ByteString
+serializeLogin logger = do
   maybePacket <- await
   session <- lift $ State.get
   case maybePacket of
     Nothing -> return ()
     Just (CBSetCompression threshold) -> do
-      handleWithoutCompression (CBSetCompression threshold)
+      handlePlain (CBSetCompression threshold)
       maybeLoginSuccess <- await
       case maybeLoginSuccess of
         Nothing -> return ()
         Just loginSuccess -> do
-          lift $ State.put $
-            Session
-            { sessionProtoState = ProtocolPlay
-            , sessionUsername = (sessionUsername session)
-            , sessionSharedSecret = (sessionSharedSecret session)
-            , sessionVerifyToken = (sessionVerifyToken session)
-            , sessionCompressionIsEnabled = (sessionCompressionIsEnabled session)
-            , sessionEncryptionIsEnabled = (sessionEncryptionIsEnabled session)
-            , sessionCompressionIsActive = True
-            , sessionEncryptionIsActive = (sessionEncryptionIsActive session)
-            }
+          lift $ State.modify $ \s ->
+            s { sessionProtoState = ProtocolPlay
+              , sessionCompressionIsActive = True}
           handleWithCompression loginSuccess
     Just (CBLoginSuccess a b) -> do
-      lift $ State.put $
-        Session
-        { sessionProtoState = ProtocolPlay
-        , sessionUsername = (sessionUsername session)
-        , sessionSharedSecret = (sessionSharedSecret session)
-        , sessionVerifyToken = (sessionVerifyToken session)
-        , sessionCompressionIsEnabled = (sessionCompressionIsEnabled session)
-        , sessionEncryptionIsEnabled = (sessionEncryptionIsEnabled session)
-        , sessionCompressionIsActive = (sessionCompressionIsActive session)
-        , sessionEncryptionIsActive = (sessionEncryptionIsActive session)
-        }
+      lift $ State.modify $ \s ->
+        s {sessionProtoState = ProtocolPlay}
       if (sessionCompressionIsActive session) && (sessionCompressionIsEnabled session)
-        then handleWithCompression (CBLoginSuccess a b)
-        else handleWithoutCompression (CBLoginSuccess a b)
-    Just login -> handleWithoutCompression login
+        then do
+          handleWithCompression (CBLoginSuccess a b)
+        else do
+          handlePlain (CBLoginSuccess a b)
+    Just (CBEncryptionRequest a b c) -> do
+      handlePlain (CBEncryptionRequest a b c)
+      maybePacket <- await
+      case maybePacket of
+        Nothing -> return ()
+        Just (CBSetCompression threshold) -> do
+          s <- lift State.get
+          if (sessionEncryptionIsEnabled s) && (isJust . sessionSharedSecret $ s)
+            then do
+              lift $ State.modify $ \s ->
+                s {sessionEncryptionIsActive = True}
+              handleWithEncryption logger (fromJust . sessionSharedSecret $ s) (CBSetCompression threshold)
+              lift $ State.modify $ \s ->
+                s {sessionCompressionIsActive = True
+                  , sessionEncryptionIsActive = True}
+              maybePacket2 <- await
+              case maybePacket2 of
+                Nothing -> return ()
+                Just (CBLoginSuccess a b) -> do
+                  lift $ State.modify $ \s ->
+                    s { sessionProtoState = ProtocolPlay
+                      , sessionCompressionIsActive = True
+                      , sessionEncryptionIsActive = True}
+                  handleWithBoth (fromJust . sessionSharedSecret $ s) (CBLoginSuccess a b)
+                Just _ -> return ()
+            else do
+              return ()
+        Just (CBLoginSuccess a b) -> do
+          s <- lift State.get
+          if (sessionEncryptionIsEnabled s) && (isJust . sessionSharedSecret $ s)
+            then do
+              lift $ State.modify $ \s ->
+                s { sessionProtoState = ProtocolPlay
+                  , sessionCompressionIsActive = False
+                  , sessionEncryptionIsActive = True}
+              handleWithEncryption logger (fromJust . sessionSharedSecret $ s) (CBLoginSuccess a b)
+            else do
+              lift $ State.modify $ \s ->
+                s { sessionProtoState = ProtocolPlay
+                  , sessionCompressionIsActive = False
+                  , sessionEncryptionIsActive = False}
+              handlePlain (CBLoginSuccess a b)
+
+handleWithCompression :: (Serialize a, Monad m) => a -> ConduitM a B.ByteString m ()
+handleWithCompression bs = do
+  let uncompressedBS = encodeLazy bs
+  let dataLn = runPut . putVarInt . B.length . BL.toStrict $ uncompressedBS
+  let compressedBS = BL.toStrict . Zlib.compress $ uncompressedBS
+  let packetData = dataLn `B.append` compressedBS
+  let packetLn = runPut . putVarInt . B.length $ packetData
+  yield (packetLn `B.append` packetData)
+
+handlePlain :: (Serialize a, Monad m) => a -> ConduitM a B.ByteString m ()
+handlePlain packet = do
+  let bs = encode packet
+  let ln = runPut . putVarInt . B.length $ bs
+  yield (ln `B.append` bs)
+
+handleWithEncryption :: (Serialize a, MonadIO m) => Logger -> B.ByteString -> a -> ConduitM a B.ByteString m ()
+handleWithEncryption logger secret packet = do
+  let bs = (encode packet)
+  let ln = runPut (putVarInt (B.length $ bs))
+  let encrypted = B.concat . fmap (encrypt secret) . breakup $ (ln `B.append` bs)
+  yield encrypted
+  where
+    breakup :: B.ByteString -> [B.ByteString]
+    breakup bs = if B.length bs > 16
+                 then (B.take 16 bs):breakup (B.drop 16 bs)
+                 else [bs]
+
+
+handleWithBoth :: (Serialize a, Monad m) => B.ByteString -> a -> ConduitM a B.ByteString m ()
+handleWithBoth secret bs = do
+  let uncompressedBS = (encodeLazy bs)
+  let dataLn = runPut . putVarInt . B.length . BL.toStrict $ uncompressedBS
+  let compressedBS = BL.toStrict . Zlib.compress $ uncompressedBS
+  let packetData = encrypt secret (dataLn `B.append` compressedBS)
+  let packetLn = runPut . putVarInt . B.length $ packetData
+  yield (packetLn `B.append` packetData)
 
 handleHandshaking :: Logger -> Conduit (SBHandshaking,Maybe SBStatus) (StateT ProtocolState IO) SBStatus
 handleHandshaking logger = awaitForever $ \handshake -> do
@@ -308,6 +405,17 @@ handleLogin config logger encryption existingUsers = awaitForever $ \packet -> d
       SBLoginStart username -> do
         session <- lift State.get
         thisUser <- liftIO $ registerUser existingUsers username
+        lift $ State.put $
+            Session
+            { sessionProtoState = (sessionProtoState session)
+            , sessionUsername = Just username
+            , sessionSharedSecret = (sessionSharedSecret session)
+            , sessionVerifyToken = (sessionVerifyToken session)
+            , sessionCompressionIsEnabled = (sessionCompressionIsEnabled session)
+            , sessionEncryptionIsEnabled = (sessionEncryptionIsEnabled session)
+            , sessionCompressionIsActive = (sessionCompressionIsActive session)
+            , sessionEncryptionIsActive = (sessionEncryptionIsActive session)
+            }
         liftIO $ logMsg logger LvlDebug "Switching protocol state to PLAY"
         if sessionEncryptionIsEnabled session
           then do
@@ -323,17 +431,48 @@ handleLogin config logger encryption existingUsers = awaitForever $ \packet -> d
             liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show loginSuccess
             yield loginSuccess
 
-      SBEncryptionResponse sharedToken token -> do
+      SBEncryptionResponse sharedSecret token -> do
         liftIO $ logMsg logger LvlDebug "Got an encryption response!"
         session <- lift State.get
-        if token == (sessionVerifyToken session)
+        sharedSecret' <- liftIO $ do
+          eitherDecrypted <- decryptSafer (getPrivKey encryption) sharedSecret
+          case eitherDecrypted of
+            Left err -> error (show err)
+            Right decrypted -> return decrypted
+        token' <- liftIO $ do
+          eitherDecrypted <- decryptSafer (getPrivKey encryption) token
+          case eitherDecrypted of
+            Left err -> error (show err)
+            Right decrypted -> return decrypted
+        if token' == (sessionVerifyToken session)
           then do
+            lift $ State.put $
+              Session
+                { sessionProtoState = (sessionProtoState session)
+                , sessionUsername = (sessionUsername session)
+                , sessionSharedSecret = Just sharedSecret'
+                , sessionVerifyToken = (sessionVerifyToken session)
+                , sessionCompressionIsEnabled = (sessionCompressionIsEnabled session)
+                , sessionEncryptionIsEnabled = (sessionEncryptionIsEnabled session)
+                , sessionCompressionIsActive = (sessionCompressionIsActive session)
+                , sessionEncryptionIsActive = (sessionEncryptionIsActive session)
+                }
             thisUser <- liftIO $ registerUser existingUsers (fromJust $ sessionUsername session)
             when (sessionCompressionIsEnabled session) $ do
               let setCompression = CBSetCompression 0
               liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show setCompression
               yield setCompression
-              lift . State.put $ Session {sessionCompressionIsActive = True}
+              lift $ State.put $
+                Session
+                { sessionProtoState = (sessionProtoState session)
+                , sessionUsername = (sessionUsername session)
+                , sessionSharedSecret = Just sharedSecret'
+                , sessionVerifyToken = (sessionVerifyToken session)
+                , sessionCompressionIsEnabled = (sessionCompressionIsEnabled session)
+                , sessionEncryptionIsEnabled = (sessionEncryptionIsEnabled session)
+                , sessionCompressionIsActive = True
+                , sessionEncryptionIsActive = (sessionEncryptionIsActive session)
+                }
             let loginSuccess = CBLoginSuccess (getUserUUID thisUser) (getUserName thisUser)
             liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show loginSuccess
             yield loginSuccess
@@ -443,6 +582,7 @@ handlePlay config logger worldClock world history = do
         when (mod t 40 == 0) $ do
           liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show (CBKeepAlive 5346)
           yield (CBKeepAlive 5346)
+
   where
     handle :: TVar [Event] -> Int64 -> SBPlay -> STM (Maybe CBPlay)
     handle eventJournal age packet =

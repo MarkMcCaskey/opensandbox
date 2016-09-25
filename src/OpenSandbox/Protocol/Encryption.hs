@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 -------------------------------------------------------------------------------
 -- |
 -- Module       : OpenSandbox.Protocol.Encryption
@@ -19,11 +20,16 @@ import Data.ASN1.BinaryEncoding
 import Data.ASN1.Encoding
 import Data.ASN1.Types hiding (End)
 import Data.ByteString (ByteString,pack)
+import qualified Data.ByteString as B
 import Data.X509
+import Data.Word
 import Crypto.Cipher.AES (AES128)
+import Crypto.Hash
 import Crypto.PubKey.RSA
-import Crypto.Cipher.Types (BlockCipher(..), Cipher(..),makeIV)
+import Crypto.Cipher.Types (BlockCipher(..), Cipher(..),makeIV,nullIV)
 import Crypto.Error (CryptoFailable(..))
+
+import Debug.Trace
 
 data Encryption = Encryption
   { getCert         :: ByteString
@@ -38,11 +44,11 @@ type VerifyToken = ByteString
 data Key a = Key ByteString
 
 encrypt :: ByteString -> ByteString -> ByteString
-encrypt sharedSecret = ctrCombine ctx customIV
+encrypt sharedSecret bs = cfbEncrypt ctx customIV bs
   where
     ctx = cipherInitNoErr (cipherMakeKey (undefined :: AES128) sharedSecret)
     customIV =
-      case makeIV sharedSecret of
+      case makeIV (updateIV sharedSecret (B.head bs)) of
         Nothing -> error "Something went wrong"
         Just iv -> iv
     cipherInitNoErr :: BlockCipher c => Key c -> c
@@ -55,6 +61,9 @@ encrypt sharedSecret = ctrCombine ctx customIV
 
 decrypt :: ByteString -> ByteString -> ByteString
 decrypt = encrypt
+
+updateIV :: ByteString -> Word8 -> ByteString
+updateIV iv dat = B.tail iv `B.snoc` dat
 
 configEncryption :: IO Encryption
 configEncryption = do
