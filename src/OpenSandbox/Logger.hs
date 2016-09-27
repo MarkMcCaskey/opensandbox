@@ -31,10 +31,10 @@ import qualified Data.Text as T
 import System.Log.FastLogger
 
 data Logger = Logger
-  { _lChan       :: Chan (Loc, LogSource, LogLevel, LogStr)
-  , _lTimeCache  :: IO FormattedTime
-  , _lSpec       :: FileLogSpec
-  , _lLvl        :: Lvl
+  { _lInbox :: Chan (Loc, LogSource, LogLevel, LogStr)
+  , _lTimeCache :: IO FormattedTime
+  , _lSpec :: FileLogSpec
+  , _lLvl :: Lvl
   }
 
 newLogger :: FileLogSpec -> Lvl -> IO Logger
@@ -58,7 +58,7 @@ instance ToLogStr Lvl where
   toLogStr = toLogStr . show
 
 logIO :: Logger -> T.Text -> Lvl -> T.Text -> IO ()
-logIO logger src lvl msg = when (lvl >= (_lLvl logger)) $ runChanLoggingT (_lChan logger) $ logFrom src lvl msg
+logIO logger src lvl msg = when (lvl >= (_lLvl logger)) $ runChanLoggingT (_lInbox logger) $ logFrom src lvl msg
 
 logFrom :: MonadLogger m => T.Text -> Lvl -> T.Text -> m ()
 logFrom src lvl msg = logOtherNS src convertedLvl msg

@@ -557,7 +557,7 @@ handlePlay config logger worldClock world history = do
   liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show setSlotPacket
   yield setSlotPacket
 
-  mapM_ (yield . CBChunkData) $ ML.elems world
+  mapM_ (yield . CBChunkData) $ pullWorld world
 
   awaitForever $ \packet -> do
         liftIO $ threadDelay 10000
@@ -603,45 +603,40 @@ handlePlay config logger worldClock world history = do
 
         SBChatMessage message -> do
           past <- readTVar eventJournal
-          writeTVar eventJournal $ (Event age (ChatMessage message 0)):past
+          writeTVar eventJournal $ (ChatMessage age message 0):past
           return (Just $ CBChatMessage (Chat message) 0)
         SBClientStatus {} -> return Nothing
-          -- Request to respawn
         SBClientSettings {} -> return Nothing
-          -- Config this client's settings with the packet
         SBConfirmTransaction {} -> return Nothing
-        -- if accepted then performActions else send CBConfirmTransaction false
         SBEnchantItem {} -> return Nothing
         SBClickWindow {} -> return Nothing
-
-        -- Data: Window
         SBCloseWindow {} -> return Nothing
         SBPluginMessage {} -> return Nothing
         SBUseEntity {} -> return Nothing
         SBKeepAlive {} -> return Nothing
         SBPlayerPosition x y z onGround -> do
           past <- readTVar eventJournal
-          case fmap getEventCmd . find isLatestPlayerPositionAndLook $ past of
+          case find isLatestPlayerPositionAndLook past of
             Nothing ->
-              writeTVar eventJournal [Event age (PlayerPositionAndLook x y z 0 0 True)]
-            Just (PlayerPositionAndLook _ _ _ yaw pitch _) ->
-              writeTVar eventJournal $ (Event age (PlayerPositionAndLook x y z yaw pitch onGround)):past
+              writeTVar eventJournal [(PlayerPositionAndLook age x y z 0 0 True)]
+            Just (PlayerPositionAndLook _  _ _ _ yaw pitch _) ->
+              writeTVar eventJournal $ (PlayerPositionAndLook age x y z yaw pitch onGround):past
             Just _ -> undefined
           return Nothing
 
         SBPlayerPositionAndLook x y z yaw pitch onGround -> do
           past <- readTVar eventJournal
-          writeTVar eventJournal $ (Event age (PlayerPositionAndLook x y z yaw pitch onGround)):past
+          writeTVar eventJournal $ (PlayerPositionAndLook age x y z yaw pitch onGround):past
           return Nothing
 
         SBPlayerLook yaw pitch onGround -> do
           past <- readTVar eventJournal
-          case fmap getEventCmd . find isLatestPlayerPositionAndLook $ past of
+          case find isLatestPlayerPositionAndLook past of
             Nothing -> do
-              writeTVar eventJournal [Event age (PlayerPositionAndLook 0 0 0 yaw pitch onGround)]
+              writeTVar eventJournal [(PlayerPositionAndLook age 0 0 0 yaw pitch onGround)]
               return Nothing
-            Just (PlayerPositionAndLook x0 y0 z0 _ _ _) -> do
-              writeTVar eventJournal $ (Event age (PlayerPositionAndLook x0 y0 z0 yaw pitch onGround)):past
+            Just (PlayerPositionAndLook _ x0 y0 z0 _ _ _) -> do
+              writeTVar eventJournal $ (PlayerPositionAndLook age x0 y0 z0 yaw pitch onGround):past
               return Nothing
             Just _ -> undefined
 
@@ -660,9 +655,8 @@ handlePlay config logger worldClock world history = do
         SBSpectate {} -> return Nothing
         SBPlayerBlockPlacement {} -> return Nothing
         SBUseItem {} -> return Nothing
-        _ -> return Nothing
       where
-        isLatestPlayerPositionAndLook (Event _ PlayerPositionAndLook{}) = True
+        isLatestPlayerPositionAndLook PlayerPositionAndLook{} = True
         isLatestPlayerPositionAndLook _ = False
 
 assumedCommand :: A.Parser T.Text
@@ -680,7 +674,7 @@ availableCommands :: [T.Text]
 availableCommands = ["/rewind","/help"]
 
 eventToCBPlay :: Event -> CBPlay
-eventToCBPlay (Event age (PlayerPositionAndLook x y z yaw pitch _)) =
+eventToCBPlay (PlayerPositionAndLook age x y z yaw pitch _) =
   CBPlayerPositionAndLook x y z yaw pitch 0 (fromEnum age)
-eventToCBPlay (Event _ (ChatMessage message position)) =
+eventToCBPlay (ChatMessage _ message position) =
   CBChatMessage (Chat message) position

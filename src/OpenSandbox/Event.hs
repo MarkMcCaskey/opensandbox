@@ -10,18 +10,14 @@
 -------------------------------------------------------------------------------
 module OpenSandbox.Event
   ( Event (..)
-  , Command (..)
   ) where
 
 import qualified Data.Text as T
 import Data.Int
 
-data Event = Event
-  { getEventTick :: Int64
-  , getEventCmd :: Command
-  } deriving (Show,Eq)
+type Tick = Int64
 
-data Command
-  = PlayerPositionAndLook Double Double Double Float Float Bool
-  | ChatMessage T.Text Int8
+data Event
+  = PlayerPositionAndLook Tick Double Double Double Float Float Bool
+  | ChatMessage Tick T.Text Int8
   deriving (Show,Eq)

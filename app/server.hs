@@ -12,7 +12,7 @@
 -------------------------------------------------------------------------------
 
 import Control.Concurrent
-import Control.Concurrent.STM.TVar
+import Control.Concurrent.STM
 import Control.Monad
 import qualified Data.Text as T
 import qualified Data.Map.Strict as MS
@@ -107,9 +107,8 @@ main = do
 
           eitherGameData <- loadGameData
 
-          -- World Gen Step
           logMsg logger LvlInfo "Generating world..."
-          let eitherWorld = genWorld Flat config logger
+          eitherWorld <- atomically $ newWorld Flat config
 
           -- User Store
           existingUsers <- newTVarIO MS.empty
@@ -118,7 +117,7 @@ main = do
 
           case eitherGameData of
             Left err -> print err
-            Right _ ->
+            Right gameData ->
               case eitherWorld of
                 Left err -> print err
                 Right world -> do
