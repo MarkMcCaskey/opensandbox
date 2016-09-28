@@ -14,7 +14,6 @@ import OpenSandbox.Config             as O
 import OpenSandbox.Data               as O
 import OpenSandbox.Event              as O
 import OpenSandbox.Logger             as O
-import OpenSandbox.Network            as O
 import OpenSandbox.Protocol           as O
 import OpenSandbox.Rules              as O
 import OpenSandbox.Server             as O

@@ -31,10 +31,14 @@ library
                             OpenSandbox.Data.Yggdrasil
                             OpenSandbox.Event
                             OpenSandbox.Logger
-                            OpenSandbox.Network
                             OpenSandbox.Protocol
                             OpenSandbox.Protocol.Compression
                             OpenSandbox.Protocol.Encryption
+                            OpenSandbox.Protocol.Handle
+                            OpenSandbox.Protocol.Handle.Handshaking
+                            OpenSandbox.Protocol.Handle.Login
+                            OpenSandbox.Protocol.Handle.Play
+                            OpenSandbox.Protocol.Handle.Status
                             OpenSandbox.Protocol.Packet
                             OpenSandbox.Protocol.Types
                             OpenSandbox.Rules
@@ -89,6 +93,8 @@ executable server
     build-depends:          aeson,
                             base,
                             bytestring,
+                            conduit,
+                            conduit-extra,
                             containers,
                             directory,
                             ekg,
@@ -96,6 +102,7 @@ executable server
                             path,
                             stm,
                             text,
+                            transformers,
                             unordered-containers
     default-language:       Haskell2010
 
@@ -116,7 +123,6 @@ test-suite opensandbox-test
                             OpenSandbox.Data.ItemSpec
                             OpenSandbox.Data.YggdrasilSpec
                             OpenSandbox.LoggerSpec
-                            OpenSandbox.NetworkSpec
                             OpenSandbox.Protocol.PacketSpec
                             OpenSandbox.Protocol.TypesSpec
                             OpenSandbox.UserSpec

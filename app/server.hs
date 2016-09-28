@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE BangPatterns #-}
 -------------------------------------------------------------------------------
 -- |
 -- File         : server.hs
@@ -14,6 +13,11 @@
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad
+import Control.Monad.IO.Class
+import Control.Monad.Trans.State.Lazy
+import qualified Data.ByteString as B
+import Data.Conduit
+import Data.Conduit.Network
 import qualified Data.Text as T
 import qualified Data.Map.Strict as MS
 import OpenSandbox
@@ -23,7 +27,7 @@ import System.Exit
 import qualified System.Remote.Monitoring as Ekg
 
 logMsg :: Logger -> Lvl -> String -> IO ()
-logMsg logger lvl msg = logIO logger "Main" lvl (T.pack msg)
+logMsg logger lvl msg = logIO logger "Server" lvl (T.pack msg)
 
 main :: IO ()
 main = do
@@ -60,7 +64,6 @@ main = do
 
     configFileExists <- doesFileExist (toFilePath configFilePath)
     unless configFileExists $ writeDefaultConfig (toFilePath configFilePath) config2
-
 
     potentialConfig <- loadConfig configFilePath
     case potentialConfig of
@@ -125,3 +128,88 @@ main = do
                   _ <- forkIO $ tick worldClock
                   let server = Server config logger worldClock world existingUsers history
                   runOpenSandboxServer server encryption
+
+runOpenSandboxServer :: Server -> Encryption -> IO ()
+runOpenSandboxServer server encryption =
+    runTCPServer (serverSettings (srvPort config) "*") $ \app -> do
+      firstState <- flip execStateT ProtocolHandshake
+        $ packetSource app
+        $$ deserializeHandshaking
+        =$= handleHandshaking logger
+        =$= handleStatus config logger
+        =$= serializePacket
+        =$= fmtPacket
+        =$= packetSink app
+      liftIO $ logMsg logger LvlDebug $ "Somebody's handshaking!"
+      case firstState of
+        ProtocolStatus -> do
+          liftIO $ logMsg logger LvlDebug $ "Beginning Status handling..."
+          _ <- flip execStateT ProtocolStatus
+            $ packetSource app
+            $$ breakupPackets
+            =$= deserializePacket
+            =$= handleStatus config logger
+            =$= serializePacket
+            =$= fmtPacket
+            =$= packetSink app
+          liftIO $ logMsg logger LvlDebug $ "Somebody's pinging!"
+          _ <- flip execStateT ProtocolStatus
+            $ packetSource app
+            $$ breakupPackets
+            =$= deserializePacket
+            =$= handleStatus config logger
+            =$= serializePacket
+            =$= fmtPacket
+            =$= packetSink app
+          return ()
+        ProtocolLogin -> do
+          liftIO $ logMsg logger LvlDebug $ "Beginning Login handling..."
+          let freshSession = Session
+                { sessionProtoState = ProtocolLogin
+                , sessionUsername = Nothing
+                , sessionSharedSecret = Nothing
+                , sessionVerifyToken = (getVerifyToken encryption)
+                , sessionCompressionIsEnabled = (srvCompression config)
+                , sessionEncryptionIsEnabled = (srvEncryption config)
+                , sessionCompressionIsActive = False
+                , sessionEncryptionIsActive = False
+                }
+          session <- flip execStateT freshSession
+            $ packetSource app
+            $$ breakupPackets
+            =$= deserializePacket
+            =$= handleLogin logger encryption existingUsers
+            =$= serializeLogin
+            =$= packetSink app
+          liftIO $ logMsg logger LvlDebug $ show session
+          if (sessionProtoState session) == ProtocolPlay
+            then do
+              liftIO $ logMsg logger LvlDebug $ "Beginning Play handling..."
+              void $ flip execStateT session
+                $ packetSource app
+                $$ decryptPacket
+                =$= breakupPackets
+                =$= decompressPacket
+                =$= deserializePacket
+                =$= handlePlay config logger worldClock world journal
+                =$= serializePacket
+                =$= compressPacket
+                =$= fmtPacket
+                =$= encryptPacket
+                =$= packetSink app
+            else liftIO $ logMsg logger LvlDebug $ "Somebody failed login"
+        _ -> return ()
+  where
+    config = srvConfig server
+    logger = srvLogger server
+    worldClock = srvWorldClock server
+    world = srvWorld server
+    existingUsers = srvUserCache server
+    journal = srvEventJournal server
+
+packetSource  :: MonadIO m => AppData -> Source m B.ByteString
+packetSource app = transPipe liftIO $ appSource app
+
+packetSink  :: MonadIO m => AppData -> Sink B.ByteString m ()
+packetSink app = transPipe liftIO $ appSink app
+
