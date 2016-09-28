@@ -141,11 +141,7 @@ instance Serialize CBLogin where
     packetID <- getWord8
     case packetID of
       0x00 -> CBLoginDisconnect <$> getText
-      0x01 -> do
-        srvID <- getText
-        publicKey <- getNetcodeByteString
-        verifyToken <- getNetcodeByteString
-        return $ CBEncryptionRequest srvID publicKey verifyToken
+      0x01 -> CBEncryptionRequest <$> getText <*> getNetcodeByteString <*> getNetcodeByteString
       0x02 -> CBLoginSuccess <$> getUUID <*> getText
       0x03 -> CBSetCompression <$> getVarInt
       err -> fail $ "Error: Unrecognized packetID: " ++ show err

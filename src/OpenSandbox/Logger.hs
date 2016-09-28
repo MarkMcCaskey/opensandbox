@@ -85,7 +85,7 @@ level (LevelOther lvl) = toLogStr lvl
 customLogStr :: FormattedTime -> Loc -> LogSource -> LogLevel -> LogStr -> LogStr
 customLogStr t _ b c d = "[" <> toLogStr t <> " " <> toLogStr b <> "/" <> level c <> "]" <> " " <> d <> "\n"
 
-customOutput:: LogType -> IO FormattedTime -> Loc -> LogSource -> LogLevel -> LogStr -> IO ()
+customOutput :: LogType -> IO FormattedTime -> Loc -> LogSource -> LogLevel -> LogStr -> IO ()
 customOutput logType timeCache loc src lvl msg = do
   t <- timeCache
   withFastLogger logType (customLogger (ls t))
