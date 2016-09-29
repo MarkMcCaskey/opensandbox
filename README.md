@@ -14,6 +14,12 @@
       src="https://ci.appveyor.com/api/projects/status/ox9dg4awdh09wih1">
   </a>
 </p>
+<p align="center">
+  <a href="http://minecraft.gamepedia.com/1.10">
+    <img alt="Minecraft Version"
+      src="https://img.shields.io/badge/Minecraft%20Version-1.10-blue.svg?style=flat-square">
+  </a>
+</p>
 
 <p align="center">
   A modular, user-centric, concurrent Minecraft Server.
