@@ -191,7 +191,7 @@ runOpenSandboxServer server encryption =
                 =$= breakupPackets
                 =$= decompressPacket
                 =$= deserializePacket
-                =$= handlePlay config logger worldClock world journal
+                =$= handlePlay config logger worldClock world journal existingUsers
                 =$= serializePacket
                 =$= compressPacket
                 =$= fmtPacket

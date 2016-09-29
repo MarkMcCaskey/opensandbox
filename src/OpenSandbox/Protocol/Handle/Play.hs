@@ -19,11 +19,14 @@ import Control.Concurrent.STM.TVar
 import Control.Monad
 import Control.Monad.STM
 import Control.Monad.IO.Class
-import Control.Monad.Trans.State.Lazy
+import Control.Monad.Trans.Class
+import Control.Monad.Trans.State.Lazy (StateT)
+import qualified Control.Monad.Trans.State.Lazy as State
 import qualified Data.Attoparsec.Text as A
 import Data.Conduit
 import Data.Int
 import Data.List
+import qualified Data.Map.Strict as MS
 import Data.NBT
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -35,44 +38,23 @@ import OpenSandbox.Logger
 import OpenSandbox.Protocol.Packet (CBPlay(..),SBPlay(..))
 import OpenSandbox.Protocol.Types
 import OpenSandbox.Time
+import OpenSandbox.User
 import OpenSandbox.World
 
 logMsg :: Logger -> Lvl -> String -> IO ()
 logMsg logger lvl msg = logIO logger "OpenSandbox.Protocol.Handle.Play" lvl (T.pack msg)
 
-handlePlay  :: Config -> Logger -> WorldClock -> World -> TVar [Event] -> Conduit SBPlay (StateT Session IO) CBPlay
-handlePlay config logger worldClock world history = do
-  someUUID <- liftIO nextRandom
-  sendAndLog $
-        CBJoinGame
-          2566
-          (srvGameMode config)
-          (srvDimension config)
-          (srvDifficulty config)
-          (srvMaxPlayers config)
-          (T.pack . show $ srvWorldType config)
-          True
-  sendAndLog $ CBPluginMessage "MC|Brand" (encodeUtf8 "opensandbox")
-  sendAndLog $ CBPluginMessage "REGISTER" (encodeUtf8 "MC|Brand")
-  sendAndLog $ CBServerDifficulty (srvDifficulty config)
-  sendAndLog $ CBSpawnPosition 0
-  sendAndLog $ CBPlayerAbilities 0 1028443341 0
-  sendAndLog $ CBHeldItemChange 0
-  sendAndLog $ CBEntityStatus 32 AnimalInLove
-  sendAndLog $ CBStatistics []
-  sendAndLog $ CBPlayerListItem $
-    PlayerListAdds
-      [ PlayerListAdd someUUID "oldmanmike" [] Survival 0 Nothing
-      ]
-  sendAndLog $ CBPlayerPositionAndLook 0 4 0 0 0 0 777
-  sendAndLog $ CBWorldBorder $
-    Initialize 0 0 4723321873536909312 4723321873536909312 0 29999984 5 15
-  worldAge <- liftIO $ getWorldAge worldClock
-  worldTime <- liftIO $ getWorldTime worldClock
-  sendAndLog $ CBTimeUpdate worldAge worldTime
-  sendAndLog $ CBWindowItems 0 (V.replicate 46 (mkSlot (-1) 1 1 (NBT "" (ByteTag 0))))
-  sendAndLog $ CBSetSlot (-1) (-1) (mkSlot (-1) 1 1 (NBT "" (ByteTag 0)))
-  mapM_ (yield . CBChunkData) $ pullWorld world
+handlePlay  :: Config -> Logger -> WorldClock -> World -> TVar [Event] -> TVar UserStore -> Conduit SBPlay (StateT Session IO) CBPlay
+handlePlay config logger worldClock world history userStore = do
+  session <- lift $ State.get
+  userStore <- liftIO $ readTVarIO userStore
+  user <- case sessionUsername session of
+            Nothing -> error "NO USERNAME FOUND IN SESSION!"
+            Just username ->
+              case MS.lookup username userStore of
+                Nothing -> error "NO USER FOUND IN USERSTORE!"
+                Just user -> return user
+  serveGameState config user
 
   awaitForever $ \packet -> do
         liftIO $ threadDelay 10000
@@ -92,11 +74,45 @@ handlePlay config logger worldClock world history = do
         when (mod t 20 == 0) $ sendAndLog $ CBTimeUpdate age t
         when (mod t 40 == 0) $ sendAndLog $ CBKeepAlive 5346
 
+
   where
     sendAndLog :: MonadIO m => CBPlay -> Conduit SBPlay m CBPlay
     sendAndLog packet = do
       liftIO $ logMsg logger LvlDebug $ "Sending: " ++ show packet
       yield packet
+
+    serveGameState :: MonadIO m => Config -> User -> Conduit SBPlay m CBPlay
+    serveGameState config user = do
+      sendAndLog $
+        CBJoinGame
+          2566
+          (srvGameMode config)
+          (srvDimension config)
+          (srvDifficulty config)
+          (srvMaxPlayers config)
+          (T.pack . show $ srvWorldType config)
+          True
+      sendAndLog $ CBPluginMessage "MC|Brand" (encodeUtf8 "opensandbox")
+      sendAndLog $ CBPluginMessage "REGISTER" (encodeUtf8 "MC|Brand")
+      sendAndLog $ CBServerDifficulty (srvDifficulty config)
+      sendAndLog $ CBSpawnPosition 0
+      sendAndLog $ CBPlayerAbilities 0 1028443341 0
+      sendAndLog $ CBHeldItemChange 0
+      sendAndLog $ CBEntityStatus 32 AnimalInLove
+      sendAndLog $ CBStatistics []
+      sendAndLog $ CBPlayerListItem $
+        PlayerListAdds
+          [ PlayerListAdd (getUserUUID user) (getUserName user) [] Survival 0 Nothing
+          ]
+      sendAndLog $ CBPlayerPositionAndLook 0 4 0 0 0 0 777
+      sendAndLog $ CBWorldBorder $
+        Initialize 0 0 4723321873536909312 4723321873536909312 0 29999984 5 15
+      worldAge <- liftIO $ getWorldAge worldClock
+      worldTime <- liftIO $ getWorldTime worldClock
+      sendAndLog $ CBTimeUpdate worldAge worldTime
+      sendAndLog $ CBWindowItems 0 (V.replicate 46 (mkSlot (-1) 1 1 (NBT "" (ByteTag 0))))
+      sendAndLog $ CBSetSlot (-1) (-1) (mkSlot (-1) 1 1 (NBT "" (ByteTag 0)))
+      mapM_ (yield . CBChunkData) $ pullWorld world
 
     handle :: TVar [Event] -> Int64 -> SBPlay -> STM (Maybe CBPlay)
     handle eventJournal age packet =
